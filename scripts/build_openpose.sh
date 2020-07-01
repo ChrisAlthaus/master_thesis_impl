@@ -3,6 +3,7 @@
 
 git submodule update --init --recursive --remote
 
+mkdir bin
 mkdir build
 cd build
 
