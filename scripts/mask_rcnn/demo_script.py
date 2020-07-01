@@ -8,7 +8,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 # Root directory of the project
-ROOT_DIR = os.path.abspath("../")
+ROOT_DIR = os.path.abspath(os.getcwd())
 
 #Create output folder for images
 try:
@@ -17,7 +17,7 @@ except OSError:
     print ("Creation of the directory %s failed" % os.path.join(ROOT_DIR, "output"))
 else:
     print ("Successfully created the directory %s " % os.path.join(ROOT_DIR, "output"))
-
+print(ROOT_DIR)
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
 from mrcnn import utils
@@ -27,7 +27,7 @@ from mrcnn import visualize
 sys.path.append(os.path.join(ROOT_DIR, "samples/coco/"))  # To find local version
 import coco
 
-%matplotlib inline 
+#%matplotlib inline 
 
 # Directory to save logs and trained model
 MODEL_DIR = os.path.join(ROOT_DIR, "logs")
