@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+#Model folder content
+deeplab/
+
+#No training or test data
+*.jpg
