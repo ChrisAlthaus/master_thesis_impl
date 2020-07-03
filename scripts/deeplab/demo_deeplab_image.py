@@ -107,7 +107,7 @@ def label_to_color_image(label):
   return colormap[label]
 
 
-def vis_segmentation(image, seg_map):
+def vis_segmentation(image, seg_map,filename):
   """Visualizes input image, segmentation map and overlay view."""
   plt.figure(figsize=(15, 5))
   grid_spec = gridspec.GridSpec(1, 4, width_ratios=[6, 6, 6, 1])
@@ -138,7 +138,8 @@ def vis_segmentation(image, seg_map):
   plt.xticks([], [])
   ax.tick_params(width=0.0)
   plt.grid('off')
-  plt.show()
+  #plt.show()
+  plt.savefig(os.path.join('out',filename))
 
 
 LABEL_NAMES = np.asarray([
@@ -177,3 +178,11 @@ print('download completed! loading DeepLab model...')
 
 MODEL = DeepLabModel(download_path)
 print('model loaded successfully!')
+
+filenames = os.listdir('../../artTestImages/')
+for f in filenames:
+  image = Image.open(os.path.join('../../artTestImages/', f), mode='r')
+  resized_image, seg_map = MODEL.run(image)
+  vis_segmentation(resized_image, seg_map,f)
+#Image.fromarray((seg_image* 255).astype(np.uint8)).save('out/11125_seg.jpg','JPEG')
+#Image.fromarray(resized_image).save('out/11125_resized.jpg','JPEG')
