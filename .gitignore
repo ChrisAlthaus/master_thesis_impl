@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 #Model folder content
-deeplab/
+/deeplab/
 
 #No training or test data
 *.jpg
