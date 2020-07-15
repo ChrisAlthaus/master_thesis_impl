@@ -1,3 +1,4 @@
+#Run from root directory with folder deeplab
 import os
 from io import BytesIO
 import tarfile
@@ -152,7 +153,7 @@ FULL_LABEL_MAP = np.arange(len(LABEL_NAMES)).reshape(len(LABEL_NAMES), 1)
 FULL_COLOR_MAP = label_to_color_image(FULL_LABEL_MAP)
 
 
-MODEL_NAME = 'mobilenetv2_coco_voctrainaug'  # @param ['mobilenetv2_coco_voctrainaug', 'mobilenetv2_coco_voctrainval', 'xception_coco_voctrainaug', 'xception_coco_voctrainval']
+MODEL_NAME = 'xception_coco_voctrainaug' # @param ['mobilenetv2_coco_voctrainaug', 'mobilenetv2_coco_voctrainval', 'xception_coco_voctrainaug', 'xception_coco_voctrainval']
 
 _DOWNLOAD_URL_PREFIX = 'http://download.tensorflow.org/models/'
 _MODEL_URLS = {
@@ -180,8 +181,12 @@ MODEL = DeepLabModel(download_path)
 print('model loaded successfully!')
 
 filenames = os.listdir('../../artTestImages/')
+#filenames = os.listdir('../../testImages/pascalvoc2012/')
+
 for f in filenames:
   image = Image.open(os.path.join('../../artTestImages/', f), mode='r')
+  #image = Image.open(os.path.join('../../testImages/pascalvoc2012/', f), mode='r')
+
   resized_image, seg_map = MODEL.run(image)
   vis_segmentation(resized_image, seg_map,f)
 #Image.fromarray((seg_image* 255).astype(np.uint8)).save('out/11125_seg.jpg','JPEG')
