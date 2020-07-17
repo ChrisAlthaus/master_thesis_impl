@@ -133,3 +133,7 @@ dmypy.json
 
 #No training or test data
 *.jpg
+testImages
+
+#VSCode
+.vscode
