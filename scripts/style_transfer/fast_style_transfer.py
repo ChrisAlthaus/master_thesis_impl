@@ -1,7 +1,8 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import tensorflow as tf
-tf.enable_eager_execution()
+#Enable for tensorflow<2.0
+#tf.enable_eager_execution() 
 
 #import IPython.display as display
 
@@ -84,7 +85,7 @@ def load_img(path_to_img,scale=False,resize_shape=None):
 		#new_shape = tf.cast(shape * scale, tf.int32) #TODO: maybe crop better than resize
 
 		new_shape = tf.cast(resize_shape[:-1], tf.int32)[1:]
-		print(new_shape)
+		#print(new_shape)
 		img = tf.image.resize(img, new_shape)
 		
 	img = img[tf.newaxis, :]
@@ -144,7 +145,7 @@ num_counter = 0
 # create stylished images for each base image
 for img_path in image_paths:
 	#print("Stylize image ", os.path.basename(img_path))
-	print("\nContent image ", img_path)
+	#print("\nContent image ", img_path)
 
 	style_select = style_paths[np.random.choice(len(style_paths), size=num_styles, replace=False)]
 	
@@ -170,7 +171,7 @@ for img_path in image_paths:
 	
 		stylized_image = hub_module(tf.constant(content_image), tf.constant(style_image))[0]	
 		output_img = tensor_to_image(stylized_image)
-		print(type(output_img.size))
+		#print(type(output_img.size))
 		logging.debug("Shape Output Image: %s"%str(output_img.size))
 		output_img.save(out_img_path)
 	
