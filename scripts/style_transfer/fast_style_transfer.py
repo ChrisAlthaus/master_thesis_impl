@@ -153,7 +153,11 @@ for img_path in image_paths:
 
 	for style_path in style_select:
 		logging.debug("Style image path: %s"%style_path)
-		file_name = os.path.basename(img_path).replace('.jpg','') + '_' + os.path.basename(style_path)
+		
+		#Filename: contentImNumber (coco=12digits) _ styleImNumber(painterByNumbers=6digits)
+		style_filename = os.path.basename(style_path)
+		style_im_number = "%06d"%int(os.path.splitext(style_filename)[0])
+		file_name = os.path.basename(img_path).replace('.jpg','') + '_' + str(style_im_number) + os.path.splitext(style_filename)[1] 
 
 		out_img_path = os.path.join(args.output, file_name)
 		logging.debug("Output file path: %s"%out_img_path)

@@ -60,8 +60,10 @@ for image_entry in images:
         for style_filename in cocoToStyle[filename]:
             styleImName = filename+'_'+style_filename
             print(styleImName)
-            image_entry['file_name'] = str(int(hashlib.md5(styleImName.encode('utf-8')).hexdigest(), 16)) + '.jpg'
-            image_entry['id'] = int(hashlib.md5(styleImName.encode('utf-8')).hexdigest(), 16)
+            image_entry['file_name'] = styleImName + '.jpg'
+            #image_entry['id'] = int(hashlib.md5(styleImName.encode('utf-8')).hexdigest(), 16)
+            image_entry['id'] = int("%s%s"%(filename,style_filename))
+
             
             image_annotations_updated['images'].append(copy.copy(image_entry))
         image_ids_added.append(image_entry['id'])
@@ -93,9 +95,13 @@ for i in range(len(annotations)):
                 annotation_entry = annotations[i]
                 styleImName = content_filename+'_'+style_filename
                 print(styleImName)
-                annotation_entry.update({'image_id':int(hashlib.md5(styleImName.encode('utf-8')).hexdigest(), 16)})
+                print(int("%s%s"%(content_filename,style_filename)))
+                #annotation_entry.update({'image_id':int(hashlib.md5(styleImName.encode('utf-8')).hexdigest(), 16)})
+                annotation_entry.update({'image_id':int("%s%s"%(content_filename,style_filename))})
+
+
                 annotations_of_image_id.append(copy.copy(annotation_entry))
-            annotations_updated['annotations'].append(copy.copy(annotations_of_image_id))
+            annotations_updated['annotations'].extend(copy.copy(annotations_of_image_id))
         
 
 """for i in range(len(annotations)):
