@@ -31,7 +31,8 @@ parser.add_argument('-styles', '--pathStyles', required=True, help='path to dir 
 parser.add_argument('-images', '--pathImages', required=True, help='path to dir of images')
 parser.add_argument('-dFile', '--dFile', default=None, help='run style transfer only on list of input directories')
 parser.add_argument('-o', '--output', required=True, help='output path for stylished images')
-parser.add_argument('-n', '--numStyles', required=True, help='number of styles to apply to each image')
+parser.add_argument('-nC', '--numContents', required=True, help='number of content/base images')
+parser.add_argument('-nS', '--numStyles', required=True, help='number of styles to apply to each image')
 parser.add_argument('-add','--add', default=False, action='store_true')
 parser.add_argument('-dimS','--dimStyle', default=256, type=int, help='dimension used for scaling style image, NOT USED')
 parser.add_argument('-dimC','--dimContent', default=1024, type=int, help='dimension used for scaling style image, NOT USED')
@@ -71,7 +72,8 @@ def load_img(path_to_img,scale=False,resize_shape=None):
 		img = tf.image.decode_image(img, channels=3,expand_animations=False)
 	except:
 		print("Error occured in decode_image function.")
-		exit(1)
+		print("Image path: ", path_to_img)
+		return None
 
 	img = tf.image.convert_image_dtype(img, tf.float32)
 
@@ -143,7 +145,7 @@ start_time = time.time()
 
 num_counter = 0
 # create stylished images for each base image
-for img_path in image_paths:
+for img_path in image_paths[]:
 	#print("Stylize image ", os.path.basename(img_path))
 	#print("\nContent image ", img_path)
 
@@ -171,8 +173,9 @@ for img_path in image_paths:
 		logging.debug("Shape Content Image: %s"%content_image.shape)
 		logging.debug("Shape Style Image: %s"%style_image.shape)
 
+		if(content_image is None or style_image is None):
+			continue
 
-	
 		stylized_image = hub_module(tf.constant(content_image), tf.constant(style_image))[0]	
 		output_img = tensor_to_image(stylized_image)
 		#print(type(output_img.size))
@@ -184,8 +187,9 @@ for img_path in image_paths:
 		print("Number images transformed: %d"%(num_counter))
 	if num_counter == 100:
 		print("Time for 100 images = %s seconds" % (time.time() - start_time))
-		time.sleep(5)
 
+	if num_counter >= int(args.numContents):
+		break
 	#print("Stylize image %s done."%(os.path.basename(img_path)))
 
 print("STYLIZE IMAGES DONE.")
