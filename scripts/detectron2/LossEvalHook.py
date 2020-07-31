@@ -6,12 +6,20 @@ import detectron2.utils.comm as comm
 import torch
 import time
 import datetime
+import logging
+import numpy as np
+import os
+import cv2
+
+from plotTrainValLosses import saveTrainValPlot
 
 class LossEvalHook(HookBase):
-    def __init__(self, eval_period, model, data_loader):
+    def __init__(self, eval_period, model, data_loader, plot_period, plot_folder):
         self._model = model
         self._period = eval_period
         self._data_loader = data_loader
+        self._plot_period = plot_period
+        self._plot_folder = plot_folder
     
     def _do_loss_eval(self):
         # Copying inference_on_dataset from evaluator.py
@@ -43,11 +51,13 @@ class LossEvalHook(HookBase):
                 )
             loss_batch = self._get_loss(inputs)
             losses.append(loss_batch)
+            
         mean_loss = np.mean(losses)
-        self.trainer.storage.put_scalar('validation_loss', mean_loss)
-        comm.synchronize()
+        #self.trainer.storage.put_scalar('validation_loss', mean_loss)
+        #comm.synchronize()
 
-        return losses
+        #return losses
+        return mean_loss
             
     def _get_loss(self, data):
         # How loss is calculated on train_loop 
@@ -64,5 +74,16 @@ class LossEvalHook(HookBase):
         next_iter = self.trainer.iter + 1
         is_final = next_iter == self.trainer.max_iter
         if is_final or (self._period > 0 and next_iter % self._period == 0):
-            self._do_loss_eval()
+            validation_loss = self._do_loss_eval()
+            self.trainer.storage.put_scalar('validation_loss', validation_loss)
+            comm.synchronize()
+
+        #Save plot of train & validation loss and write to tensorboard    
+        if self._plot_period != -1 and (next_iter % self._plot_period == 0):
+            img_path = saveTrainValPlot(self._plot_folder)
+            img = cv2.imread(img_path)
+            self.trainer.storage.put_image(os.path.basename(img_path),img)
+            comm.synchronize()
+            self.trainer.storage.clear_images()
+
         self.trainer.storage.put_scalars(timetest=12)

@@ -139,3 +139,5 @@ testImages
 
 #VSCode
 .vscode
+
+detectron2/out/checkpoints

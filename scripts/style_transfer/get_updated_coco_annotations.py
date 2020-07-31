@@ -17,7 +17,7 @@ parser.add_argument('-outputDirectory','-o',required=True,
 parser.add_argument('-annotationSchema','-annSchema',required=True,type=str,
                     help='Schema 1: For each style-transfered image in the image field an unique annotation entry will be generated (used for OpenPose). \
                           Schema 2: For each content image of the style-tranfered image an unique annotation entry will be generated. (normal mode) \
-                          Set \'OpenPose\' for Schema 1 or \'Normal\' for Schema 2.')
+                          Set \'COCOAPI\' for Schema 1 or \'Normal\' for Schema 2.')
 #parser.add_argument('-oName','-oN',required=True,
 #                    help='Name of the output JSON file name.')
 args = parser.parse_args()
@@ -27,7 +27,7 @@ if not os.path.isdir(args.outputDirectory):
 if not os.path.isfile(args.jsonAnnotation):
     raise ValueError("Input JSON Annotation file not exists.")
 
-annTypes = ['OpenPose','Normal']
+annTypes = ['COCOAPI','Normal']
 if args.annotationSchema not in annTypes:
     raise ValueError("No valid annotation schema entered.")
 
@@ -78,7 +78,7 @@ for image_entry in images:
             image_entry['width'] = width
             image_entry['height'] = height
             #image_entry['id'] = int(hashlib.md5(styleImName.encode('utf-8')).hexdigest(), 16)
-            if(args.annotationSchema == 'OpenPose'):
+            if(args.annotationSchema == 'COCOAPI'):
                 image_entry['id'] = int("%s%s"%(filename,style_filename))
             
             image_annotations_updated['images'].append(copy.copy(image_entry))
@@ -88,7 +88,8 @@ for image_entry in images:
 annotations = json_data['annotations']
 annotations_updated = {'annotations':[]}    
 
-if(args.annotationSchema == 'OpenPose'):
+#Output Json can be processed by COCO API, where ids of images have to be unique
+if(args.annotationSchema == 'COCOAPI'):
     #Map: original image_id -> {indices of original annotations}
     imId_to_index = dict()
     for i in range(len(annotations)):
@@ -99,8 +100,9 @@ if(args.annotationSchema == 'OpenPose'):
             imId_to_index.update({imId:[i]})
 
     #Add for each content-style image an annotation entry with add. saved filename (c_s.jpg)
-    #in following order for cocoapi preprocessing
+    #in following order for cocoapi preprocessing (ordering necessary for OpenPose)
     #Ordering for annotations is given by cocoapi: [c1_s1, c1_s1, c1_s1, c1_s2, c1_s2, c1_s2, c2_s3, c2_s4, ...]
+    ann_id_num = 1  #also unqiue annotation id (!= annotation image_id!)
     for i in range(len(annotations)):
         image_id = annotations[i]['image_id']
         content_filename = "%012d"%int(image_id)
@@ -110,15 +112,18 @@ if(args.annotationSchema == 'OpenPose'):
                 for i in imId_to_index[int(image_id)]:
                     annotation_entry = annotations[i]
                     styleImName = content_filename+'_'+style_filename
-                    print(styleImName)
-                    print(int("%s%s"%(content_filename,style_filename)))
+                    print("Adding annotation for: ",styleImName)
+                    #print(int("%s%s"%(content_filename,style_filename)))
                     #annotation_entry.update({'image_id':int(hashlib.md5(styleImName.encode('utf-8')).hexdigest(), 16)})
                     annotation_entry.update({'image_id':int("%s%s"%(content_filename,style_filename))})
-
-
+                    annotation_entry.update({'id':ann_id_num})
+                    
                     annotations_of_image_id.append(copy.copy(annotation_entry))
+                    ann_id_num = ann_id_num + 1
                 annotations_updated['annotations'].extend(copy.copy(annotations_of_image_id))
 
+#Ids of images are not unique, so that only for the base/content image the annoations are saved
+#Half the memory usage of actual unique annotations
 elif(args.annotationSchema == 'Normal'):
         for i in range(len(annotations)):
             image_id = annotations[i]['image_id']
@@ -132,8 +137,8 @@ json_data.update(image_annotations_updated)
 del json_data['annotations']
 json_data.update(annotations_updated)
 
-if(args.annotationSchema == 'OpenPose'):
-    outfile_name = os.path.splitext(os.path.basename(args.jsonAnnotation))[0] +'_stOP.json'
+if(args.annotationSchema == 'COCOAPI'):
+    outfile_name = os.path.splitext(os.path.basename(args.jsonAnnotation))[0] +'_stAPI.json'
 else:
     outfile_name = os.path.splitext(os.path.basename(args.jsonAnnotation))[0] +'_stNorm.json'
 

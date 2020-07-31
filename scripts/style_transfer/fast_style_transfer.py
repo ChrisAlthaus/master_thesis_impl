@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import tensorflow as tf
 #Enable for tensorflow<2.0
-#tf.enable_eager_execution() 
+tf.enable_eager_execution() 
 
 #import IPython.display as display
 
@@ -31,7 +31,7 @@ parser.add_argument('-styles', '--pathStyles', required=True, help='path to dir 
 parser.add_argument('-images', '--pathImages', required=True, help='path to dir of images')
 parser.add_argument('-dFile', '--dFile', default=None, help='run style transfer only on list of input directories')
 parser.add_argument('-o', '--output', required=True, help='output path for stylished images')
-parser.add_argument('-nC', '--numContents', required=True, help='number of content/base images')
+parser.add_argument('-nC', '--numContents', required=True, help='number of content/base images. Disable with -1 = all images.')
 parser.add_argument('-nS', '--numStyles', required=True, help='number of styles to apply to each image')
 parser.add_argument('-add','--add', default=False, action='store_true')
 parser.add_argument('-dimS','--dimStyle', default=256, type=int, help='dimension used for scaling style image, NOT USED')
@@ -145,7 +145,7 @@ start_time = time.time()
 
 num_counter = 0
 # create stylished images for each base image
-for img_path in image_paths[]:
+for img_path in image_paths:
 	#print("Stylize image ", os.path.basename(img_path))
 	#print("\nContent image ", img_path)
 
@@ -166,15 +166,19 @@ for img_path in image_paths[]:
 
 		#Stylize image 
 		content_image = load_img(img_path,scale=False)
-
+		
+		if(content_image is None):
+			continue
 		#Output size should be shape of content image
 		#content_max_dim = max(tf.cast(tf.shape(content_image)[:-1], tf.float32))
 		style_image = load_img(style_path,scale=True,resize_shape=tf.shape(content_image))
+		
+		if(style_image is None):
+			continue
+
 		logging.debug("Shape Content Image: %s"%content_image.shape)
 		logging.debug("Shape Style Image: %s"%style_image.shape)
 
-		if(content_image is None or style_image is None):
-			continue
 
 		stylized_image = hub_module(tf.constant(content_image), tf.constant(style_image))[0]	
 		output_img = tensor_to_image(stylized_image)
@@ -188,7 +192,7 @@ for img_path in image_paths[]:
 	if num_counter == 100:
 		print("Time for 100 images = %s seconds" % (time.time() - start_time))
 
-	if num_counter >= int(args.numContents):
+	if int(args.numContents) != -1 and num_counter >= int(args.numContents):
 		break
 	#print("Stylize image %s done."%(os.path.basename(img_path)))
 
