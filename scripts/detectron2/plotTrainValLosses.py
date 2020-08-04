@@ -12,10 +12,11 @@ def saveTrainValPlot(experiment_folder):
         return lines
 
     experiment_metrics = load_json_arr(experiment_folder + '/metrics.json')
+    plt.rcParams['agg.path.chunksize'] = 10000
     
     #Expand figure width for every 100 datapoints
     figsize = [6.4, 4.8]    #defaults
-    figsize[1] = figsize[1] * max(1,len(experiment_metrics)/100)
+    figsize[0] = figsize[0] * max(1,min(200,len(experiment_metrics)/100))
 
     plt.figure(figsize=tuple(figsize))
     x_total = [x['iteration'] for x in experiment_metrics]

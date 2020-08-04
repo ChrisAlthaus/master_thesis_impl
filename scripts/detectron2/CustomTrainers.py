@@ -2,6 +2,7 @@ from detectron2.engine import DefaultTrainer
 from detectron2.evaluation.coco_evaluation import COCOEvaluator
 import os
 from LossEvalHook import *
+from LoggingHook import *
 from plotTrainValLosses import saveTrainValPlot
 
 
@@ -21,6 +22,7 @@ class COCOTrainer(DefaultTrainer):
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR,"inference")
+        print("--------------------- BUILD EVALUATOR --------------------")
         return COCOEvaluator(dataset_name, cfg, True, output_folder)
 
     #For Single-GPU loss computation, uncomment if not used
@@ -33,6 +35,8 @@ class COCOTrainer(DefaultTrainer):
                     DatasetMapper(self.cfg,True)
                 ),
                 self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR))
+        hooks.insert(-1,LoggingHook(self.cfg, self.cfg.TEST.EVAL_PERIOD))
+        
         return hooks
 
     #For Multi-GPU loss computation, uncomment if not used

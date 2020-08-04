@@ -24,6 +24,8 @@ from detectron2.engine import DefaultTrainer
 import detectron2.data.build as build
 from CustomTrainers import *
 
+from plotAveragePrecisions import plotAPS
+
 from torchsummary import summary
 from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -63,21 +65,25 @@ parser.add_argument('-finetune','-fL',required=True,
 
 args = parser.parse_args()
 
-if args.finetune not in ["RESNET", "HEADSALL", "ALL"]:
+if args.finetune not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS']:
     raise ValueError("Not specified a valid training mode for layers.")
 
 #im = cv2.imread("/home/althausc/nfs/data/coco_17_small/train2017_styletransfer/000000000260_049649.jpg")
 
 cfg = get_cfg()
 # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
-cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"))
+#cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"))
+cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
+
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
 #cfg.MODEL.DEVICE='cpu'
 cfg.MODEL.DEVICE='cuda'
 
 
 # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml")
+#cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml")
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")
+
 #predictor = DefaultPredictor(cfg)
 #outputs = predictor(im)
 
@@ -93,7 +99,9 @@ from detectron2.data.datasets import register_coco_instances
 
 #Register to DatasetCatalog and MetadataCatalog
 register_coco_instances("my_dataset_train", {},"/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer")
-register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer")
+
+#register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer")
+register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
 #register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_small/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_small/val2017_styletransfer")
 
 #print(MetadataCatalog.get("my_dataset_train"))
@@ -113,14 +121,14 @@ cfg.INPUT.MIN_SIZE_TRAIN = 512  #Size of the smallest side of the image during t
 
 #Training Parameters
 cfg.SOLVER.IMS_PER_BATCH = 4 # Number of images per batch across all machines.
-cfg.SOLVER.BASE_LR = 0.00025  # pick a good LR
+
 num_epochs = 10   
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 # 2 faster, and good enough for this toy dataset (default: 512)
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (ballon) ?
 cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17
 cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = 1 # Images with too few (or no) keypoints are excluded from training (default: 1)
 
-output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m/%d_%H-%M-%S_'+args.finetune.lower()))
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 else:
@@ -146,11 +154,22 @@ def get_iterations_for_epochs(dataset, num_epochs, batch_size):
     time.sleep(2)
     return max_iter,one_epoch
 
-max_iter, epoch_iter = get_iterations_for_epochs(dataset, num_epochs, cfg.SOLVER.IMS_PER_BATCH)
-cfg.SOLVER.MAX_ITER = max_iter
-cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
-cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
-                                           # and save as image in checkpoint folder. Disable: -1
+if args.finetune != 'EVALBASELINE':
+    max_iter, epoch_iter = get_iterations_for_epochs(dataset, num_epochs, cfg.SOLVER.IMS_PER_BATCH)
+    cfg.SOLVER.MAX_ITER = max_iter
+    cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+    cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
+                                            # and save as image in checkpoint folder. Disable: -1
+else:
+    max_iter = 100
+    cfg.SOLVER.MAX_ITER = max_iter
+    cfg.TEST.EVAL_PERIOD = 50
+    cfg.TEST.PLOT_PERIOD = 200
+                                            
+ 
+cfg.SOLVER.BASE_LR = 0.0001 #0.0025  # pick a good LR   #TODO: different values
+cfg.SOLVER.GAMMA = 0.1
+cfg.SOLVER.STEPS = (int(6/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
 
 
 os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
@@ -193,16 +212,16 @@ with open(os.path.join(cfg.OUTPUT_DIR, 'model_conf.txt'), 'w') as f:
 
 #print(list(len(model.named_parameters())))
 
-
 #FPN = list(model.children())[0]
 #ResNet = FPN.bottom_up
 #for s in ResNet.stages_and_names:
 #   if s[1] == 'res4':                                             
 layername_prefixes = {"ResNet":"backbone.bottom_up", "RPN_ANCHOR":"proposal_generator.anchor_generator", "RPN_HEAD":"proposal_generator.rpn_head",
-                      "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head"} 
+                      "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head",
+                      "FPN":"backbone.fpn"} 
 trainlayers = []
 
-if args.finetune == "RESNET":
+if args.finetune == "RESNETL":
     layernamesResNet = ['res1','res2','res3','res4','res5']
     trainConvBlocks = {'res4':[19,22], 'res5':[0,2]} #[start,end] with end inclusive
 
@@ -219,7 +238,25 @@ if args.finetune == "RESNET":
         else:
             print("Train layer: ",name)
             trainlayers.append(name)
-            
+
+elif args.finetune == "RESNETF":
+    layernamesResNet = ['res1','res2','res3','res4','res5']
+    trainConvBlocks = {'res2':[0,2], 'res3':[0,3]} #[start,end] with end inclusive
+
+    layerNoFreeze = []
+    #Adding resnet layers which should be trained/ not freezed
+    for l_name,indices in trainConvBlocks.items():
+        layerNoFreeze.extend(["backbone.bottom_up.{}.{}".format(l_name,i) for i in range(indices[0],indices[1]+1)])
+    print("Layers to train: ",layerNoFreeze)
+
+    for name, param in list(model.named_parameters()):
+        isTrainLayer = any([name.find(l_name) != -1 for l_name in layerNoFreeze])
+        if not isTrainLayer:
+            param.requires_grad = False     #freeze layer
+        else:
+            print("Train layer: ",name)
+            trainlayers.append(name)
+
 elif args.finetune == 'HEADSALL':
     layersNoFreezePrefix = [layername_prefixes[x] for x in ["ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
     
@@ -231,6 +268,25 @@ elif args.finetune == 'HEADSALL':
         else:
             print("Train layer: ",name)
             trainlayers.append(name)
+
+elif args.finetune == 'FPN+HEADS':
+    layersNoFreezePrefix = [layername_prefixes[x] for x in ["FPN","ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
+    
+    for name, param in list(model.named_parameters()):
+        isTrainLayer = any([name.find(l_name) != -1 for l_name in layersNoFreezePrefix])
+        if not isTrainLayer:
+            print("Not training layer: ",name)
+            param.requires_grad = False     #freeze layer
+        else:
+            print("Train layer: ",name)
+            trainlayers.append(name)
+
+elif args.finetune == 'EVALBASELINE':
+    for name, param in list(model.named_parameters()):
+        if name != 'roi_heads.keypoint_head.score_lowres.weight':
+            param.requires_grad = False     #freeze layer
+    
+    
 
 
 checkParams = dict()    #Dict to save intial parameters for some random freezed layers
@@ -259,3 +315,6 @@ for name, param in list(model.named_parameters()):
         if not torch.equal(param.data, checkParams[name].data):
             print("Layer %s has been modified whereas it should actually been freezed."%name)
 
+
+#Plot average precision plots
+plotAPS(cfg.OUTPUT_DIR)

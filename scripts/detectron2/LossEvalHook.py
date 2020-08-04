@@ -51,7 +51,7 @@ class LossEvalHook(HookBase):
                 )
             loss_batch = self._get_loss(inputs)
             losses.append(loss_batch)
-            
+        print("Losses: ",losses)   
         mean_loss = np.mean(losses)
         #self.trainer.storage.put_scalar('validation_loss', mean_loss)
         #comm.synchronize()
@@ -61,6 +61,7 @@ class LossEvalHook(HookBase):
             
     def _get_loss(self, data):
         # How loss is calculated on train_loop 
+        print("Calculating loss of data of length: ", len(data))
         metrics_dict = self._model(data)
         metrics_dict = {
             k: v.detach().cpu().item() if isinstance(v, torch.Tensor) else float(v)
@@ -75,6 +76,7 @@ class LossEvalHook(HookBase):
         is_final = next_iter == self.trainer.max_iter
         if is_final or (self._period > 0 and next_iter % self._period == 0):
             validation_loss = self._do_loss_eval()
+            print("validation loss =",validation_loss)
             self.trainer.storage.put_scalar('validation_loss', validation_loss)
             comm.synchronize()
 
