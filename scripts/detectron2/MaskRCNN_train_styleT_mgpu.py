@@ -24,6 +24,7 @@ from detectron2.engine import DefaultTrainer, launch
 import detectron2.data.build as build
 
 from torch.nn.parallel import DistributedDataParallel
+import detectron2.utils.comm as comm
 
 from CustomTrainers import *
 
@@ -65,10 +66,11 @@ COCO_PERSON_KEYPOINT_FLIP_MAP = (
 parser = argparse.ArgumentParser()
 parser.add_argument('-finetune','-fL',required=True, 
                     help='Specify which layers should be trained. Either RESNET, HEADSALL or ALL.')
-
+parser.add_argument('-nGPUs',required=True, type=int, 
+                    help='Numer of GPUs to train on.')
 args = parser.parse_args()
 
-if args.finetune not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE']:
+if args.finetune not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS']:
     raise ValueError("Not specified a valid training mode for layers.")
 
 
@@ -76,8 +78,8 @@ if args.finetune not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE']
 def train(args, output_dir):
     cfg = get_cfg()
     # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
-    cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"))
-    #cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
+    #cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"))
+    cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
 
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
     #cfg.MODEL.DEVICE='cpu'
@@ -103,9 +105,9 @@ def train(args, output_dir):
 
     #Register to DatasetCatalog and MetadataCatalog
     register_coco_instances("my_dataset_train", {},"/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer")
-
-    #register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer")
-    register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
+    
+    register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer")
+    #register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
     #register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_small/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_small/val2017_styletransfer")
 
     #print(MetadataCatalog.get("my_dataset_train"))
@@ -132,12 +134,6 @@ def train(args, output_dir):
     cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17
     cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = 1 # Images with too few (or no) keypoints are excluded from training (default: 1)
 
-    """output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m/%d_%H-%M-%S_'+args.finetune.lower()))
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    else:
-        raise ValueError("Output directory %s for checkpoints already exists. Please wait a few minutes."%output_dir)"""
-
     cfg.OUTPUT_DIR = output_dir
 
 
@@ -161,8 +157,8 @@ def train(args, output_dir):
     if args.finetune != 'EVALBASELINE':
         max_iter, epoch_iter = get_iterations_for_epochs(dataset, num_epochs, cfg.SOLVER.IMS_PER_BATCH)
         cfg.SOLVER.MAX_ITER = max_iter
-        cfg.TEST.EVAL_PERIOD = 100#int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
-        cfg.TEST.PLOT_PERIOD = 400#int(epoch_iter) # Plot val & train loss curves at every second iteration 
+        cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+        cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
                                                 # and save as image in checkpoint folder. Disable: -1
     else:
         max_iter = 100
@@ -176,7 +172,7 @@ def train(args, output_dir):
     cfg.SOLVER.STEPS = (int(6/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
 
 
-    os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+    #os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     #trainer = DefaultTrainer(cfg) 
     trainer = COCOTrainer(cfg) #"multigpu"
     #trainer.build_evaluator(cfg, "my_dataset_val") #not necessary?!
@@ -199,30 +195,27 @@ def train(args, output_dir):
 
     model = trainer.model
 
+    #if comm.is_main_process():
     print("Save model's state_dict:")
     layer_to_params_str = ""
     with open(os.path.join(cfg.OUTPUT_DIR, 'layer_params_overview.txt'), 'w') as f:
         for param_tensor in model.state_dict():
             line = "{} \t {}".format(param_tensor, model.state_dict()[param_tensor].size())
             f.write(line + os.linesep)
-
     print("Save model's architecture:")
     with open(os.path.join(cfg.OUTPUT_DIR, 'model_architectur.txt'), 'w') as f:
         print(list(model.children()),file=f)
-
     print("Save model's configuration:")
     with open(os.path.join(cfg.OUTPUT_DIR, 'model_conf.txt'), 'w') as f:
         print(cfg,file=f)
+    #comm.synchronize()
 
     #print(list(len(model.named_parameters())))
 
 
-    #FPN = list(model.children())[0]
-    #ResNet = FPN.bottom_up
-    #for s in ResNet.stages_and_names:
-    #   if s[1] == 'res4':                                             
     layername_prefixes = {"ResNet":"backbone.bottom_up", "RPN_ANCHOR":"proposal_generator.anchor_generator", "RPN_HEAD":"proposal_generator.rpn_head",
-                        "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head"} 
+                      "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head",
+                      "FPN":"backbone.fpn"} 
     trainlayers = []
 
     if args.finetune == "RESNETL":
@@ -273,10 +266,23 @@ def train(args, output_dir):
                 print("Train layer: ",name)
                 trainlayers.append(name)
 
+    elif args.finetune == 'FPN+HEADS':
+        layersNoFreezePrefix = [layername_prefixes[x] for x in ["FPN","ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
+        
+        for name, param in list(model.named_parameters()):
+            isTrainLayer = any([name.find(l_name) != -1 for l_name in layersNoFreezePrefix])
+            if not isTrainLayer:
+                print("Not training layer: ",name)
+                param.requires_grad = False     #freeze layer
+            else:
+                print("Train layer: ",name)
+                trainlayers.append(name)
+
     elif args.finetune == 'EVALBASELINE':
         for name, param in list(model.named_parameters()):
             if name != 'roi_heads.keypoint_head.score_lowres.weight':
                 param.requires_grad = False     #freeze layer
+    
         
         
 
@@ -309,7 +315,7 @@ def train(args, output_dir):
     #print("TRAINING DONE.")
 
     
-    """#Check if some freezed layers have the same weights as before training
+    #Check if some freezed layers have the same weights as before training
     for name, param in list(model.named_parameters()):
         if name in checkParams:
             if not torch.equal(param.data, checkParams[name].data):
@@ -317,7 +323,8 @@ def train(args, output_dir):
 
 
     #Plot average precision plots
-    plotAPS(cfg.OUTPUT_DIR)"""
+    if comm.is_main_process():
+        plotAPS(cfg.OUTPUT_DIR)
 
 if __name__ == "__main__":
     output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m/%d_%H-%M-%S_'+args.finetune.lower()))
@@ -325,5 +332,8 @@ if __name__ == "__main__":
         os.makedirs(output_dir)
     else:
         raise ValueError("Output directory %s for checkpoints already exists. Please wait a few minutes."%output_dir)
-    
-    launch(train, 1,num_machines=1, machine_rank=0, dist_url='auto', args=(args,output_dir)) #'tcp://127.0.0.1:58636'
+
+    if args.nGPUs > 0 and args.nGPUs <= 8:
+        launch(train, args.nGPUs, num_machines=1, machine_rank=0, dist_url='auto', args=(args,output_dir)) #'tcp://127.0.0.1:58636'
+    else:
+        raise ValueError("Please specify a valid number of GPUs between 1-8.")

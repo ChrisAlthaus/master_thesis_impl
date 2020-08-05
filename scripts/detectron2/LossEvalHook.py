@@ -10,6 +10,7 @@ import logging
 import numpy as np
 import os
 import cv2
+import csv
 
 from plotTrainValLosses import saveTrainValPlot
 
@@ -51,17 +52,17 @@ class LossEvalHook(HookBase):
                 )
             loss_batch = self._get_loss(inputs)
             losses.append(loss_batch)
-        print("Losses: ",losses)   
+           
         mean_loss = np.mean(losses)
-        #self.trainer.storage.put_scalar('validation_loss', mean_loss)
+        if comm.is_main_process():
+            self.trainer.storage.put_scalar('validation_loss', mean_loss)
         #comm.synchronize()
 
-        #return losses
         return mean_loss
             
     def _get_loss(self, data):
         # How loss is calculated on train_loop 
-        print("Calculating loss of data of length: ", len(data))
+        #print("Calculating loss of data of length: ", len(data))
         metrics_dict = self._model(data)
         metrics_dict = {
             k: v.detach().cpu().item() if isinstance(v, torch.Tensor) else float(v)
@@ -76,16 +77,26 @@ class LossEvalHook(HookBase):
         is_final = next_iter == self.trainer.max_iter
         if is_final or (self._period > 0 and next_iter % self._period == 0):
             validation_loss = self._do_loss_eval()
-            print("validation loss =",validation_loss)
-            self.trainer.storage.put_scalar('validation_loss', validation_loss)
-            comm.synchronize()
+            
+            """
+            #Write validation losses additional to file, because metrics.json sometimes not updating
+            filepath = os.path.join(self._plot_folder, 'validation_losses.csv')
+                
+            if not os.path.exists(filepath):
+                columns = ["iter","validation_loss" ]
+                wtr = csv.writer(open (filepath, 'a'), delimiter=',', lineterminator=os.linesep)
+                wtr.writerow(columns)
+            
+            wtr = csv.writer(open (filepath, 'a'), delimiter=',', lineterminator=os.linesep)
+            wtr.writerow([self.trainer.iter,validation_loss])"""
 
         #Save plot of train & validation loss and write to tensorboard    
         if self._plot_period != -1 and (next_iter % self._plot_period == 0):
-            img_path = saveTrainValPlot(self._plot_folder)
-            img = cv2.imread(img_path)
-            self.trainer.storage.put_image(os.path.basename(img_path),img)
+            if comm.is_main_process():
+                img_path = saveTrainValPlot(self._plot_folder)
+                #img = cv2.imread(img_path)
+                #self.trainer.storage.put_image(os.path.basename(img_path),img)
+                #comm.synchronize()
+                #self.trainer.storage.clear_images()
             comm.synchronize()
-            self.trainer.storage.clear_images()
-
         self.trainer.storage.put_scalars(timetest=12)
