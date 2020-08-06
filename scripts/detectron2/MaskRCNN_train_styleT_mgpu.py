@@ -108,6 +108,7 @@ def train(args, output_dir):
     
     register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer")
     #register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
+    #Für weniger Validation Images (zum Testen/Debuggen)
     #register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_small/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_small/val2017_styletransfer")
 
     #print(MetadataCatalog.get("my_dataset_train"))

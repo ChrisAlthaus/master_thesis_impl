@@ -100,9 +100,9 @@ from detectron2.data.datasets import register_coco_instances
 #Register to DatasetCatalog and MetadataCatalog
 register_coco_instances("my_dataset_train", {},"/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer")
 
-#register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer")
+register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer")
 #register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
-register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_small/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_small/val2017_styletransfer")
+#register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_small/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_small/val2017_styletransfer")
 
 #print(MetadataCatalog.get("my_dataset_train"))
 metadata = MetadataCatalog.get("my_dataset_train").set(keypoint_names=COCO_PERSON_KEYPOINT_NAMES, keypoint_flip_map=COCO_PERSON_KEYPOINT_FLIP_MAP) 
@@ -157,8 +157,8 @@ def get_iterations_for_epochs(dataset, num_epochs, batch_size):
 if args.finetune != 'EVALBASELINE':
     max_iter, epoch_iter = get_iterations_for_epochs(dataset, num_epochs, cfg.SOLVER.IMS_PER_BATCH)
     cfg.SOLVER.MAX_ITER = max_iter
-    cfg.TEST.EVAL_PERIOD = 100#int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
-    cfg.TEST.PLOT_PERIOD = 200#int(epoch_iter) # Plot val & train loss curves at every second iteration 
+    cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+    cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
                                             # and save as image in checkpoint folder. Disable: -1
 else:
     max_iter = 100
@@ -167,7 +167,7 @@ else:
     cfg.TEST.PLOT_PERIOD = 200
                                             
  
-cfg.SOLVER.BASE_LR = 0.0001 #0.0025  # pick a good LR   #TODO: different values
+cfg.SOLVER.BASE_LR = 0.001 #0.0025  # pick a good LR   #TODO: different values
 cfg.SOLVER.GAMMA = 0.1
 cfg.SOLVER.STEPS = (int(6/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
 
