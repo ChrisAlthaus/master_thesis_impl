@@ -6,6 +6,7 @@ from detectron2.engine.defaults import DefaultPredictor
 from detectron2.utils.visualizer import Visualizer
 from google.colab.patches import cv2_imshow
 from detectron2.data import MetadataCatalog
+import torch
 
 import argparse
 import os
@@ -50,31 +51,106 @@ if args.image_folder is not None:
 elif args.image_path is not None:
     image_paths = args.image_path
 
-outputs = []
+
 """
 pred = DefaultPredictor(cfg)
 for img_path in image_paths:
     inputs = cv2.imread(img_path)
     outputs.append( pred(inputs) )"""
 #output format of keypoints: (x, y, v), v indicates visibility— v=0: not labeled (in which case x=y=0), v=1: labeled but not visible, and v=2: labeled and visible  
+from detectron2.data import detection_utils as utils
+from detectron2.data.datasets.coco import load_coco_json
+from detectron2.data.common import DatasetFromList, MapDataset
+from detectron2.data.samplers import InferenceSampler
+import itertools, copy
+from detectron2.data.build import build_detection_test_loader
 
-images = []
+"""dataset_dicts = load_coco_json('/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json', '/home/althausc/nfs/data/coco_17/val2017', 'val2017')
+dataset_dicts = list(itertools.chain.from_iterable(dataset_dicts))"""
+from detectron2.data.datasets import register_coco_instances
+
+#Register to DatasetCatalog and MetadataCatalog
+register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
+
+""" 
+def mapper(dataset_dict):
+    dataset_dict = copy.deepcopy(dataset_dict)
+    image = utils.read_image(dataset_dict["file_name"], format="BGR")
+    
+    height, width = image.shape[:2]
+    image = torch.from_numpy(image.astype("float32").transpose(2, 0, 1))
+
+    return {"image": image,"height": height, "width": width}
+
+dataloader = build_detection_test_loader(cfg, "my_dataset_val", mapper=mapper)
+
+dataset = DatasetFromList(dataset_dicts)
+dataset = MapDataset(dataset, mapper)
+
+sampler = InferenceSampler(len(dataset))
+batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, 1, drop_last=False)
+data_loader = torch.utils.data.DataLoader(
+       dataset,
+       num_workers=4,
+       batch_sampler=batch_sampler,
+       collate_fn=trivial_batch_collator,
+   )
+"""
+
+#for i, batch in enumerate(dataloader):
+#    print(i,batch)
+
+
+
+"""images = []
 for img_path in image_paths:
-    images.append(cv2.imread(img_path))
+    img = cv2.imread(img_path)
+    height, width = img.shape[:2]
+    img = torch.as_tensor(img.astype("float32").transpose(2, 0, 1))
+    inputs = {"image": img, "height": height, "width": width}
+    images.append(inputs)"""
+
+"""model = build_model(cfg) 
+model.eval()
+print("Number of images which will be prediced for: ", len(dataloader))
+with torch.no_grad():
+    print("START PREDICTION")
+    for i, batch in enumerate(dataloader):
+        print(i,batch)
+        outputs = model(batch)
+        if i%100 == 0:
+            print("Processed %d images."%i)
+        if i==1000:
+            break
+    print("PREDICTION FINISHED")"""  #Assertion error in _keypoints_to_heatmap ?
+
+outputs = []
 
 model = build_model(cfg) 
 model.eval()
 with torch.no_grad():
-  outputs = model([images])
-print(outputs)
-exit(1)
+    print("START PREDICTION")
+    for i,img_path in enumerate(image_paths):
+        img = cv2.imread(img_path)
+        height, width = img.shape[:2]
+        img = torch.as_tensor(img.astype("float32").transpose(2, 0, 1))
+        inputs = {"image": img, "height": height, "width": width}
+        
+        outputs.append( model([inputs])[0] )
+        break
+        if i%100 == 0 and i!=0:
+            print("Processed %d images."%i)
+            break
+    print("PREDICTION FINISHED")
+
+
 #print(outputs.shape)
 #print(cfg)
 
 # We can use `Visualizer` to draw the predictions on the image.
-print(MetadataCatalog.get(cfg.DATASETS.TRAIN[0]))
+print(MetadataCatalog.get("my_dataset_val"))
 #Specification of a threshold for the keypoints in: /home/althausc/.local/lib/python3.6/site-packages/detectron2/utils/visualizer.py
-v = Visualizer(inputs[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
+
 
 output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/art_predictions', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
 if not os.path.exists(output_dir):
@@ -83,6 +159,7 @@ else:
     raise ValueError("Output directory %s already exists."%output_dir)
 
 for img_path, pred_out in zip(image_paths, outputs):
+    v = Visualizer(cv2.imread(img_path)[:, :, ::-1], scale=1.2)
     out = v.draw_instance_predictions(pred_out["instances"].to("cpu"))
     img_name = os.path.basename(img_path)
 

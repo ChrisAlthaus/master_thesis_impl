@@ -122,7 +122,7 @@ cfg.INPUT.MIN_SIZE_TRAIN = 512  #Size of the smallest side of the image during t
 #Training Parameters
 cfg.SOLVER.IMS_PER_BATCH = 4 # Number of images per batch across all machines.
 
-num_epochs = 10   
+num_epochs = 15   
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 # 2 faster, and good enough for this toy dataset (default: 512)
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (ballon) ?
 cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17
@@ -167,9 +167,9 @@ else:
     cfg.TEST.PLOT_PERIOD = 200
                                             
  
-cfg.SOLVER.BASE_LR = 0.001 #0.0025  # pick a good LR   #TODO: different values
+cfg.SOLVER.BASE_LR = 0.005 #0.0025  # pick a good LR   #TODO: different values
 cfg.SOLVER.GAMMA = 0.1
-cfg.SOLVER.STEPS = (int(6/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
+cfg.SOLVER.STEPS = (int(8/9*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
 
 
 os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)

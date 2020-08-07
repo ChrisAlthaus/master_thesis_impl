@@ -26,9 +26,9 @@ def saveTrainValPlot(experiment_folder, onlySmoothed = True):
     x_val = [x['iteration'] for x in experiment_metrics if 'validation_loss' in x]
     y_val = [x['validation_loss'] for x in experiment_metrics if 'validation_loss' in x]
     
+    plt.figure(figsize=tuple(figsize))
+    
     if not onlySmoothed:
-        plt.figure(figsize=tuple(figsize))
-        
         plt.plot(x_total, y_total, label='total_loss')
         plt.plot(x_val, y_val, label='validation_loss')
 
