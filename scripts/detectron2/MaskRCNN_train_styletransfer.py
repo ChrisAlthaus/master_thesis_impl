@@ -22,6 +22,7 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from detectron2.engine import DefaultTrainer
 import detectron2.data.build as build
+from detectron2.checkpoint.detection_checkpoint import DetectionCheckpointer
 from CustomTrainers import *
 
 from plotAveragePrecisions import plotAPS
@@ -62,11 +63,17 @@ COCO_PERSON_KEYPOINT_FLIP_MAP = (
 parser = argparse.ArgumentParser()
 parser.add_argument('-finetune','-fL',required=True, 
                     help='Specify which layers should be trained. Either RESNET, HEADSALL or ALL.')
+parser.add_argument('-resume','-checkpoint', 
+                    help='Train model from checkpoint given by path.')
 
 args = parser.parse_args()
 
 if args.finetune not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS']:
     raise ValueError("Not specified a valid training mode for layers.")
+if args.resume is not None:
+    if not os.path.isfile(args.resume):
+        raise ValueError("Checkpoint does not exists.")
+
 
 #im = cv2.imread("/home/althausc/nfs/data/coco_17_small/train2017_styletransfer/000000000260_049649.jpg")
 
@@ -122,11 +129,11 @@ cfg.INPUT.MIN_SIZE_TRAIN = 512  #Size of the smallest side of the image during t
 #Training Parameters
 cfg.SOLVER.IMS_PER_BATCH = 4 # Number of images per batch across all machines.
 
-num_epochs = 15   
+num_epochs = 20   
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 # 2 faster, and good enough for this toy dataset (default: 512)
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (ballon) ?
 cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17
-cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = 1 # Images with too few (or no) keypoints are excluded from training (default: 1)
+cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = 10#1 # Images with too few (or no) keypoints are excluded from training (default: 1)
 
 output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m/%d_%H-%M-%S_'+args.finetune.lower()))
 if not os.path.exists(output_dir):
@@ -166,10 +173,10 @@ else:
     cfg.TEST.EVAL_PERIOD = 50
     cfg.TEST.PLOT_PERIOD = 200
                                             
- 
+cfg.MODEL.RESNETS.NORM = "BN" 
 cfg.SOLVER.BASE_LR = 0.005 #0.0025  # pick a good LR   #TODO: different values
 cfg.SOLVER.GAMMA = 0.1
-cfg.SOLVER.STEPS = (int(8/9*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
+cfg.SOLVER.STEPS = (int(7/9*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
 
 
 os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
@@ -194,6 +201,31 @@ trainer = COCOTrainer(cfg) #"multigpu"
 #torch.save(trainer.model, os.path.join(cfg.OUTPUT_DIR,'rcnn_model.pth'))
 
 model = trainer.model
+from detectron2.layers.wrappers import BatchNorm2d
+
+
+#Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
+#because not implemented by cfg file
+first_layer = model.backbone.bottom_up.stem
+weights = first_layer.conv1.norm.weight
+num_features = first_layer.conv1.norm.num_features
+first_layer.conv1.norm = BatchNorm2d(num_features)
+first_layer.conv1.norm.weights = weights
+
+
+for l_name in ['shortcut','conv1','conv2','conv3']:
+    for block in model.backbone.bottom_up.res2:
+        try:
+            layer = getattr(block, l_name)
+            weights = layer.norm.weight
+            num_features = layer.norm.num_features
+            layer.norm = BatchNorm2d(num_features)
+            layer.norm.weights = weights
+            print("Changed layer %s to batched norm unfreezed."%('model.backbone.bottom_up.res2.'+l_name))
+        except AttributeError:
+            print("Debug: No valid layer: %s."%('model.backbone.bottom_up.res2.'+l_name))
+model.cuda()
+
 
 print("Save model's state_dict:")
 layer_to_params_str = ""
@@ -302,11 +334,14 @@ while(numAdded < 20):
         checkParams.update({name:param})
         numAdded = numAdded + 1
 
+if args.resume is not None:
+    print("Resuming training from checkpoint %s."%args.resume)
+    DetectionCheckpointer(trainer.model).load(args.resume)
+
 trainer.resume_or_load(resume=False)
 print("START TRAINING")
 trainer.train()
 print("TRAINING DONE.")
-
 
 
 #Check if some freezed layers have the same weights as before training
