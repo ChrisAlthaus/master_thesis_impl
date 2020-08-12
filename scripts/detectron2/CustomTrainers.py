@@ -10,13 +10,12 @@ class COCOTrainer(DefaultTrainer):
     def __init__(self,cfg, mode="singlegpu"):
         super().__init__(cfg)
         if mode == "multigpu":
-            self.losseval_hook = LossEvalHook(self.cfg.TEST.EVAL_PERIOD,self.model,
+            self.losseval_hook = LossEvalHook(self.cfg,self.model,
                 build_detection_test_loader(
                     self.cfg,
                     self.cfg.DATASETS.TEST[0],
                     DatasetMapper(self.cfg,True)
-                ),
-                self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR)
+                ))
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
@@ -28,13 +27,12 @@ class COCOTrainer(DefaultTrainer):
     #For Single-GPU loss computation, uncomment if not used
     def build_hooks(self):
         hooks = super().build_hooks()
-        hooks.insert(-1,LossEvalHook(self.cfg.TEST.EVAL_PERIOD,self.model,
+        hooks.insert(-1,LossEvalHook(self.cfg,self.model,
                 build_detection_test_loader(
                     self.cfg,
                     self.cfg.DATASETS.TEST[0],
                     DatasetMapper(self.cfg,True)
-                ),
-                self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR))
+                )) )
         hooks.insert(-1,LoggingHook(self.cfg, self.cfg.TEST.EVAL_PERIOD))
         
         return hooks

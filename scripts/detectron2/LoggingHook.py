@@ -17,4 +17,8 @@ class LoggingHook(HookBase):
             print("---------------- CONFIGURATION FOR TRAINING MODEL & SOLVER -----------------")
             print(self._cfg)
             print("----------------------------------------------------------------------------")
+        if next_iter == 10:
+            self.trainer.storage.put_scalar('minKPTsFilter', self._cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
+            for i,lr_step in enumerate(self._cfg.SOLVER.STEPS):
+                self.trainer.storage.put_scalar('lrstep%d'%i, lr_step)
 

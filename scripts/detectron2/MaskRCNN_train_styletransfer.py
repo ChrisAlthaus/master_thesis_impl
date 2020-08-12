@@ -68,7 +68,7 @@ parser.add_argument('-resume','-checkpoint',
 
 args = parser.parse_args()
 
-if args.finetune not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS']:
+if args.finetune not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS','SCRATCH']:
     raise ValueError("Not specified a valid training mode for layers.")
 if args.resume is not None:
     if not os.path.isfile(args.resume):
@@ -83,13 +83,17 @@ cfg = get_cfg()
 cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
 
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
-#cfg.MODEL.DEVICE='cpu'
-cfg.MODEL.DEVICE='cuda'
+cfg.MODEL.DEVICE='cpu'
+#cfg.MODEL.DEVICE='cuda'
 
 
 # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
 #cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml")
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")
+if args.finetune != 'SCRATCH':
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")
+else:
+    cfg.MODEL.WEIGHTS = ""
+
 
 #predictor = DefaultPredictor(cfg)
 #outputs = predictor(im)
@@ -172,11 +176,12 @@ else:
     cfg.SOLVER.MAX_ITER = max_iter
     cfg.TEST.EVAL_PERIOD = 50
     cfg.TEST.PLOT_PERIOD = 200
-                                            
-cfg.MODEL.RESNETS.NORM = "BN" 
+
+if args.finetune == 'ALL' or args.finetune == 'SCRATCH':                                            
+    cfg.MODEL.RESNETS.NORM = "BN" 
 cfg.SOLVER.BASE_LR = 0.005 #0.0025  # pick a good LR   #TODO: different values
 cfg.SOLVER.GAMMA = 0.1
-cfg.SOLVER.STEPS = (int(7/9*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
+cfg.SOLVER.STEPS = (int(7/9*max_iter), int(8/9*max_iter))#(int(55/90*max_iter),int(75/90*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
 
 
 os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
@@ -202,29 +207,40 @@ trainer = COCOTrainer(cfg) #"multigpu"
 
 model = trainer.model
 from detectron2.layers.wrappers import BatchNorm2d
+from detectron2.layers.batch_norm import FrozenBatchNorm2d
 
+def BNtoBNFrozen(model, layer_ids, inverse=False):
 
-#Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
-#because not implemented by cfg file
-first_layer = model.backbone.bottom_up.stem
-weights = first_layer.conv1.norm.weight
-num_features = first_layer.conv1.norm.num_features
-first_layer.conv1.norm = BatchNorm2d(num_features)
-first_layer.conv1.norm.weights = weights
+    """first_layer = model.backbone.bottom_up.stem
+    weights = first_layer.conv1.norm.weight
+    num_features = first_layer.conv1.norm.num_features
+    first_layer.conv1.norm = BatchNorm2d(num_features)
+    first_layer.conv1.norm.weights = weights"""
+    for block_name,l_ids in layer_ids.items():
+        blocks = getattr(model.backbone.bottom_up, block_name)
+        if isinstance(l_ids,list):
+            blocks = blocks[l_ids[0]:l_ids[1]+1]
+        if block_name == 'stem':
+            blocks = [blocks]
 
+        for block in blocks:
+            for l_name in ['shortcut','conv1','conv2','conv3']:
+                try:
+                    layer = getattr(block, l_name)
+                    weights = layer.norm.weight
+                    num_features = layer.norm.num_features
+                    if not inverse:
+                        layer.norm = BatchNorm2d(num_features)
+                        layer.norm.weights = weights
+                        print("Changed layer %s to batched norm unfreezed."%('model.backbone.bottom_up.res2.'+l_name))
+                    else:
+                        if not isinstance(layer.norm, FrozenBatchNorm2d):
+                            layer.norm = FrozenBatchNorm2d(num_features)
+                            layer.norm.weights = weights
 
-for l_name in ['shortcut','conv1','conv2','conv3']:
-    for block in model.backbone.bottom_up.res2:
-        try:
-            layer = getattr(block, l_name)
-            weights = layer.norm.weight
-            num_features = layer.norm.num_features
-            layer.norm = BatchNorm2d(num_features)
-            layer.norm.weights = weights
-            print("Changed layer %s to batched norm unfreezed."%('model.backbone.bottom_up.res2.'+l_name))
-        except AttributeError:
-            print("Debug: No valid layer: %s."%('model.backbone.bottom_up.res2.'+l_name))
-model.cuda()
+                except AttributeError:
+                    print("Debug: No valid layer: %s."%('model.backbone.bottom_up.res2.'+l_name))
+    model.cuda()
 
 
 print("Save model's state_dict:")
@@ -252,10 +268,17 @@ layername_prefixes = {"ResNet":"backbone.bottom_up", "RPN_ANCHOR":"proposal_gene
                       "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head",
                       "FPN":"backbone.fpn"} 
 trainlayers = []
+for l,w in list(model.named_parameters()):
+    print(l)
 
-if args.finetune == "RESNETL":
+if args.finetune == "ALL" or args.finetune == 'SCRATCH':
+    #Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
+    #because not implemented by cfg file
+    BNtoBNFrozen(model, {'stem':'', 'res2':''})
+
+elif args.finetune == "RESNETL":
     layernamesResNet = ['res1','res2','res3','res4','res5']
-    trainConvBlocks = {'res4':[19,22], 'res5':[0,2]} #[start,end] with end inclusive
+    trainConvBlocks = {'res4':[2,5], 'res5':[0,2]} #[start,end] with end inclusive
 
     layerNoFreeze = []
     #Adding resnet layers which should be trained/ not freezed
@@ -265,11 +288,16 @@ if args.finetune == "RESNETL":
 
     for name, param in list(model.named_parameters()):
         isTrainLayer = any([name.find(l_name) != -1 for l_name in layerNoFreeze])
+        print("name:",name)
         if not isTrainLayer:
             param.requires_grad = False     #freeze layer
+            print("freeze")
         else:
             print("Train layer: ",name)
             trainlayers.append(name)
+
+    #Unfreeze batch normalization layers
+    BNtoBNFrozen(model, trainConvBlocks)
 
 elif args.finetune == "RESNETF":
     layernamesResNet = ['res1','res2','res3','res4','res5']
@@ -288,6 +316,9 @@ elif args.finetune == "RESNETF":
         else:
             print("Train layer: ",name)
             trainlayers.append(name)
+
+    #Unfreeze batch normalization layers
+    BNtoBNFrozen(model, trainConvBlocks)
 
 elif args.finetune == 'HEADSALL':
     layersNoFreezePrefix = [layername_prefixes[x] for x in ["ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
