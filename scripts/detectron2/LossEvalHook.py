@@ -15,10 +15,12 @@ import csv
 from plotTrainValLosses import saveTrainValPlot
 
 class LossEvalHook(HookBase):
-    def __init__(self, cfg, model, data_loader):
+    def __init__(self, eval_period, model, data_loader, plot_period, plot_folder):
         self._model = model
+        self._period = eval_period
         self._data_loader = data_loader
-        self.cfg = cfg
+        self._plot_period = plot_period
+        self._plot_folder = plot_folder
     
     def _do_loss_eval(self):
         # Copying inference_on_dataset from evaluator.py
@@ -73,7 +75,7 @@ class LossEvalHook(HookBase):
     def after_step(self):
         next_iter = self.trainer.iter + 1
         is_final = next_iter == self.trainer.max_iter
-        if is_final or (self.cfg.TEST.EVAL_PERIOD > 0 and next_iter % self.cfg.TEST.EVAL_PERIOD == 0):
+        if is_final or (self._period > 0 and next_iter % self._period == 0):
             validation_loss = self._do_loss_eval()
             
             """
@@ -87,14 +89,15 @@ class LossEvalHook(HookBase):
             
             wtr = csv.writer(open (filepath, 'a'), delimiter=',', lineterminator=os.linesep)
             wtr.writerow([self.trainer.iter,validation_loss])"""
-
+        """
         #Save plot of train & validation loss and write to tensorboard    
-        if self.cfg.TEST.PLOT_PERIOD != -1 and (next_iter % self.cfg.TEST.PLOT_PERIOD == 0):
+        if self._plot_period != -1 and (next_iter % self._plot_period == 0):
             if comm.is_main_process():
-                img_path = saveTrainValPlot(self.cfg.OUTPUT_DIR)
+                img_path = saveTrainValPlot(self._plot_folder)
                 #img = cv2.imread(img_path)
                 #self.trainer.storage.put_image(os.path.basename(img_path),img)
                 #comm.synchronize()
                 #self.trainer.storage.clear_images()
             comm.synchronize()
         self.trainer.storage.put_scalars(timetest=12)
+        """

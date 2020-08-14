@@ -6,6 +6,7 @@ from detectron2.engine.defaults import DefaultPredictor
 from detectron2.utils.visualizer import Visualizer
 from google.colab.patches import cv2_imshow
 from detectron2.data import MetadataCatalog
+from detectron2.data.datasets.builtin_meta import KEYPOINT_CONNECTION_RULES, COCO_PERSON_KEYPOINT_NAMES, COCO_PERSON_KEYPOINT_FLIP_MAP
 import torch
 
 import argparse
@@ -14,6 +15,7 @@ import os
 from pycocotools.coco import COCO
 import cv2
 import datetime
+
 
 
 parser = argparse.ArgumentParser()
@@ -41,7 +43,7 @@ if args.image_path is None and args.image_folder is None:
 cfg = get_cfg()
 
 #cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"))
-cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
+#cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
 cfg.MODEL.DEVICE='cpu'
 #model = build_model(cfg) 
 #DetectionCheckpointer(model).load(args.model_cp) 
@@ -128,27 +130,79 @@ outputs = []
 
 model = build_model(cfg) 
 model.eval()
+
+"""filter = ["008629",
+"050326",
+"184762",
+"220732",
+"252216",
+"348881",
+"367386",
+"434204",
+"436551",
+"450439",
+"498463"]"""
+
+filter = [
+"002157",
+"027186",
+"050331",
+"074209",
+"074457",
+"122962",
+"229858",
+"231822",
+"290293",
+"441247",
+"548780"
+]
+
+im_path_filtered = []
+for path in image_paths:
+    for f in filter:
+        if path.find(f) != -1:
+            im_path_filtered.append(path)
+            break
+print(im_path_filtered)
+
+
+cfg = get_cfg()
+cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) 
+cfg.MODEL.DEVICE='cpu'
+cfg.MIN_SIZE_TRAIN= 512
+cfg.MODEL.WEIGHTS = args.model_cp
+
+
+predictor = DefaultPredictor(cfg)
+
 with torch.no_grad():
     print("START PREDICTION")
-    for i,img_path in enumerate(image_paths):
+    for i,img_path in enumerate(im_path_filtered):
         img = cv2.imread(img_path)
         height, width = img.shape[:2]
-        img = torch.as_tensor(img.astype("float32").transpose(2, 0, 1))
+        #img = torch.as_tensor(img.astype("float32").transpose(2, 0, 1))
         inputs = {"image": img, "height": height, "width": width}
         
-        outputs.append( model([inputs])[0] )
-        break
-        if i%100 == 0 and i!=0:
+        #outputs.append( model([inputs])[0] )
+        outputs.append( predictor(img) )
+        
+        
+        if i%10 == 0 and i!=0:
             print("Processed %d images."%i)
             break
     print("PREDICTION FINISHED")
 
-
-#print(outputs.shape)
+print("OUTPUT PREDICTIONS:")
+print(outputs)
+print("Size of all output predictions: ", len(outputs))
 #print(cfg)
 
 # We can use `Visualizer` to draw the predictions on the image.
-print(MetadataCatalog.get("my_dataset_val"))
+#print(MetadataCatalog.get("my_dataset_val"))
+MetadataCatalog.get("my_dataset_val").set(keypoint_names=COCO_PERSON_KEYPOINT_NAMES,
+                                          keypoint_flip_map=COCO_PERSON_KEYPOINT_FLIP_MAP,
+                                          keypoint_connection_rules=KEYPOINT_CONNECTION_RULES) 
+
 #Specification of a threshold for the keypoints in: /home/althausc/.local/lib/python3.6/site-packages/detectron2/utils/visualizer.py
 
 
@@ -157,12 +211,15 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 else:
     raise ValueError("Output directory %s already exists."%output_dir)
-
-for img_path, pred_out in zip(image_paths, outputs):
-    v = Visualizer(cv2.imread(img_path)[:, :, ::-1], scale=1.2)
+print("b")
+for img_path, pred_out in zip(im_path_filtered, outputs):
+    print("test")
+    v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
     out = v.draw_instance_predictions(pred_out["instances"].to("cpu"))
     img_name = os.path.basename(img_path)
-
+    if out == None:
+        print("img is none")
+    print(img_name)
     cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
 
 #Getting categories names & ids

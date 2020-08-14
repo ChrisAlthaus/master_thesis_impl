@@ -83,8 +83,8 @@ cfg = get_cfg()
 cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
 
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
-cfg.MODEL.DEVICE='cpu'
-#cfg.MODEL.DEVICE='cuda'
+#cfg.MODEL.DEVICE='cpu'
+cfg.MODEL.DEVICE='cuda'
 
 
 # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
@@ -127,8 +127,12 @@ cfg.DATASETS.TRAIN = ("my_dataset_train",)
 cfg.DATASETS.TEST = ("my_dataset_val",)     #actually flag is not test but validation set
 cfg.DATALOADER.NUM_WORKERS = 2 # Number of data loading threads
 
-cfg.INPUT.MIN_SIZE_TRAIN = 512  #Size of the smallest side of the image during training
+cfg.INPUT.MIN_SIZE_TRAIN = 512#(640, 672, 704, 736, 768, 800) #512  #Size of the smallest side of the image during training
     	                     #Defaults: (640, 672, 704, 736, 768, 800)
+#cfg.update({'INPUT.FLIP.PROBABILITY': 0.25})
+#cfg.INPUT.FLIP.PROBABILITY = 0.25
+cfg.INPUT.CROP.TYPE = "relative_range"
+cfg.INPUT.CROP.SIZE = [0.9, 0.9]
 
 #Training Parameters
 cfg.SOLVER.IMS_PER_BATCH = 4 # Number of images per batch across all machines.
@@ -137,7 +141,7 @@ num_epochs = 20
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 # 2 faster, and good enough for this toy dataset (default: 512)
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (ballon) ?
 cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17
-cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = 10#1 # Images with too few (or no) keypoints are excluded from training (default: 1)
+cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = 1 #10 # Images with too few (or no) keypoints are excluded from training (default: 1)
 
 output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m/%d_%H-%M-%S_'+args.finetune.lower()))
 if not os.path.exists(output_dir):
@@ -179,10 +183,16 @@ else:
 
 if args.finetune == 'ALL' or args.finetune == 'SCRATCH':                                            
     cfg.MODEL.RESNETS.NORM = "BN" 
-cfg.SOLVER.BASE_LR = 0.005 #0.0025  # pick a good LR   #TODO: different values
-cfg.SOLVER.GAMMA = 0.1
-cfg.SOLVER.STEPS = (int(7/9*max_iter), int(8/9*max_iter))#(int(55/90*max_iter),int(75/90*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
+cfg.SOLVER.BASE_LR = 0.001#0.0025  # pick a good LR   #TODO: different values
+cfg.SOLVER.GAMMA = 0.95
 
+steps_exp = np.linspace(0,1,12)[1:-1] * max_iter
+steps_exp = np.linspace(191893/max_iter,1,12)[0:-1] * max_iter
+
+cfg.SOLVER.STEPS = tuple(steps_exp)
+#(int(5/10*max_iter),int(6/10*max_iter), int(7/10*max_iter),int(8/10*max_iter),int(9/10*max_iter),int(98/100*max_iter))
+#(int(7/9*max_iter), int(8/9*max_iter))#(int(55/90*max_iter),int(75/90*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
+#TODO: dump config file for prediction
 
 os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 #trainer = DefaultTrainer(cfg) 
@@ -209,7 +219,7 @@ model = trainer.model
 from detectron2.layers.wrappers import BatchNorm2d
 from detectron2.layers.batch_norm import FrozenBatchNorm2d
 
-def BNtoBNFrozen(model, layer_ids, inverse=False):
+def BNFrozentoBN(model, layer_ids, inverse=False):
 
     """first_layer = model.backbone.bottom_up.stem
     weights = first_layer.conv1.norm.weight
@@ -268,13 +278,14 @@ layername_prefixes = {"ResNet":"backbone.bottom_up", "RPN_ANCHOR":"proposal_gene
                       "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head",
                       "FPN":"backbone.fpn"} 
 trainlayers = []
-for l,w in list(model.named_parameters()):
-    print(l)
+#for l,w in list(model.named_parameters()):
+#    print(l)
 
 if args.finetune == "ALL" or args.finetune == 'SCRATCH':
     #Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
     #because not implemented by cfg file
-    BNtoBNFrozen(model, {'stem':'', 'res2':''})
+    BNFrozentoBN(model, {'stem':'', 'res2':''})
+    print("test")
 
 elif args.finetune == "RESNETL":
     layernamesResNet = ['res1','res2','res3','res4','res5']
@@ -297,7 +308,7 @@ elif args.finetune == "RESNETL":
             trainlayers.append(name)
 
     #Unfreeze batch normalization layers
-    BNtoBNFrozen(model, trainConvBlocks)
+    BNFrozentoBN(model, trainConvBlocks)
 
 elif args.finetune == "RESNETF":
     layernamesResNet = ['res1','res2','res3','res4','res5']
@@ -318,7 +329,7 @@ elif args.finetune == "RESNETF":
             trainlayers.append(name)
 
     #Unfreeze batch normalization layers
-    BNtoBNFrozen(model, trainConvBlocks)
+    BNFrozentoBN(model, trainConvBlocks)
 
 elif args.finetune == 'HEADSALL':
     layersNoFreezePrefix = [layername_prefixes[x] for x in ["ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
@@ -368,7 +379,7 @@ while(numAdded < 20):
 if args.resume is not None:
     print("Resuming training from checkpoint %s."%args.resume)
     DetectionCheckpointer(trainer.model).load(args.resume)
-
+print("resume or load")
 trainer.resume_or_load(resume=False)
 print("START TRAINING")
 trainer.train()

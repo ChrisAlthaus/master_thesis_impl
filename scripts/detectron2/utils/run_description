@@ -1,0 +1,22 @@
+
+folder                  output file                                         NET  BN       LR       Weight Decay                   Epochs       Data Augmentation   Min keypoints     Status            Additional
+14_15-38-21_all        outG1All.13_17bestretrainModLrDecayNoBNAugAll.log    all     No   0.001  Exponential weight decay(0.95)  20 epochs         All                   1             Cancelled
+                                                                                                (half + 10 eq spaces intervalls)                (0.25)[-15,0]
+
+14_13-17-06_all        outG1All.13_17bestretrainModLrDecayNoBN.log           all   No     0.001   "                                "                No                  "              Running
+
+
+14_15-54-46_all        outG1All.15_54bestretrainModLrDecayNoBNallAug.log     all     No   0.001  Exponential weight decay(0.95)  20 epochs         All                   1             Running
+                                                                                                (half + 10 eq spaces intervalls)                (0.25)[-15,15]
+
+07_12-40-41_all                ?                                             all     No    0.001    one at 19/21(0.1)             10 epochs         No                   1               End        MIN_SIZE_TRAIN: 512
+                                                                                                                                                                                                    IMS_PER_BATCH: 4  
+
+11_17-46-43_all            ?                                                  all    Yes    0.005     two at 22/28,27/28(0.1)      ?                No                   1             Running?       MIN_SIZE_TRAIN: 512
+                                                                                                                                                                                                      IMS_PER_BATCH: 4              
+
+13_12-01-34_all            ?                                                 all     Yes     0.001  (10 epochs + 5 eq spaced)(0.5)  20 epochs       No                   1              Running?       MIN_SIZE_TRAIN: (640, 672, 704, 736, 768, 800)
+                                                                                                                                                                                                       IMS_PER_BATCH: 2
+
+14_16-56-32_all         outG1All.16_55bestretrainModLrDecayBNallAug.log      all     Yes    0.001   Exponential weight decay(0.95)   20 epochs      Yes                 1                Runnning   
+                                                                                                    (half + 10 eq spaces intervalls)                                                                                               
