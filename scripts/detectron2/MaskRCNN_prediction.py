@@ -139,24 +139,22 @@ with torch.no_grad():
             inputs.append(img)
 
         preds = predictor(inputs)
-
+        
         for img_path,pred in zip(image_paths[i:i+batchsize],preds):
 
             image_name = os.path.splitext(os.path.basename(img_path))[0]
             content_id = image_name.split('_')[0]
             style_id = image_name.split('_')[1]
             image_id = int("%s%s"%(content_id,style_id))
+
         
-        
-            for row,score in zip(pred["instances"].pred_boxes, pred["instances"].scores.cpu().numpy()):
-                outputs.append({'image_id': image_id, "category_id": 1, "bbox": row.tolist(), "score": score.astype("float")})
-        
+            for bbox, keypoints ,score in zip(pred["instances"].pred_boxes, pred["instances"].pred_keypoints, pred["instances"].scores.cpu().numpy()):
+                outputs.append({'image_id': image_id, "category_id": 1, "bbox": bbox.tolist(), "keypoints":keypoints.flatten().tolist(), "score": score.astype("float")})
+      
             outputs_raw.append( pred )
-        
-        
-        
+
         if i%100 == 0 and i!=0:
-            print("Processed %d images."%((i+1)*batchsize))
+            print("Processed %d images."%(i+batchsize))
     print("PREDICTION FINISHED")
 
 print("OUTPUT PREDICTIONS:")
