@@ -8,18 +8,24 @@ from shapely.geometry import LineString, Point, Polygon
 import scipy
 import collections
 import datetime
+import time
+import logging
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-inputFile',required=True,
                     help='File with keypoint annotations/ predictions.')
+parser.add_argument("-v", "--verbose", help="increase output verbosity",
+                    action="store_true")
 
 args = parser.parse_args()
 
 if not os.path.isfile(args.inputFile):
     raise ValueError("No valid input file.")
+if args.verbose:
+    logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
-test_entry = {"image_id": 36, "category_id": 1, "score": 0.7828, "bbox": [167.58, 162.89, 309.61, 464.18999999999994], "keypoints": [252.122, 238.593, 1.0, 270.254, 220.46, 1.0, 233.989, 229.527, 1.0, 311.052, 229.527, 1.0, 224.923, 252.192, 1.0, 360.916, 342.854, 1.0, 215.857, 351.92, 1.0, 401.714, 483.381, 1.0, 215.857, 515.112, 1.0, 442.512, 619.374, 1.0, 247.589, 451.649, 1.0, 360.916, 587.642, 1.0, 270.254, 596.708, 1.0, 342.784, 628.44, 1.0, 261.188, 628.44, 1.0, 324.652, 623.907, 1.0, 256.655, 619.374, 1.0]}
-_KEYPOINT_THRESHOLD = 0.5
+test_entry = {'image_id': 23899057496, 'category_id': 1, 'bbox': [211.99081420898438, 139.43743896484375, 425.96087646484375, 355.24871826171875], 'keypoints': [334.2212219238281, 201.67015075683594, 1.079627275466919, 331.54656982421875, 189.38385009765625, 1.7378227710723877, 312.2892761230469, 192.58897399902344, 1.028214931488037, 334.7561340332031, 202.20433044433594, 0.08344336599111557, 269.4952697753906, 213.9564208984375, 0.38487914204597473, 346.5245056152344, 262.033203125, 0.13131119310855865, 288.2176513671875, 285.5373840332031, 0.10808556526899338, 425.1584777832031, 354.4474182128906, 0.020250316709280014, 383.434326171875, 328.8064880371094, 0.012223891913890839, 276.44927978515625, 354.4474182128906, 0.01989334262907505, 425.1584777832031, 354.4474182128906, 0.020259613171219826, 425.1584777832031, 354.4474182128906, 0.02405051700770855, 403.761474609375, 354.4474182128906, 0.02277219668030739, 425.1584777832031, 354.4474182128906, 0.03073735162615776, 425.1584777832031, 354.4474182128906, 0.03939764201641083, 425.1584777832031, 354.4474182128906, 0.02348250150680542, 425.1584777832031, 354.4474182128906, 0.03718782961368561], 'score': 0.9582511186599731}
+_KEYPOINT_THRESHOLD = 0.0
 _REFs = {5: "left_shoulder", 6: "right_shoulder"}
 #_REFs = {1: "left_shoulder"}
 _MINKPTs = 10
@@ -27,8 +33,8 @@ _NUMKPTS = 17
 # In order to get the list of all files that ends with ".json"
 # we will get list of all files, and take only the ones that ends with "json"
 def main():
-    calculateGPD(test_entry['keypoints'])
-    exit(1)
+    #calculateGPD(test_entry['keypoints'])
+    #exit(1)
     output_dir = os.path.join('/home/althausc/master_thesis_impl/posedescriptors/out', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -45,25 +51,33 @@ def main():
     json_out = []
     prevImgId = None
     #json_data = [test_entry]
+    start_time = time.time()
+
+    c = 0
     for i,person in enumerate(json_data):
         if "keypoints" in person:
-            #print("PREV:",person['keypoints'])
+            #logging.debug("PREV:",person['keypoints'])
             isvalid = filterKeypoints(person['keypoints'])
-            #print("LATER:",person['keypoints'])
+            #logging.debug("LATER:",person['keypoints'])
 
-            #if isvalid is False:
-            #    exit(1)
             if isvalid:
                 keypoint_descriptor = calculateGPD(person['keypoints'])
+
                 image_id = person["image_id"]
                 if image_id != prevImgId:
-                    json_data.append({"image_id": image_id, "gpd": [keypoint_descriptor]})
+                    json_out.append({"image_id": image_id, "gpd": [keypoint_descriptor]})
+                    prevImgId = image_id
                 else:
-                    json_data[-1]['gpd'].append(keypoint_descriptor)
-    
+                    json_out[-1]['gpd'].append(keypoint_descriptor)
+                c = c + 1
+
+    print("Time for calculating %d descriptors = %s seconds " % (c,time.time() - start_time))
+    print("Original number of json predictions: ",len(json_data))
+    print("Number of calculated descriptors: ",c)
+
     json_file = 'geometric_pose_descriptor'
-    with open(os.path.join(output_dir,json_file), 'w') as f:
-        print("Writing to file: ",os.path.join(output_dir,json_file))
+    with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
+        print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
         json.dump(json_out, f)
 
 def filterKeypoints(pose_keypoints):
@@ -76,7 +90,7 @@ def filterKeypoints(pose_keypoints):
             #Set visible value to indicate invalid keypoint
             pose_keypoints[idx+2] = None
             if idx/3 in _REFs.keys():
-                #print("no ref key")
+                #logging.debug("no ref key")
                 return False
     if sum(x is not None for x in pose_keypoints) >= _MINKPTs:
         return True
@@ -90,6 +104,8 @@ def calculateGPD(keypoints):
     vs = keypoints[2::3]
 
     num_kps = 17
+    kpts_valid = [1 if v is not None else 0 for v in vs] #Keypoints with visibility None should not be considered (0 in feature decsriptor)
+    logging.debug("kpts_valid: ",kpts_valid)
     body_part_mapping = {
         0: "nose", 1: "left_eye", 2: "right_eye", 3: "left_ear", 4: "right_ear", 5: "left_shoulder", 6: "right_shoulder",
         7: "left_elbow", 8: "right_elbow", 9: "left_wrist", 10: "right_wrist", 11: "left_hip", 12: "right_hip",
@@ -130,22 +146,23 @@ def calculateGPD(keypoints):
     keypoints = np.asarray(list(zip(xs,ys)), np.float32)
     
     keypoints = keypoints - ref_point
+    #logging.debug("ref point: ",ref_point)
  
     pose_descriptor = []
     #Joint Coordinate: all keypoints in relative coordinate system + reference point in world coordinate system
-    #Dimension 25 x 2 + 1 = 51 
+    #Dimension 17 x 2 + 1 = 35 
     #joint_coordinates = np.delete(keypoints,inv_body_part_mapping['MidHip'])
     joint_coordinates = np.append(ref_point,keypoints)
-    print("Dimension joint coordinates: ", joint_coordinates.shape) 
+    logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
     pose_descriptor.append(joint_coordinates.tolist())
 
     indices_pairs = []
-    JJ_d = joint_joint_distances(keypoints,indices_pairs=None)
-    pose_descriptor.append(JJ_d)
+    #JJ_d = joint_joint_distances(keypoints,indices_pairs=None)
+    #pose_descriptor.append(JJ_d)
     
     indices_pairs = []
-    JJ_o = joint_joint_orientations(keypoints, indices_pairs=None)
-    pose_descriptor.append(JJ_o)
+    #JJ_o = joint_joint_orientations(keypoints, indices_pairs=None)
+    #pose_descriptor.append(JJ_o)
 
     l_adjacent = lines_direct_adjacent(keypoints, kpts_lines)
 
@@ -160,18 +177,27 @@ def calculateGPD(keypoints):
     l_adjacent.update(line_endjoints)
     l_adjacent.update(l_custom)
 
-
-    kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'], 13:[(11,15),'left_leg'], 14:[(12,16),'right_leg'], 
+    #Dimensions: 18 distances
+    kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'], 
                         3:[(5,0),'shoulder_head_left'], 4:[(6,0),'shoulder_head_right'],
-                        6:[(8,5),'shoulders_elbowr'], 5:[(6,7),'shoulders_elbowsl'], 
-                        13:[(14,15),'knees_foot_side'], 14:[(13,16),'knees_foot_side'], 
+                        6:[[(8,5),'shoulders_elbowr'], [(10,4),'endpoints_earhand_shoulder_r']], 
+                        5:[[(6,7),'shoulders_elbowsl'], [(3,9),'endpoints_earhand_shoulder_l']], 
+                        13:[[(14,15),'knees_foot_side'], [(11,15),'left_leg']],
+                        14:[[(13,16),'knees_foot_side'], [(12,16),'right_leg']], 
                         10:[(5,9),'arms_left_side'], 9:[(6,10),'arms_right_side'],
-                        0:[(16,12),'headpos_side'], 0:[(15,11),'headpos_side']} 
-    JL_d = joint_line_distances(keypoints, l_adjacent, kpt_line_mapping)
+                        0:[[(16,12),'headpos_side'], [(15,11),'headpos_side']],
+                        11:[(15,9),'endpoints_foodhand_hip_l'], 12:[(10,16),'endpoints_foodhand_hip_r']} 
+    JL_d = joint_line_distances(keypoints, l_adjacent, kpts_valid, kpt_line_mapping)
     pose_descriptor.append(JL_d)
 
-    line_line_mapping = []
-    LL_a = line_line_angles(l_adjacent)
+    #Dimensions: 10 angles
+    line_line_mapping = {(10,9):[(9,15),'hands_lfoot'], (9,10):[(9,16),'hands_rfoot'],
+                        (10,16):[(9,10),'hands_lfoot'], (16,10):[(10,15),'hands_rfoot'],
+                        (5,11):[(5,9),'hand_shoulder_hip_l'], (6,12):[(6,10),'hand_shoulder_hip_r'],
+                        (6,8):[(5,7),'upper_arms'], (8,10):[(7,9),'lower_arms'],
+                        (12,14):[(11,13),'upper_legs'], (14,16):[(13,15),'lower_legs'],
+                        (0,5):[(3,5),'head_shoulder_l'], (4,6):[(0,6),'head_shoulder_r']}
+    LL_a = line_line_angles(l_adjacent, kpts_valid, line_line_mapping)
     pose_descriptor.append(LL_a)
 
     #Planes for selected regions: 2 for each head, arms, leg & foot region 
@@ -183,10 +209,19 @@ def calculateGPD(keypoints):
     #JP_d = joint_plane_distances(keypoints, planes)
 
 
- 
-    #print(pose_descriptor)
-    print("Dimension of pose descriptor: ", len(pose_descriptor)) 
-    print("\n")
+    for l in pose_descriptor:
+        for v in l:
+            if math.isnan(v):
+                print("Detected NaN value in final descriptor: ")
+                print(pose_descriptor)
+                exit(1)
+    #logging.debug(pose_descriptor)
+    logging.debug("\nDimension of pose descriptor: {}".format(len(pose_descriptor)) ) 
+    #flatten desriptor
+    pose_descriptor = [item for sublist in pose_descriptor for item in sublist]
+    logging.debug("Dimension of pose descriptor flattened: {}".format(len(pose_descriptor))) 
+    logging.debug("\n")
+
 
     return pose_descriptor
 
@@ -230,7 +265,8 @@ def joint_joint_distances(keypoints,indices_pairs=None):
         for start,end in indices_pairs:
             joint_distances.append(np.linalg.norm(keypoints[start]-keypoints[end]))
     
-    print("Dimension joint distances: ", len(joint_distances)) 
+    logging.debug("Dimension joint distances: {}".format(len(joint_distances))) 
+ 
     return joint_distances  
 
 def joint_joint_orientations(keypoints, indices_pairs=None):
@@ -261,7 +297,7 @@ def joint_joint_orientations(keypoints, indices_pairs=None):
                 joint_orientations.append( tuple((j2-j1)/np.linalg.norm(j2-j1)) ) #a-b = target-origin
             else:
                 joint_orientations.append((0,0))
-    print("Dimension of joint orientations: ",len(joint_orientations))
+    logging.debug("Dimension of joint orientations: {}".format(len(joint_orientations)))
     return joint_orientations
 
 def lines_direct_adjacent(keypoints, kpts_lines):
@@ -270,7 +306,7 @@ def lines_direct_adjacent(keypoints, kpts_lines):
     #Lines pointing outwards
     for start,end in kpts_lines:
         lines.update({(start,end) : LineString([keypoints[start], keypoints[end]])})
-    print("Dimension lines between directly adjacent keypoints: ", len(lines))
+    logging.debug("\tDimension lines between directly adjacent keypoints: {}".format(len(lines)))
     return lines
 
 def lines_endjoints_depth2(keypoints, end_joints_depth2):
@@ -279,7 +315,7 @@ def lines_endjoints_depth2(keypoints, end_joints_depth2):
     #Dimension (BODY_MODEL_25): 8 / 6
     for (end, begin) in end_joints_depth2.items():
         lines.update({(begin,end) : LineString([keypoints[begin], keypoints[end]])})
-    print("Dimension lines from end-joints of depth 2: ", len(lines))
+    logging.debug("\tDimension lines from end-joints of depth 2: {}".format(len(lines)))
     return lines
 
 def lines_endjoints(keypoints, end_joints, indices_pairs = None):
@@ -297,61 +333,95 @@ def lines_endjoints(keypoints, end_joints, indices_pairs = None):
                 lines.update({(start,end) : LineString([keypoints[start], keypoints[end]])})
             else:
                 raise ValueError("Given index is no end joint.")
-    print("Dimension lines between end-joints only: ", len(lines)) 
+    logging.debug("\tDimension lines between end-joints only: {}".format(len(lines))) 
     return lines
 
 def lines_custom(keypoints):
     kpt_mapping = {14:15, 13:16, #foot knees x
                     5:0,  0:6,  #shoulders-nose
-                    8:5, 6:7, #elbows-shoulders x
+                    8:5, 7:6, #elbows-shoulders x
+                    11:5, 6:12, #shoulders-hips
+                    3:5, 4:6  #shoulders-ears
                     }
     lines = {}
     for k1,k2 in kpt_mapping.items():
         lines.update({(k1,k2) : LineString([keypoints[k1], keypoints[k2]])})
+    logging.debug("\tDimension lines custom: {}".format(len(lines))) 
     return lines
 
-def joint_line_distances(keypoints, lines, kpt_line_mapping = None):
+def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
     #Joint-Line Distance
     
     joint_line_distances = []
+    
     if kpt_line_mapping is None:
         #Approx. Dimension: 60 lines * (25-3) joints = 1320 / (16+6+15) lines * (17-3) joints = 518
         for l in lines:
             coords = list(l.coords)
-            for joint in keypoints:
+            for i,joint in enumerate(keypoints):
+                if not kpts_valid[i]:
+                    joint_line_distances.append(0)
+                    continue
                 if tuple(joint) not in coords:
                     joint_line_distances.append(Point(joint).distance(l))
                 #To provide static descriptor dimension
                 else:
                     joint_line_distances.append(0)
     else:
-        for k, [(k1,k2),label] in kpt_line_mapping.items():
-            if (k1,k2) in lines.keys():
-                joint_line_distances.append(Point(keypoints[k]).distance(lines[(k1,k2)]))
-            elif (k2,k1) in lines.keys():
-                joint_line_distances.append(Point(keypoints[k]).distance(lines[(k2,k1)]))
+        for k, item in kpt_line_mapping.items():
+            if isinstance(item[0], list): 
+                for [(k1,k2),label] in item:
+                    if not kpts_valid[k1] or not kpts_valid[k2] or not kpts_valid[k]:
+                        joint_line_distances.append(0)
+                        continue
+                    if (k1,k2) in lines.keys():
+                        joint_line_distances.append(Point(keypoints[k]).distance(lines[(k1,k2)]))
+                    elif (k2,k1) in lines.keys():
+                        joint_line_distances.append(Point(keypoints[k]).distance(lines[(k2,k1)]))
+                    else:
+                        logging.debug("Not found line: {}{}".format(k1,k2))
+                        #raise ValueError("Line in keypoint-line mapping not in line storage.")
             else:
-                print("Not found line:" ,k1,k2)
-                #raise ValueError("Line in keypoint-line mapping not in line storage.")
-    
-    print("Dimension joint line distances: ", len(joint_line_distances)) 
+                [(k1,k2),label] = item
+                if not kpts_valid[k1] or not kpts_valid[k2]:
+                    joint_line_distances.append(0)
+                    continue                
+                if (k1,k2) in lines.keys():
+                    joint_line_distances.append(Point(keypoints[k]).distance(lines[(k1,k2)]))
+                elif (k2,k1) in lines.keys():
+                    joint_line_distances.append(Point(keypoints[k]).distance(lines[(k2,k1)]))
+                else:
+                    logging.debug("Not found line: {}{}".format(k1,k2))
+   
+    logging.debug("Dimension joint line distances: {}".format(len(joint_line_distances))) 
     return joint_line_distances
 
-def line_line_angles(lines, line_line_mapping = None):
+def line_line_angles(lines, kpts_valid, line_line_mapping = None):
     #Line-Line Angle
     line_line_angles = []    
     def angle(l1,l2):
         [p11,p12] = list(l1.coords)
         [p21,p22] = list(l2.coords)
+        #When line is a point (due to prediction overlay kpts) return 0
+        if (p11[0] == p12[0] and p11[1] == p12[1]) or (p21[0] == p22[0] and p21[1] == p22[1]):
+            return 0
         #limb vectors pointing outwards
         j1 = np.subtract(p12,p11)
         j2 = np.subtract(p22,p21)
-        return np.rad2deg(np.arccos(np.dot(j1, j2) / (np.linalg.norm(j1) * np.linalg.norm(j2))))
+
+        j1_norm = j1/np.linalg.norm(j1)
+        j2_norm = j2/np.linalg.norm(j2)
+
+        return np.arccos(np.clip(np.dot(j1_norm, j2_norm), -1.0, 1.0))
+ 
     if line_line_mapping is None:
         #(25-1) over 2 = 276 / (17-1) over 2 = 120
         finished = []
         for (k11,k12),l1 in lines.items():
             for (k21,k22),l2 in lines.items():
+                if not kpts_valid[k11] or not kpts_valid[k12] or not kpts_valid[k21] or not kpts_valid[k22]:
+                    line_line_angles.append(0)
+                    continue
                 #skip self-angle and already calculated angles of same lines
                 if(k21,k22) == (k11,k12) or [(k11,k12),(k21,k22)] in finished or [(k21,k22),(k11,k12)] in finished:
                     continue
@@ -365,12 +435,19 @@ def line_line_angles(lines, line_line_mapping = None):
                     #else:
                     #    line_line_angles.append(0)
     else:
-        for (k11,k12),(k21,k22) in line_line_mapping.items():
-            l1 = lines[(k11,k12)]
-            l2 = lines[(k21,k22)]
+        for (k11,k12),[(k21,k22),label] in line_line_mapping.items():
+            if not kpts_valid[k11] or not kpts_valid[k12] or not kpts_valid[k21] or not kpts_valid[k22]:
+                line_line_angles.append(0)
+                continue
+            l1 = lines[(k11,k12)] if (k11,k12) in lines.keys() else lines[(k12,k11)]
+            l2 = lines[(k21,k22)] if (k21,k22) in lines.keys() else lines[(k22,k21)]
             if l1!=l2:
                 line_line_angles.append(angle(l1,l2))
-    print("Dimension line line angles: ", len(line_line_angles)) 
+            else:
+                #lines having the exact same directions
+                line_line_angles.append(0)
+
+    logging.debug("Dimension line line angles: {}".format(len(line_line_angles)) )
     return line_line_angles
 
 def get_planes(plane_points):
@@ -391,7 +468,7 @@ def joint_plane_distances(keypoints,planes):
             #To provide static descriptor dimension
             else:
                 joint_plane_distances.append(0)
-    print("Dimension joint plane distances: ", len(joint_plane_distances)) 
+    logging.debug("Dimension joint plane distances: {}".format(len(joint_plane_distances))) 
     return joint_plane_distances
 
 if __name__=="__main__":
