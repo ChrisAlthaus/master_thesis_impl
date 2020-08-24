@@ -10,6 +10,7 @@ import collections
 import datetime
 import time
 import logging
+import itertools
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-inputFile',required=True,
@@ -54,6 +55,7 @@ def main():
     start_time = time.time()
 
     c = 0
+    i = 0
     for i,person in enumerate(json_data):
         if "keypoints" in person:
             #logging.debug("PREV:",person['keypoints'])
@@ -61,14 +63,17 @@ def main():
             #logging.debug("LATER:",person['keypoints'])
 
             if isvalid:
-                keypoint_descriptor = calculateGPD(person['keypoints'])
+                keypoint_descriptor, visibilities = calculateGPD(person['keypoints'])
 
                 image_id = person["image_id"]
                 if image_id != prevImgId:
-                    json_out.append({"image_id": image_id, "gpd": [keypoint_descriptor]})
+                    i = 1
+                    json_out.append({"image_id": image_id, "gpds": [{str(i): keypoint_descriptor, 'score': person['score'], 'vis': visibilities}]})
                     prevImgId = image_id
                 else:
-                    json_out[-1]['gpd'].append(keypoint_descriptor)
+                    i = i + 1
+                    json_out[-1]['gpds'].append({str(i):keypoint_descriptor, 'score': person['score'], 'vis': visibilities})
+                    
                 c = c + 1
 
     print("Time for calculating %d descriptors = %s seconds " % (c,time.time() - start_time))
@@ -105,7 +110,8 @@ def calculateGPD(keypoints):
 
     num_kps = 17
     kpts_valid = [1 if v is not None else 0 for v in vs] #Keypoints with visibility None should not be considered (0 in feature decsriptor)
-    logging.debug("kpts_valid: ",kpts_valid)
+    logging.debug("kpts_valid: {}".format(kpts_valid))
+
     body_part_mapping = {
         0: "nose", 1: "left_eye", 2: "right_eye", 3: "left_ear", 4: "right_ear", 5: "left_shoulder", 6: "right_shoulder",
         7: "left_elbow", 8: "right_elbow", 9: "left_wrist", 10: "right_wrist", 11: "left_hip", 12: "right_hip",
@@ -137,24 +143,25 @@ def calculateGPD(keypoints):
         p1 = [xs[ref_ids[0]], ys[ref_ids[0]]]
         p2 = [xs[ref_ids[1]], ys[ref_ids[1]]]
         pmid = [(p1[0]+p2[0])/2, (p1[1]+p2[1])/2 ]
+        vs.insert(0, (vs[ref_ids[0]] + vs[ref_ids[1]])/2)
     elif len(_REFs) == 1:
         pmid = [xs[ref_ids[0]], ys[ref_ids[0]]]
+        vs.insert(0, vs[ref_ids[0]])
     else:
         raise ValueError("_REFS not valid.")
 
     ref_point = np.array(pmid)
-    keypoints = np.asarray(list(zip(xs,ys)), np.float32)
-    
-    keypoints = keypoints - ref_point
     #logging.debug("ref point: ",ref_point)
- 
+    keypoints = np.asarray(list(zip(xs,ys)), np.float32)
+    keypoints = (keypoints - ref_point).tolist()
+
     pose_descriptor = []
-    #Joint Coordinate: all keypoints in relative coordinate system + reference point in world coordinate system
-    #Dimension 17 x 2 + 1 = 35 
-    #joint_coordinates = np.delete(keypoints,inv_body_part_mapping['MidHip'])
-    joint_coordinates = np.append(ref_point,keypoints)
-    logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
-    pose_descriptor.append(joint_coordinates.tolist())
+
+    #Dimensions: 18 keypoints (with or without visibility flag)
+    joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist())
+    #joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist(), visiblities = vs , vclipping = True)
+
+    pose_descriptor.append(joint_coordinates)
 
     indices_pairs = []
     #JJ_d = joint_joint_distances(keypoints,indices_pairs=None)
@@ -200,6 +207,10 @@ def calculateGPD(keypoints):
     LL_a = line_line_angles(l_adjacent, kpts_valid, line_line_mapping)
     pose_descriptor.append(LL_a)
 
+    #Add clipped score value
+    #score = max(0,min(1,score))
+    #pose_descriptor.append([score])
+
     #Planes for selected regions: 2 for each head, arms, leg & foot region 
     #plane_points = [{1: 'Neck',0: 'Nose', 18: 'LEar'}, {1: 'Neck',0: 'Nose', 18: 'REar'}, {2: 'RShoulder', 3: 'RElbow', 4: 'RWrist'},
     #                {5: 'LShoulder', 6: 'LElbow',7: 'LWrist'}, {12: 'LHip', 13: 'LKnee', 14: 'LAnkle'}, { 9: 'RHip', 10: 'RKnee', 11: 'RAnkle'},
@@ -208,7 +219,7 @@ def calculateGPD(keypoints):
     #planes = get_planes(plane_points)
     #JP_d = joint_plane_distances(keypoints, planes)
 
-
+    
     for l in pose_descriptor:
         for v in l:
             if math.isnan(v):
@@ -219,11 +230,15 @@ def calculateGPD(keypoints):
     logging.debug("\nDimension of pose descriptor: {}".format(len(pose_descriptor)) ) 
     #flatten desriptor
     pose_descriptor = [item for sublist in pose_descriptor for item in sublist]
-    logging.debug("Dimension of pose descriptor flattened: {}".format(len(pose_descriptor))) 
+    print(pose_descriptor) 
+    logging.debug("Dimension of pose descriptor flattened: {}".format(len(pose_descriptor)))
     logging.debug("\n")
 
+    #Visibilities of kpts clipped
+    visibilities = list(map(lambda y: max(0,min(2,y)), vs))
 
-    return pose_descriptor
+
+    return pose_descriptor, visibilities
 
 def get_endjoints(part_pairs, body_part_mapping):
     #Create a dict containing all end points (e.g. RWrist, LWrist)
@@ -248,6 +263,34 @@ def get_endjoints_depth2(end_joints, kpts_lines):
             for (middle,begin) in d2:
                 end_joints_depth2.update({end: begin})
     return end_joints_depth2
+
+def joint_coordinates_rel(keypoints, reference_point, visiblities = None, vclipping = False):
+    #Joint Coordinate: all keypoints in relative coordinate system + reference point in world coordinate system
+    joint_coordinates = []
+    
+    if visiblities is None:
+        #Dimension 17 x 2 + 1 x 2 = 36 
+        #joint_coordinates = np.delete(keypoints,inv_body_part_mapping['MidHip'])
+        joint_coordinates = itertools.chain([reference_point], keypoints)
+        joint_coordinates = [item for sublist in list(joint_coordinates) for item in sublist]
+        logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
+        return joint_coordinates
+
+    else:
+        #Adding the visibility flag
+        #Meaning:   visibility == 0 that keypoint not in the image
+        #           visibility == 1 that keypoint is in the image BUT not visible, 
+        #           visibility == 2 that keypoint is visible
+        #Dimension 17 x 3 + 1 x 3 = 54 
+        joint_coordinates = itertools.chain([reference_point], keypoints)
+        if vclipping:
+            #Clip values bcose sometime very large
+            visiblities = map(lambda y: max(0,min(2,y)), visiblities)
+        joint_coordinates = [(xy[0],xy[1],v) for [xy, v] in zip(joint_coordinates, visiblities)]
+        joint_coordinates = [item for sublist in joint_coordinates for item in sublist]
+        logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
+        return joint_coordinates
+    
 
 def joint_joint_distances(keypoints,indices_pairs=None):
     #Joint-Joint Distance
