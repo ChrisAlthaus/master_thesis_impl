@@ -31,7 +31,7 @@ if isinstance(json_file,list):
     #        unique_imgIds.append(elem['image_id'])
     #print("Number of unique image ids: ",len(unique_imgIds))
     print("Sample at position 0: ",json_file[0])
-    print("Entries sampled: ", json_file[:10])
+    #print("Entries sampled: ", json_file[:10])
 elif isinstance(json_file,dict):
     print("Number of images: ",len(json_file['images']))
     print("Sample at position 0: ",json_file['images'][0])

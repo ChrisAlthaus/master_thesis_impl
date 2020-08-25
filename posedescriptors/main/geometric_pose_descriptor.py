@@ -26,7 +26,7 @@ if args.verbose:
     logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
 test_entry = {'image_id': 23899057496, 'category_id': 1, 'bbox': [211.99081420898438, 139.43743896484375, 425.96087646484375, 355.24871826171875], 'keypoints': [334.2212219238281, 201.67015075683594, 1.079627275466919, 331.54656982421875, 189.38385009765625, 1.7378227710723877, 312.2892761230469, 192.58897399902344, 1.028214931488037, 334.7561340332031, 202.20433044433594, 0.08344336599111557, 269.4952697753906, 213.9564208984375, 0.38487914204597473, 346.5245056152344, 262.033203125, 0.13131119310855865, 288.2176513671875, 285.5373840332031, 0.10808556526899338, 425.1584777832031, 354.4474182128906, 0.020250316709280014, 383.434326171875, 328.8064880371094, 0.012223891913890839, 276.44927978515625, 354.4474182128906, 0.01989334262907505, 425.1584777832031, 354.4474182128906, 0.020259613171219826, 425.1584777832031, 354.4474182128906, 0.02405051700770855, 403.761474609375, 354.4474182128906, 0.02277219668030739, 425.1584777832031, 354.4474182128906, 0.03073735162615776, 425.1584777832031, 354.4474182128906, 0.03939764201641083, 425.1584777832031, 354.4474182128906, 0.02348250150680542, 425.1584777832031, 354.4474182128906, 0.03718782961368561], 'score': 0.9582511186599731}
-_KEYPOINT_THRESHOLD = 0.0
+_KEYPOINT_THRESHOLD = 0.5
 _REFs = {5: "left_shoulder", 6: "right_shoulder"}
 #_REFs = {1: "left_shoulder"}
 _MINKPTs = 10
@@ -65,16 +65,10 @@ def main():
             if isvalid:
                 keypoint_descriptor, visibilities = calculateGPD(person['keypoints'])
 
-                image_id = person["image_id"]
-                if image_id != prevImgId:
-                    i = 1
-                    json_out.append({"image_id": image_id, "gpds": [{str(i): keypoint_descriptor, 'score': person['score'], 'vis': visibilities}]})
-                    prevImgId = image_id
-                else:
-                    i = i + 1
-                    json_out[-1]['gpds'].append({str(i):keypoint_descriptor, 'score': person['score'], 'vis': visibilities})
-                    
+                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': person['score'], 'vis': visibilities})
                 c = c + 1
+        if i%1000 == 0 and i!=0:
+            print("Processed %d elements."%i)
 
     print("Time for calculating %d descriptors = %s seconds " % (c,time.time() - start_time))
     print("Original number of json predictions: ",len(json_data))
@@ -95,6 +89,7 @@ def filterKeypoints(pose_keypoints):
             #Set visible value to indicate invalid keypoint
             pose_keypoints[idx+2] = None
             if idx/3 in _REFs.keys():
+                #if reference point is unstable, skip this pose
                 #logging.debug("no ref key")
                 return False
     if sum(x is not None for x in pose_keypoints) >= _MINKPTs:
@@ -230,11 +225,11 @@ def calculateGPD(keypoints):
     logging.debug("\nDimension of pose descriptor: {}".format(len(pose_descriptor)) ) 
     #flatten desriptor
     pose_descriptor = [item for sublist in pose_descriptor for item in sublist]
-    print(pose_descriptor) 
     logging.debug("Dimension of pose descriptor flattened: {}".format(len(pose_descriptor)))
     logging.debug("\n")
 
     #Visibilities of kpts clipped
+    vs = list(map(lambda x: 0 if x is None else x, vs))
     visibilities = list(map(lambda y: max(0,min(2,y)), vs))
 
 

@@ -141,3 +141,5 @@ testImages
 .vscode
 
 detectron2/out/checkpoints
+posedescriptors/out
+retrieval
