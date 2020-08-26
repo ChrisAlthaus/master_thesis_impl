@@ -8,6 +8,7 @@ import time
 import logging
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
+from sklearn.manifold import TSNE
 import pickle
 from collections import OrderedDict
 
@@ -55,7 +56,7 @@ def main():
         descriptors = np.array(descriptors)
 
         if args.validateMethod == 'ELBOW':
-            ks, sse = calculate_WSS(descriptors, 10, 170)
+            ks, sse = calculate_WSS(descriptors, 10, 200)
             
             print(ks)
             print(sse) # [4,20] = [2504852032.235484, 2409304817.4889417, 2316832857.527023, 2240042681.6462297, 2174669156.243677, 2105300280.3983455, 2053219336.5968208, 2014941360.954779, 1975832927.5999012, 1940372824.7540097, 1910655878.4689345, 1887375627.2133079, 1866513715.2268927, 1848455603.6091566, 1831448213.5342908, 1812663714.8990078, 1799162596.828914]
@@ -68,6 +69,7 @@ def main():
             ax = sns.relplot(x="k", y="sse", sort=False, kind="line", markers=True, data=df)
             ax.fig.savefig(os.path.join(output_dir,"eval_elbowmethod%d.png"%len(descriptors)))
             plt.clf()
+
         elif args.validateMethod == 'SILHOUETTE':
             """from sklearn.datasets import make_blobs
             X, y = make_blobs(n_samples=500,
@@ -86,6 +88,16 @@ def main():
             ax.fig.savefig(os.path.join(output_dir,"eval_silouettes%d.png"%len(descriptors)))
             plt.clf()
 
+        elif args.validateMethod == 'T-SNE':
+            X_embedded, labels = calc_tsne(descriptors, 30)
+
+            df = pd.DataFrame({'x':X_embedded[:,0] , 'y':X_embedded[:,1], 'labels': labels})
+            ax =sns.scatterplot(x="x", y="y", hue = 'labels', data=df)  #hue = 'labels'
+            ax.figure.savefig(os.path.join(output_dir,"eval_tsne%d.png"%len(descriptors)))
+            plt.clf()
+
+
+
         else:
             raise ValueError("Please specify a valid k-finding method.")
     else:
@@ -100,7 +112,6 @@ def main():
         else:
             raise ValueError("Nothing to do. Please specify valid arguments.")
 
-        print(v_codebook_assign)
         json_file = 'codebook_mapping'
         #with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
         #    print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
@@ -115,7 +126,6 @@ def kmeans_and_visual_codebook(json_data, model=None, k=100):
     descriptors = []
 
     for item in json_data:
-         print(item)
          descriptors.append(item['gpd'])
     descriptors = np.array(descriptors)
     
@@ -142,18 +152,14 @@ def kmeans_and_visual_codebook(json_data, model=None, k=100):
         codeword = tuple(centroid)#(map(str, centroid))
         v_codebook[codeword] = []
         map_codeword_ids[i] = codeword
-    print(map_codeword_ids)
  
     for i,cluster_id in enumerate(pred_clusters):
-        #pred = list(filter(lambda item: item['image_id'] == img_id, json_data))[0]
-        #if len(entry) > 1:
-        #    raise IndexError("image_id should be unique.")
         entry = {'image_id': json_data[i]['image_id'], 'score': json_data[i]['score'], 'vis': json_data[i]['vis']}
-        print("cluster_id: ",cluster_id)
         v_codebook[map_codeword_ids[cluster_id]].append(entry)
 
     print("Length of visual codebook: ",len(v_codebook))
-    for i,c_list in enumerate(v_codebook):
+
+    for i,c_list in enumerate(v_codebook.values()):
         print("Cluster %d has %d gpd descriptors."%(i,len(c_list)))
 
     if model is None:
@@ -209,6 +215,20 @@ def calc_silouette_scores(points, kmin, kmax, plot_clustersilhouettes = False, o
             plt.clf()
     
     return range(kmin,kmax+1), sil 
+
+def calc_tsne(points,k):
+    print("Dimension of a feature vector = %d "%len(points[0]))
+    print("Calculate t-SNE ...")
+    start_time = time.time()
+    X_embedded = TSNE(n_components=2).fit_transform(points)
+    print("Calculate t-SNE done. Took %s seconds."%(time.time() - start_time))
+    print("Clustering for k = %d ..."%k)
+    start_time = time.time()
+    kmeans = KMeans(n_clusters = k).fit(points)
+    print("Clustering for k = %d done. Took %s seconds."%(k,time.time() - start_time))
+
+    labels = kmeans.labels_
+    return X_embedded, labels
 
 def draw_acc_results():
     output_dir = os.path.join('/home/althausc/master_thesis_impl/posedescriptors/clustering/out', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
