@@ -6,6 +6,8 @@ import numpy as np
 import math
 from shapely.geometry import LineString, Point, Polygon
 import scipy
+from sklearn.decomposition import PCA
+import pickle
 import collections
 import datetime
 import time
@@ -15,15 +17,11 @@ import itertools
 parser = argparse.ArgumentParser()
 parser.add_argument('-inputFile',required=True,
                     help='File with keypoint annotations/ predictions.')
+parser.add_argument("-mode", type=int, help="Specify types of features which will be computed.")
+parser.add_argument("-pca", type=int, help="Specify dimensions of pca vector.")
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
-
 args = parser.parse_args()
-
-if not os.path.isfile(args.inputFile):
-    raise ValueError("No valid input file.")
-if args.verbose:
-    logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
 test_entry = {'image_id': 23899057496, 'category_id': 1, 'bbox': [211.99081420898438, 139.43743896484375, 425.96087646484375, 355.24871826171875], 'keypoints': [334.2212219238281, 201.67015075683594, 1.079627275466919, 331.54656982421875, 189.38385009765625, 1.7378227710723877, 312.2892761230469, 192.58897399902344, 1.028214931488037, 334.7561340332031, 202.20433044433594, 0.08344336599111557, 269.4952697753906, 213.9564208984375, 0.38487914204597473, 346.5245056152344, 262.033203125, 0.13131119310855865, 288.2176513671875, 285.5373840332031, 0.10808556526899338, 425.1584777832031, 354.4474182128906, 0.020250316709280014, 383.434326171875, 328.8064880371094, 0.012223891913890839, 276.44927978515625, 354.4474182128906, 0.01989334262907505, 425.1584777832031, 354.4474182128906, 0.020259613171219826, 425.1584777832031, 354.4474182128906, 0.02405051700770855, 403.761474609375, 354.4474182128906, 0.02277219668030739, 425.1584777832031, 354.4474182128906, 0.03073735162615776, 425.1584777832031, 354.4474182128906, 0.03939764201641083, 425.1584777832031, 354.4474182128906, 0.02348250150680542, 425.1584777832031, 354.4474182128906, 0.03718782961368561], 'score': 0.9582511186599731}
 _KEYPOINT_THRESHOLD = 0.5
@@ -31,8 +29,18 @@ _REFs = {5: "left_shoulder", 6: "right_shoulder"}
 #_REFs = {1: "left_shoulder"}
 _MINKPTs = 10
 _NUMKPTS = 17
-# In order to get the list of all files that ends with ".json"
-# we will get list of all files, and take only the ones that ends with "json"
+_MODES = ['JcJLdLLa_reduced', 'JLd_all']
+_FILTER = 1
+_FILTERMODE = 1 #['strict' vs 'nostrict'] 
+
+if not os.path.isfile(args.inputFile):
+    raise ValueError("No valid input file.")
+if args.verbose:
+    logging.basicConfig(level=logging.DEBUG, format='%(message)s')
+if args.mode not in range(0, len(_MODES)):
+     raise ValueError("No valid mode number.")
+
+
 def main():
     #calculateGPD(test_entry['keypoints'])
     #exit(1)
@@ -41,7 +49,7 @@ def main():
         os.makedirs(output_dir)
     else:
         raise ValueError("Output directory %s already exists."%output_dir)
-   
+    
     print("Reading from file: ",args.inputFile)
     with open (args.inputFile, "r") as f:
         json_data = json.load(f)
@@ -51,7 +59,7 @@ def main():
     #Output format: [{image_id, [gpd1,...,gpdn]}, ... ,{image_id, [gpd1,...,gpdm]}]
     json_out = []
     prevImgId = None
-    #json_data = [test_entry]
+    #json_data = [test_entry for i in range(0,100)]
     start_time = time.time()
 
     c = 0
@@ -59,12 +67,11 @@ def main():
     for i,person in enumerate(json_data):
         if "keypoints" in person:
             #logging.debug("PREV:",person['keypoints'])
-            isvalid = filterKeypoints(person['keypoints'])
+            isvalid = filterKeypoints(person['keypoints'], _FILTERMODE)
             #logging.debug("LATER:",person['keypoints'])
-
+            
             if isvalid:
-                keypoint_descriptor, visibilities = calculateGPD(person['keypoints'])
-
+                keypoint_descriptor, visibilities = calculateGPD(person['keypoints'], _MODES[args.mode])
                 json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': person['score'], 'vis': visibilities})
                 c = c + 1
         if i%1000 == 0 and i!=0:
@@ -74,31 +81,63 @@ def main():
     print("Original number of json predictions: ",len(json_data))
     print("Number of calculated descriptors: ",c)
 
-    json_file = 'geometric_pose_descriptor'
+    if args.pca is not None:
+        model = applyPCA(json_out, args.pca)
+        pickle.dump(model, open(os.path.join(output_dir,'modelpca%d'%args.pca + '.pkl'), "wb"))
+
+    json_file = 'geometric_pose_descriptor_c_%d_m%d_t%.2f_f%d.%d_mkpt%d'%(c,args.mode, _KEYPOINT_THRESHOLD, _FILTER, _FILTERMODE, _MINKPTs)
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
         print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
         json.dump(json_out, f)
 
-def filterKeypoints(pose_keypoints):
+def applyPCA(json_data, dim):
+    gpds = [item['gpd'] for item in json_data]
+    pca = PCA(n_components=dim)
+    pca_result = pca.fit_transform(gpds)
+
+    for i,item in enumerate(json_data):
+        item['gpd'] = list(pca_result[i])
+    
+    return pca
+       
+
+def filterKeypoints(pose_keypoints, strict=False):
     #Filter out keypoints above a treshold
     #Skip pose if too few keypoints or reference point is not contained
     
-    for idx in range(0,_NUMKPTS,3):
-        x, y, prob = pose_keypoints[idx:idx+3]
-        if prob <= _KEYPOINT_THRESHOLD:
-            #Set visible value to indicate invalid keypoint
-            pose_keypoints[idx+2] = None
-            if idx/3 in _REFs.keys():
-                #if reference point is unstable, skip this pose
-                #logging.debug("no ref key")
-                return False
-    if sum(x is not None for x in pose_keypoints) >= _MINKPTs:
-        return True
+    if not strict:
+    #Write None to keypoints for each vis under the threshold
+    #For later descriptors None values will be replaced by default value (=0)
+        for idx in range(0,_NUMKPTS):
+            x, y, prob = pose_keypoints[idx:idx+3]
+            if prob <= _KEYPOINT_THRESHOLD:
+                #Set visible value to indicate invalid keypoint
+                pose_keypoints[idx+2] = None
+                if idx/3 in _REFs.keys():
+                    #if reference point is unstable, skip this pose
+                    #logging.debug("no ref key")
+                    return False
+        if sum(x is not None for x in pose_keypoints) >= _MINKPTs:
+            return True
+        else:
+            return False
     else:
-        return False
+    #Keypoints are sorted out or given back fully/not reduced
+        c = 0
+        for idx in range(0,_NUMKPTS):
+            x, y, prob = pose_keypoints[idx:idx+3]
+            if prob <= _KEYPOINT_THRESHOLD:
+                if idx/3 in _REFs.keys():
+                    return False
+            else:   
+                c = c + 1
+        if c >= _MINKPTs:
+            return True
+        else:
+            return False
       
      
-def calculateGPD(keypoints):
+def calculateGPD(keypoints, mode):
     xs = keypoints[::3]
     ys = keypoints[1::3]
     vs = keypoints[2::3]
@@ -151,56 +190,61 @@ def calculateGPD(keypoints):
     keypoints = (keypoints - ref_point).tolist()
 
     pose_descriptor = []
-
-    #Dimensions: 18 keypoints (with or without visibility flag)
-    joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist())
-    #joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist(), visiblities = vs , vclipping = True)
-
-    pose_descriptor.append(joint_coordinates)
-
-    indices_pairs = []
-    #JJ_d = joint_joint_distances(keypoints,indices_pairs=None)
-    #pose_descriptor.append(JJ_d)
     
-    indices_pairs = []
-    #JJ_o = joint_joint_orientations(keypoints, indices_pairs=None)
-    #pose_descriptor.append(JJ_o)
+    if mode == 'JcJLdLLa_reduced':
+        #Dimensions: 18 keypoints (with or without visibility flag)
+        joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist())
+        #joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist(), visiblities = vs , vclipping = True)
 
-    l_adjacent = lines_direct_adjacent(keypoints, kpts_lines)
+        pose_descriptor.append(joint_coordinates)
 
-    l_end_depth2 = lines_endjoints_depth2(keypoints, end_joints_depth2)
+        indices_pairs = []
+        #JJ_d = joint_joint_distances(keypoints,indices_pairs=None)
+        #pose_descriptor.append(JJ_d)
+        
+        indices_pairs = []
+        #JJ_o = joint_joint_orientations(keypoints, indices_pairs=None)
+        #pose_descriptor.append(JJ_o)
 
-    indices_pairs = []
-    line_endjoints = lines_endjoints(keypoints, end_joints, indices_pairs = None)
+        l_adjacent = lines_direct_adjacent(keypoints, kpts_lines)
+        l_end_depth2 = lines_endjoints_depth2(keypoints, end_joints_depth2)
 
-    l_custom = lines_custom(keypoints)
-    #Merge all lines
-    l_adjacent.update(l_end_depth2)
-    l_adjacent.update(line_endjoints)
-    l_adjacent.update(l_custom)
+        indices_pairs = []
+        line_endjoints = lines_endjoints(keypoints, end_joints, indices_pairs = None)
 
-    #Dimensions: 18 distances
-    kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'], 
-                        3:[(5,0),'shoulder_head_left'], 4:[(6,0),'shoulder_head_right'],
-                        6:[[(8,5),'shoulders_elbowr'], [(10,4),'endpoints_earhand_shoulder_r']], 
-                        5:[[(6,7),'shoulders_elbowsl'], [(3,9),'endpoints_earhand_shoulder_l']], 
-                        13:[[(14,15),'knees_foot_side'], [(11,15),'left_leg']],
-                        14:[[(13,16),'knees_foot_side'], [(12,16),'right_leg']], 
-                        10:[(5,9),'arms_left_side'], 9:[(6,10),'arms_right_side'],
-                        0:[[(16,12),'headpos_side'], [(15,11),'headpos_side']],
-                        11:[(15,9),'endpoints_foodhand_hip_l'], 12:[(10,16),'endpoints_foodhand_hip_r']} 
-    JL_d = joint_line_distances(keypoints, l_adjacent, kpts_valid, kpt_line_mapping)
-    pose_descriptor.append(JL_d)
+        l_custom = lines_custom(keypoints)
+        #Merge all lines
+        l_adjacent.update(l_end_depth2)
+        l_adjacent.update(line_endjoints)
+        l_adjacent.update(l_custom)
 
-    #Dimensions: 10 angles
-    line_line_mapping = {(10,9):[(9,15),'hands_lfoot'], (9,10):[(9,16),'hands_rfoot'],
-                        (10,16):[(9,10),'hands_lfoot'], (16,10):[(10,15),'hands_rfoot'],
-                        (5,11):[(5,9),'hand_shoulder_hip_l'], (6,12):[(6,10),'hand_shoulder_hip_r'],
-                        (6,8):[(5,7),'upper_arms'], (8,10):[(7,9),'lower_arms'],
-                        (12,14):[(11,13),'upper_legs'], (14,16):[(13,15),'lower_legs'],
-                        (0,5):[(3,5),'head_shoulder_l'], (4,6):[(0,6),'head_shoulder_r']}
-    LL_a = line_line_angles(l_adjacent, kpts_valid, line_line_mapping)
-    pose_descriptor.append(LL_a)
+        #Dimensions: 18 distances
+        kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'], 
+                            3:[(5,0),'shoulder_head_left'], 4:[(6,0),'shoulder_head_right'],
+                            6:[[(8,5),'shoulders_elbowr'], [(10,4),'endpoints_earhand_shoulder_r']], 
+                            5:[[(6,7),'shoulders_elbowsl'], [(3,9),'endpoints_earhand_shoulder_l']], 
+                            13:[[(14,15),'knees_foot_side'], [(11,15),'left_leg']],
+                            14:[[(13,16),'knees_foot_side'], [(12,16),'right_leg']], 
+                            10:[(5,9),'arms_left_side'], 9:[(6,10),'arms_right_side'],
+                            0:[[(16,12),'headpos_side'], [(15,11),'headpos_side']],
+                            11:[(15,9),'endpoints_foodhand_hip_l'], 12:[(10,16),'endpoints_foodhand_hip_r']} 
+        JL_d = joint_line_distances(keypoints, l_adjacent, kpts_valid, kpt_line_mapping)
+        pose_descriptor.append(JL_d)
+
+        #Dimensions: 10 angles
+        line_line_mapping = {(10,9):[(9,15),'hands_lfoot'], (9,10):[(9,16),'hands_rfoot'],
+                            (10,16):[(9,10),'hands_lfoot'], (16,10):[(10,15),'hands_rfoot'],
+                            (5,11):[(5,9),'hand_shoulder_hip_l'], (6,12):[(6,10),'hand_shoulder_hip_r'],
+                            (6,8):[(5,7),'upper_arms'], (8,10):[(7,9),'lower_arms'],
+                            (12,14):[(11,13),'upper_legs'], (14,16):[(13,15),'lower_legs'],
+                            (0,5):[(3,5),'head_shoulder_l'], (4,6):[(0,6),'head_shoulder_r']}
+        LL_a = line_line_angles(l_adjacent, kpts_valid, line_line_mapping)
+        pose_descriptor.append(LL_a)
+
+    elif mode == 'JLd_all':
+        l_adjacent = lines_direct_adjacent(keypoints, kpts_lines)
+        JL_d = joint_line_distances(keypoints, l_adjacent, kpts_valid)
+        pose_descriptor.append(JL_d)
 
     #Add clipped score value
     #score = max(0,min(1,score))
@@ -394,7 +438,7 @@ def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
     
     if kpt_line_mapping is None:
         #Approx. Dimension: 60 lines * (25-3) joints = 1320 / (16+6+15) lines * (17-3) joints = 518
-        for l in lines:
+        for k, l in lines.items():
             coords = list(l.coords)
             for i,joint in enumerate(keypoints):
                 if not kpts_valid[i]:

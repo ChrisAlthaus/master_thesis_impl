@@ -67,7 +67,7 @@ def main():
             #[2053631804.047893, 2014946369.9704697, 1976370100.9062285, 1940954321.4685426, 1910455630.6114764, 1887624982.6240237, 1870007242.325744, 1848736676.252347, 1828779060.699307, 1812995629.8788753, 1797739167.9761512, 1782064767.217926, 1770218266.3849127, 1754376014.8209932, 1743390712.383553, 1731782005.7899482, 1716388995.4056718, 1709820655.3970628, 1699235431.66977, 1687935369.3011081, 1677652721.873943, 1671238990.609453, 1663928175.9675093, 1656810981.0248902, 1648482667.2718027, 1643671713.0389514, 1636561000.9212172, 1629881471.3745308, 1623287422.6246467, 1615720513.840895, 1612565871.966705]
             df = pd.DataFrame({'k':ks , 'sse':sse})
             ax = sns.relplot(x="k", y="sse", sort=False, kind="line", markers=True, data=df)
-            ax.fig.savefig(os.path.join(output_dir,"eval_elbowmethod%d.png"%len(descriptors)))
+            ax.fig.savefig(os.path.join(output_dir,"eval_elbowmethod_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))))
             plt.clf()
 
         elif args.validateMethod == 'SILHOUETTE':
@@ -85,15 +85,28 @@ def main():
 
             df = pd.DataFrame({'k':ks , 'silouette score':silouettes})
             ax = sns.relplot(x="k", y='silouette score', sort=False, kind="line", markers=True, data=df)
-            ax.fig.savefig(os.path.join(output_dir,"eval_silouettes%d.png"%len(descriptors)))
+            ax.fig.savefig(os.path.join(output_dir,"eval_silouettes_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))))
             plt.clf()
 
         elif args.validateMethod == 'T-SNE':
-            X_embedded, labels = calc_tsne(descriptors, 30)
+            k = 30
+            X_embedded, labels = calc_tsne(descriptors, k)
 
             df = pd.DataFrame({'x':X_embedded[:,0] , 'y':X_embedded[:,1], 'labels': labels})
-            ax =sns.scatterplot(x="x", y="y", hue = 'labels', data=df)  #hue = 'labels'
+            """plt.figure(figsize=(16,10))
+            #sns.set_palette("hls", len(set(labels)))
+            sns.set_palette("bright", k)
+
+            ax =sns.scatterplot(x="x", y="y", hue = 'labels',
+                                 s=14, marker='o', alpha=0.3, cmap= plt.get_cmap("viridis"), hue_norm=(0,len(set(labels))),
+                                  data=df)  #hue = 'labels'# hue_norm=(0,k-1),
             ax.figure.savefig(os.path.join(output_dir,"eval_tsne%d.png"%len(descriptors)))
+            plt.clf()"""
+
+            fig, ax = plt.subplots(figsize=(16,10))
+            g = ax.scatter(df['x'],df['y'], c=df['labels'], cmap=plt.get_cmap("jet",k), alpha=.7)
+            fig.colorbar(g)
+            fig.savefig(os.path.join(output_dir,"eval_tsne_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))) )
             plt.clf()
 
 
