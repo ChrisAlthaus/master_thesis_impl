@@ -154,7 +154,11 @@ class Base(object):
             if len(sfiles) > 0:
                 sfiles.sort(key=os.path.getmtime)
                 sfiles = [i[:-5] for i in sfiles if i.endswith('.meta')]
+                #modified
+                sfiles.sort(key= lambda x: int(''.join(filter(str.isdigit, x))))
+                #modified end
                 model = sfiles[-1]
+                
             else:
                 self.logger.critical('No snapshot model exists.')
                 return
@@ -230,7 +234,6 @@ class Trainer(Base):
         # sort list by img_id
         train_data = sorted(train_data, key=lambda k: k['image_id']) 
         test_on_trainset = sorted(test_on_trainset, key=lambda k: k['image_id'])
-
         
         # cluster train_data and test_on_trainset by img_id
         cur_img_id = train_data[0]['image_id']
@@ -292,10 +295,12 @@ class Trainer(Base):
                 j = j + 1
             else:
                 #aligned_data_out.append([])
+                #modified: add groundtruth images to oprevent assertion error?!, idea: fix on a few gt not change results much
                 tmp = copy.deepcopy(data_gt[i])
                 for ann in tmp:
                     ann['keypoints'] = ann['joints']
                 aligned_data_out.append(tmp)
+                #modified end
 
             if j == len(data_out):
                 break
@@ -304,35 +309,20 @@ class Trainer(Base):
         # they should contain annotations from all the images
         assert len(data_gt) == len(data_out)
 
-        #print("Data gt: ",data_gt[0])
-        #print("Data gt: ",data_gt[1])
-
         # for each img
         for i in range(len(data_gt)):
-            #print(data_gt[i])
-            #print(data_out[i])
+            
             bbox_out_per_img = np.zeros((len(data_out[i]),4))
             joint_out_per_img = np.zeros((len(data_out[i]),self.cfg.num_kps*3))
-
-            #modified: only take the n top score results
-            #sorted(data_out[i], key=lambda k: k['score']) 
-            #data_out[i] = data_out[i][:len(data_gt[i])]
-            #modified end
-            #print(len(data_gt[i]), len(data_out[i]))
+            
             assert len(data_gt[i]) == len(data_out[i])
 
             # for each data_out in an img
             for j in range(len(data_out[i])):
-                try:
-                    bbox = data_out[i][j]['bbox'] #x, y, width, height
-                    joint = data_out[i][j]['keypoints']
-                    bbox_out_per_img[j,:] = bbox
-                    joint_out_per_img[j,:] = joint
-                except:
-                    print(data_out[i],j)
-                    exit(1)
-                
-                
+                bbox = data_out[i][j]['bbox'] #x, y, width, height
+                joint = data_out[i][j]['keypoints']
+                bbox_out_per_img[j,:] = bbox
+                joint_out_per_img[j,:] = joint
             
             # for each gt in an img
             for j in range(len(data_gt[i])):
