@@ -2,6 +2,16 @@ import datetime
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 from elasticsearch.helpers import scan
 import elasticsearch
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+import itertools
+import os
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+import time
 import argparse
 import json
 import logging
@@ -15,6 +25,9 @@ parser.add_argument('-insert_data','-insert', action="store_true",
                     help='Whether to build an index from the cluster mapped data.')
 parser.add_argument('-search_data','-search', action="store_true",
                     help='Whether to search the index for the input cluster data.')
+parser.add_argument('-eval_tresh','-evaltresh', action="store_true",
+                    help='Computing cos-sim between gpd clusters to approximate a cutoff threshold.')
+parser.add_argument('-method', help='Select method for insert and searching data.')
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
 
@@ -26,14 +39,30 @@ if args.verbose:
 #logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
 _INDEX = 'imgid_gpdcluster'
+_SIMILARITY_TRESH = 0.95 
+#Method 1 uses Cosinus-Similarity for comparing features with features in db produced by visual codebook preprocessing, 
+#       just a shortlist of N best-matching documents is queried for better performance
+#Method 2 uses a Distance-Measure to compute the sum between input features and raw features stored in the db (each similarity counts)
+#       the image with smallest distance is selected
+_METHODS = ['COSSIM', 'DISTSUM']
+_ELEMNUM_COS = 20
+_NUMRES_DIST = 10
+
+if args.method not in _METHODS:
+    raise ValueError("Please specify a valid method.") 
+
 
 def main():
     print("Reading from file: ",args.file)
     with open (args.file, "r") as f:
         data = f.read()
     data = eval(data)
+    #print(data[:2])
 
-    if args.insert_data:
+    if args.insert_data: # or args.eval_tresh:
+        """length = sum([len(buckets) for buckets in data.values()])
+        print("Items in input data: ",length)
+
         for i in range(len(data)-4):
             del data[list(data.keys())[0]]
         
@@ -43,57 +72,129 @@ def main():
         print(len(data))
 
         length = sum([len(buckets) for buckets in data.values()])
-        print("Items in input data: ",length)
+        print("Items in input data reduced: ",length)"""
+        data = data[:1000]
+        
     elif args.search_data:
          print("Items in input data: ",len(data))
-    #print(type(clustermap))
-    #for key,value in clustermap.items():
 
-    # you can use RFC-1738 to specify the url
-    #es = Elasticsearch(['devbox3.research.tib.eu@localhost:443'])
-    #es = Elasticsearch([{'host': 'althausc@devbox3.research.tib.eu', 'port': 9200}])
-    #es = Elasticsearch('https://localhost:30000', 
-    #                    verify_certs=False,
-    #                    connection_class=RequestsHttpConnection)
-    #es = Elasticsearch(['https://user:secret@localhost:30000'])
-
-    #import ssl
-    #ssl_defaults = ssl.get_default_verify_paths()
-    #sslopt_ca_certs = {'ca_certs': ssl_defaults.cafile}
+    output_dir = None
+    if args.search_data or args.eval_tresh:
+        output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        else:
+            raise ValueError("Output directory %s already exists."%output_dir)
 
     es = Elasticsearch("http://localhost:30000",
                        ca_certs=False,
                        verify_certs=False)
     
     if args.insert_data:
-        createIndex(es, len(list(data.keys())[0]))
+        
+        if args.method == _METHODS[0]:
+            createIndex(es, len(list(data.keys())[0]), _METHODS[0])
+            insertdata_cluster(args, data, es)
+        elif args.method == _METHODS[1]:
+            createIndex(es, len(data[0]['gpd']), _METHODS[1])
+            insertdata_raw(args, data, es)
 
-        #data format: {gpdcluster1: [{img_id, score, vis}, ... ,{img_id, score, vis}], ... , gpdclusterK: [{img_id, score, vis}, ... ,{img_id, score, vis}]}
-        id = 0
-        print("Inserting image descriptors from %s ..."%args.file)
-        for gpdcluster, imgs_metadata in data.items():
-            for metadata in imgs_metadata:
-                insertdoc(es, gpdcluster, metadata, id)
-                id = id + 1
-                if id%100 == 0 and id != 0:
-                    logger.debug("{} image descriptors were inserted so far.".format(id))
-                    print("{} image descriptors were inserted so far.".format(id))
-        print("Inserting image descriptors done.")
-        get_alldocs(es)
 
     elif args.search_data:
+        es.indices.refresh(index=_INDEX)
         #data format: {'1': [featurevector], ... , 'n': [featurevector]}
-        results = []
-        print("Searching image descriptors from %s ..."%args.file)
-        for img_descriptor in data:
-            print(img_descriptor)
-            image_ids, scores = query(es, img_descriptor['gpd'])
-            results.append(list(zip(image_ids,scores)))
-        print("Searching image descriptors done.")
-        print(results)
+        imgids_final = []
+        if args.method == _METHODS[0]:
+            results = []
+            print("Searching image descriptors from %s ..."%args.file)
+            for img_descriptor in data:
+                print(img_descriptor)
+                image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_COS, args.method)
+                results.append(list(zip(image_ids,scores)))
+            print("Searching image descriptors done.")
+            print(results)
+        
+            #Flattening list of indiv feature vector results
+            results = [item for sublist in results for item in sublist]
+            imgids_final = bestmatching_cluster(results)
+        
+        elif args.method == _METHODS[1]:
+            results = []
+            numElemAll = es.cat.count(_INDEX, params={"format": "json"})[0]['count']
+            print("Total documents in the index: %d."%int(numElemAll))
+            print("Searching image descriptors from %s ..."%args.file)
+            for img_descriptor in data:
+                image_ids, scores = query(es, img_descriptor['gpd'], int(numElemAll), args.method)
+                results.append(list(zip(image_ids,scores)))
+            print("Searching image descriptors done.")
+            
+            #Flattening list of indiv feature vector results
+            results = [item for sublist in results for item in sublist]
+            imgids_final = bestmatching_sumdist(results, _NUMRES_DIST)
+        print("Retrieved images: ", imgids_final)
+
+    def saveResults(image_ids, rel_scores, output_dir):
+        
 
 
-def createIndex(es, dim):
+
+    elif args.eval_tresh and args.method == _METHODS[0]:
+        #Compute cos-sim of each gpd cluster with each other gpd cluster and visualize
+        gpdclusters = []
+        for gpdcluster, _ in data.items():
+            gpdclusters.append(gpdcluster)
+        gpdclusters = np.array(gpdclusters)
+        sim = cosine_similarity(gpdclusters, gpdclusters)
+
+        x = []
+        y = []
+        for i,row in enumerate(sim):
+            for s in row:
+                x.append(i)
+                y.append(s)
+
+        df = pd.DataFrame({'Source GPD cluster':x , 'Cosine Similarities':y})
+        #ax = sns.regplot(x='Source GPD cluster', y='Cosine Similarities', fit_reg=False, data=df)
+        
+        ax = sns.boxplot(x='Source GPD cluster', y='Cosine Similarities', data=df)
+        ax = sns.swarmplot(x='Source GPD cluster', y='Cosine Similarities', data=df, size=2, color=".25")
+        ax.figure.savefig(os.path.join(output_dir,"eval_simtresh_c%d.png"%sim[0].size))
+        plt.clf()
+        
+            
+def insertdata_raw(args, data ,es):           
+    id = 0
+    print("Inserting image descriptors from %s ..."%args.file)
+    for item in data:
+        insertdoc(es, item['gpd'], {'image_id': item['image_id'], 'score': item['score']}, id, 'gpd')
+        id = id + 1
+        if id%100 == 0 and id != 0:
+            logger.debug("{} image descriptors were inserted so far.".format(id))
+            print("{} image descriptors were inserted so far.".format(id))
+    print("Inserted %d image descriptors."%(id))
+    print("Inserting image descriptors done.")
+     
+def insertdata_cluster(args, data, es):
+   #data format: {gpdcluster1: [{img_id, score, vis}, ... ,{img_id, score, vis}], ... , gpdclusterK: [{img_id, score, vis}, ... ,{img_id, score, vis}]}
+    id = 0
+    print("Inserting image descriptors from %s ..."%args.file)
+    for gpdcluster, imgs_metadata in data.items():
+        for metadata in imgs_metadata:
+            insertdoc(es, gpdcluster, metadata, id, 'gpdcluster')
+            id = id + 1
+            if id%100 == 0 and id != 0:
+                logger.debug("{} image descriptors were inserted so far.".format(id))
+                print("{} image descriptors were inserted so far.".format(id))
+    print("Inserted %d image descriptors."%id)
+    print("Inserting image descriptors done.")
+
+
+def createIndex(es, dim, mode):
+    if mode == _METHODS[0]:
+        varname = "gpdcluster"
+    else:
+        varname = "gpd"
+
     mapping = {
         "mappings": {
             "properties": {
@@ -103,7 +204,7 @@ def createIndex(es, dim):
                 "score": {
                     "type": "float"
                 },
-                "gpdcluster": {
+                varname: {
                     "type": "dense_vector",
                     "dims": dim
                 }
@@ -122,11 +223,11 @@ def createIndex(es, dim):
     if response['acknowledged'] != True:
         raise ValueError('Index was not created')
 
-def insertdoc(es, gpdcluster, metadata, id):
+def insertdoc(es, gpdcluster, metadata, id, featurelabel):
     doc = {
     'imageid': metadata['image_id'],
     'score': metadata['score'],
-    'gpdcluster': list(gpdcluster)
+    featurelabel: list(gpdcluster)
     }
 
     res = es.index(index=_INDEX, id=id, body=doc) 
@@ -134,10 +235,11 @@ def insertdoc(es, gpdcluster, metadata, id):
     if res['result'] != 'created':
         raise ValueError("Document not created.")
 
-def query(es, featurevector):
-    try :
-        res= es.search(index=_INDEX, 
-                        body={  "query": {
+def query(es, featurevector, size, method):
+    if method == _METHODS[0]:
+        request = { "size": size,
+                               "min_score": _SIMILARITY_TRESH + 1, 
+                               "query": {
                                 "script_score": {
                                 "query": {
                                     "match_all": {}
@@ -150,27 +252,102 @@ def query(es, featurevector):
                                 }
                                 }
                             }
-                        })
+                        }
+    else: # method == _METHODS[1], L2-Distance
+        request = { "size": size,
+                      "query": {
+                       "script_score": {
+                       "query": {
+                           "match_all": {}
+                       },
+                       "script": {
+                           "source": "l2norm(params.queryVector, doc['gpd'])",
+                           "params": {
+                           "queryVector": list(featurevector)  
+                           }
+                        }
+                       }
+                      }
+                  }
+    try :
+        res= es.search(index=_INDEX, 
+                        body=request)
     except elasticsearch.ElasticsearchException as es1:  
-        print("Error when querying for feature vector "+featurevector)
-        print(es1) 
-    logger.debug("Query returned {} results.".format(res['hits']['total']['value'])) 
-    print("Query returned {} results.".format(res['hits']['total']['value']))
+        print("Error when querying for feature vector ",featurevector)
+        print(es1,es1.info)
+
+    logger.debug("Query returned {} results stated.".format(res['hits']['total']['value'])) 
+    logger.debug("Query returned {} results actual.".format(len(res['hits']['hits']))) 
+    
+    print("Query returned {} results stated.".format(res['hits']['total']['value']))
+    print("Query returned {} results actual.".format(len(res['hits']['hits'])))
     docs = res['hits']['hits']
     imageids = [item['_source']['imageid'] for item in docs]
-    scores = [item['_source']['score'] for item in docs]  
-    gpds =  [item['_source']['gpdcluster'] for item in docs]
-    print("feature vector: ", featurevector)
-    print("GPDS: ",gpds)     
+    scores = [item['_score'] for item in docs] 
+     
     return imageids, scores
+
+
+def bestmatching_sumdist(image_scoring, k):
+    #Scoring should contain for each imageid the accumulated scores between query features and db entries  
+    score_sums = {}
+    #Number of iterations: number of query features * number of db entries (each-by-each)
+    start_time = time.time()
+    print("Ranking query results with sum distance ...")
+    for item in image_scoring:
+        imageid = item[0] 
+        score = item[1]
+        if not imageid in score_sums:
+            score_sums[imageid] = score
+        else:
+            score_sums[imageid] = score_sums[imageid] + score
+    print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
+    print(score_sums)
+    print("Max: ", max(score_sums.values()))
+    print("Min: ", min(score_sums.values()))
+
+
+    bestk = sorted(score_sums.items(), key=lambda x: x[1])[:k]
+    exp_norm = lambda x: (x[0], np.exp( -10*(x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())) ))
+    bestk = map(exp_norm, bestk)
+    print(list(bestk))
+    #exp_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values()))) 
+    #bestk = map(exp_norm, bestk)
+    #print(list(bestk))
+    #imageids = [x[0] for x in bestk]
+    return bestk
+
+
+def bestmatching_cluster(image_scoring):
+    grouped_by_imageid = [list(g) for k, g in itertools.groupby(sorted(image_scoring, key=lambda x:x[0]), lambda x: x[0])]
+    
+    #Format: [ [(img_id1,score1), (img_id1,score2)], ... [(img_idN,score1), .., (img_idN,scoreK)] ]
+    #Rank by #occurances * mean of scores 
+    start_time = time.time()
+    print("Ranking query results with custom heuristic ...")
+    ranked = sorted(grouped_by_imageid, key=lambda e: len(e) * np.mean([s[1] for s in e]), reverse=True)
+    print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
+
+    #Only image ids as result
+    reduced_ranked = []
+    for occurances in ranked:
+        reduced_ranked.append(occurances[0][0])
+    print(ranked)
+    print(reduced_ranked)
+    return reduced_ranked
+
 
 def get_alldocs(es):
     es.indices.refresh(index=_INDEX)
     response = scan(es, index=_INDEX, query={"query": { "match_all" : {}}})
-    for item in response:
-        print(item)
+    #for item in response:
+    #    print(item)
+    #print("------------------------")
     #print(list(response))
-    exit(1)
+    #print("Number of documents in the database: ",len(list(response)))
+    #exit(1)
+    return list(response)
+   
     #res = es.search(index=_INDEX, body={"query": {"match": { "match_all" : {}}} })
     #res = es.search(index=_INDEX, body={"query": {"match_all": {}}})
     
@@ -191,71 +368,7 @@ def get_alldocs(es):
         scroll_size = len(res['hits']['hits'])
     """
 
-def test():  
-    es = Elasticsearch("http://localhost:30000",
-                       ca_certs=False,
-                       verify_certs=False)
-
-
-
-    doc = {
-        'imageid': 39,
-        'score': 0.98,
-        'gpdcluster': [1,1,1,1]
-    }
-    res = es.index(index=_INDEX, id=1, body=doc)
-    print(res['result'])
-    print(res)
-
-    doc = {
-        'imageid': 40,
-        'score': 0.76,
-        'gpdcluster': [100,100,100,100]
-    }
-    res = es.index(index=_INDEX, id=2, body=doc)
-    print(res['result'])
-
-    res = es.get(index=_INDEX, id=1)
-    print(res)
-    print(res['_source'])
-
-
-    es.indices.refresh(index=_INDEX)
-
-    res= es.search(index=_INDEX,body={'query':{'match_all':{}}})
-    print("search1: ",res)
-    res= es.search(index=_INDEX, body={'query':{'match':{'imageid': 39}}})
-    print("search2: ",res)
-    res= es.search(index=_INDEX, body={'query':{'match':{'imageid': 40}}})
-    print("search3: ",res)
-
-    try :
-        res= es.search(index=_INDEX, 
-                        body={  "query": {
-                                "script_score": {
-                                "query": {
-                                    "match_all": {}
-                                },
-                                "script": {
-                                    "source": "cosineSimilarity(params.queryVector, doc['gpdcluster'])+1.0",
-                                    "params": {
-                                    "queryVector": [2,2,2,2]  
-                                    }
-                                }
-                                }
-                            }
-                        })
-    except elasticsearch.ElasticsearchException as es1:  
-        print("Error")
-        print(es1)              
-    print(res)
-
-    #res = es.search(index="test-index", body={"query": {"match_all": {}}})
-    #print("Got %d Hits:" % res['hits']['total']['value'])
-    #for hit in res['hits']['hits']:
-    #    print("%(timestamp)s %(author)s: %(text)s" % hit["_source"])
 
 if __name__=="__main__":
     main()
-    #test()
 
