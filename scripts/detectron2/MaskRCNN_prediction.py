@@ -7,6 +7,14 @@ from detectron2.utils.visualizer import Visualizer
 from google.colab.patches import cv2_imshow
 from detectron2.data import MetadataCatalog
 from detectron2.data.datasets.builtin_meta import KEYPOINT_CONNECTION_RULES, COCO_PERSON_KEYPOINT_NAMES, COCO_PERSON_KEYPOINT_FLIP_MAP
+from detectron2.data import detection_utils as utils
+from detectron2.data.datasets.coco import load_coco_json
+from detectron2.data.common import DatasetFromList, MapDataset
+from detectron2.data.samplers import InferenceSampler
+import itertools, copy
+from detectron2.data.build import build_detection_test_loader
+
+from detectron2.data.datasets import register_coco_instances
 import torch
 
 import argparse
@@ -17,7 +25,6 @@ import cv2
 import datetime
 import json
 import random
-
 
 
 parser = argparse.ArgumentParser()
@@ -31,8 +38,8 @@ parser.add_argument('-vis','-visualize', action='store_true',
                     help='Specify to visualize predictions on images & save.')
 parser.add_argument('-visrandom','-validate', action='store_true',
                     help='Specify to randomy visualize k predictions.')
-
 args = parser.parse_args()
+
 
 if not os.path.isfile(args.model_cp):
     raise ValueError("Model file path not exists.")
@@ -46,71 +53,26 @@ if args.image_folder is not None:
 if args.image_path is None and args.image_folder is None:
     raise ValueError("Please specify an image or an image directory.")
 
-cfg = get_cfg()
+#cfg = get_cfg()
 
 #cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"))
 #cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
-cfg.MODEL.DEVICE='cpu'
+#cfg.MODEL.DEVICE='cpu'
 #model = build_model(cfg) 
 #DetectionCheckpointer(model).load(args.model_cp) 
 image_paths = None
 if args.image_folder is not None:
     image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
 elif args.image_path is not None:
-    image_paths = args.image_path
+    image_paths = [args.image_path]
 
-
-#output format of keypoints: (x, y, v), v indicates visibility— v=0: not labeled (in which case x=y=0), v=1: labeled but not visible, and v=2: labeled and visible  
-from detectron2.data import detection_utils as utils
-from detectron2.data.datasets.coco import load_coco_json
-from detectron2.data.common import DatasetFromList, MapDataset
-from detectron2.data.samplers import InferenceSampler
-import itertools, copy
-from detectron2.data.build import build_detection_test_loader
-
-from detectron2.data.datasets import register_coco_instances
 
 #Register to DatasetCatalog and MetadataCatalog
-register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
+#register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
 
 
-model = build_model(cfg) 
-model.eval()
-
-"""filter = ["008629",
-"050326",
-"184762",
-"220732",
-"252216",
-"348881",
-"367386",
-"434204",
-"436551",
-"450439",
-"498463"]"""
-"""
-filter = [
-"002157",
-"027186",
-"050331",
-"074209",
-"074457",
-"122962",
-"229858",
-"231822",
-"290293",
-"441247",
-"548780"
-]
-
-im_path_filtered = []
-for path in image_paths:
-    for f in filter:
-        if path.find(f) != -1:
-            im_path_filtered.append(path)
-            break
-print(im_path_filtered)"""
-
+#model = build_model(cfg) 
+#model.eval()
 
 cfg = get_cfg()
 cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) 
@@ -127,7 +89,10 @@ predictor = DefaultPredictor(cfg)
 
 with torch.no_grad():
     print("START PREDICTION")
+    #Providing prediction for single and multiple images
     batchsize = 10
+    if len(image_paths) < 10:
+        batchsize = len(image_paths)
     for i in range(0, len(image_paths), batchsize):
     #for i,img_path in enumerate(image_paths):
         inputs = []
@@ -137,11 +102,11 @@ with torch.no_grad():
             #img = torch.as_tensor(img.astype("float32").transpose(2, 0, 1))
             #image_descriptor = {"image": img, "height": height, "width": width}
             inputs.append(img)
-
+        
         preds = predictor(inputs)
         
         for img_path,pred in zip(image_paths[i:i+batchsize],preds):
-
+            print("Predict images: ", image_paths)
             image_name = os.path.splitext(os.path.basename(img_path))[0]
             content_id = image_name.split('_')[0]
             style_id = image_name.split('_')[1]
@@ -160,7 +125,6 @@ with torch.no_grad():
 print("OUTPUT PREDICTIONS:")
 
 print("Size of all output predictions: ", len(outputs))
-#print(cfg)
 
 # We can use `Visualizer` to draw the predictions on the image.
 #print(MetadataCatalog.get("my_dataset_val"))
@@ -177,10 +141,13 @@ if not os.path.exists(output_dir):
 else:
     raise ValueError("Output directory %s already exists."%output_dir)
 
-with open(os.path.join(output_dir,"result.json"), 'w') as f:
+
+#output format of keypoints: (x, y, v), v indicates visibility— v=0: not labeled (in which case x=y=0), v=1: labeled but not visible, and v=2: labeled and visible  
+with open(os.path.join(output_dir,"maskrcnn_predictions.json"), 'w') as f:
     json.dump(outputs, f, separators=(', ', ': '))
 
 if args.vis:
+    print("Visualize the predictions onto the original image(s) ...")
     for img_path, pred_out in zip(image_paths, outputs_raw):
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(pred_out["instances"].to("cpu"))
@@ -188,8 +155,10 @@ if args.vis:
         if out == None:
             print("img is none")
         cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
+    print("Visualize done.")
 
 if args.visrandom:
+    print("Random visualization for validation purposes ...")
     for i in range(100):
         k = random.choice(range(len(image_paths)))
         img_path = image_paths[k]
@@ -200,7 +169,7 @@ if args.visrandom:
         if out == None:
             print("img is none")
         cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
-
+    print("Random visualization done.")
 #Getting categories names & ids
 #coco = COCO('/home/althausc/nfs/data/coco_17/annotations/instances_val2017.json')
 #print(coco.cats)

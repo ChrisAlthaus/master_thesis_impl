@@ -28,6 +28,7 @@ parser.add_argument('-search_data','-search', action="store_true",
 parser.add_argument('-eval_tresh','-evaltresh', action="store_true",
                     help='Computing cos-sim between gpd clusters to approximate a cutoff threshold.')
 parser.add_argument('-method', help='Select method for insert and searching data.')
+parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
 
@@ -39,7 +40,11 @@ if args.verbose:
 #logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
 _INDEX = 'imgid_gpdcluster'
-_SIMILARITY_TRESH = 0.95 
+#Min score used for cossim
+if args.tresh is None:
+    _SIMILARITY_TRESH = 0.95
+else:
+    _SIMILARITY_TRESH = args.tresh 
 #Method 1 uses Cosinus-Similarity for comparing features with features in db produced by visual codebook preprocessing, 
 #       just a shortlist of N best-matching documents is queried for better performance
 #Method 2 uses a Distance-Measure to compute the sum between input features and raw features stored in the db (each similarity counts)
@@ -86,6 +91,8 @@ def main():
         else:
             raise ValueError("Output directory %s already exists."%output_dir)
 
+    image_dir = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'
+
     es = Elasticsearch("http://localhost:30000",
                        ca_certs=False,
                        verify_certs=False)
@@ -131,11 +138,13 @@ def main():
             #Flattening list of indiv feature vector results
             results = [item for sublist in results for item in sublist]
             imgids_final = bestmatching_sumdist(results, _NUMRES_DIST)
-        print("Retrieved images: ", imgids_final)
+        print("Best matched images: ", imgids_final)
 
-    def saveResults(image_ids, rel_scores, output_dir):
-        
-
+        if isinstance(imgids_final[0], tuple):
+            [image_ids, rel_scores] = zip(*imgids_final)
+            saveResults(list(image_ids), list(rel_scores), output_dir, image_dir)
+        elif isinstance(imgids_final[0], str):
+            saveResults(imgids_final, None, output_dir, image_dir)
 
 
     elif args.eval_tresh and args.method == _METHODS[0]:
@@ -308,14 +317,15 @@ def bestmatching_sumdist(image_scoring, k):
 
 
     bestk = sorted(score_sums.items(), key=lambda x: x[1])[:k]
+    #Apply normalization to intervall [0,1] & then apply exponential function, used for later comparison score in search results display
     exp_norm = lambda x: (x[0], np.exp( -10*(x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())) ))
     bestk = map(exp_norm, bestk)
-    print(list(bestk))
+    #print(list(bestk))
     #exp_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values()))) 
     #bestk = map(exp_norm, bestk)
     #print(list(bestk))
     #imageids = [x[0] for x in bestk]
-    return bestk
+    return list(bestk)
 
 
 def bestmatching_cluster(image_scoring):
@@ -367,6 +377,26 @@ def get_alldocs(es):
         sid = res['_scroll_id']
         scroll_size = len(res['hits']['hits'])
     """
+
+def saveResults(image_ids, rel_scores, output_dir, image_dir):
+    imagemetadata = {'imagedir': image_dir}
+    if rel_scores is None:
+        for rank, imageid in enumerate(image_ids):
+            imgid = str(imageid) 
+            imgpath = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+            imgpath = os.path.join(image_dir, imgpath)
+            imagemetadata[rank] = {'filepath': imgpath}
+    else:
+        for rank, (imageid, relscore) in enumerate(zip(image_ids, rel_scores)):
+            imgid = str(imageid) 
+            imgpath = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+            imagemetadata[rank] = {'filepath': imgpath, 'relscore': relscore}
+    
+    json_file = 'result-ranking'
+    with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
+        print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
+        json.dump(imagemetadata, f)
+    print("Wrote %d ranked items to file."%len(image_ids))
 
 
 if __name__=="__main__":

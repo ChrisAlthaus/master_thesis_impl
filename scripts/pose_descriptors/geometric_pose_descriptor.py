@@ -19,6 +19,7 @@ parser.add_argument('-inputFile',required=True,
                     help='File with keypoint annotations/ predictions.')
 parser.add_argument("-mode", type=int, help="Specify types of features which will be computed.")
 parser.add_argument("-pca", type=int, help="Specify dimensions of pca vector.")
+parser.add_argument("-pcamodel", type=str, help="Specify pca model file for prediction.")
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
 args = parser.parse_args()
@@ -49,7 +50,16 @@ def main():
         os.makedirs(output_dir)
     else:
         raise ValueError("Output directory %s already exists."%output_dir)
-    
+
+    #Writing config to file
+    with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
+        f.write("Minimum KPTS: %d"%_MINKPTs + os.linesep)
+        f.write("Mode: %s"%_MODES[args.mode] + os.linesep)
+        f.write("Filter: %d"%_FILTER + os.linesep)
+        f.write("Filter mode: %d"%_FILTERMODE + os.linesep)
+        f.write("Keypoint threshold: %d"%_KEYPOINT_THRESHOLD + os.linesep)
+        f.write("Ref(s): %s"%str(_REFs) + os.linesep)
+
     print("Reading from file: ",args.inputFile)
     with open (args.inputFile, "r") as f:
         json_data = json.load(f)
@@ -82,19 +92,25 @@ def main():
     print("Number of calculated descriptors: ",c)
 
     if args.pca is not None:
-        model = applyPCA(json_out, args.pca)
+        model = applyPCA(json_out, dim=args.pca)
         pickle.dump(model, open(os.path.join(output_dir,'modelpca%d'%args.pca + '.pkl'), "wb"))
+    if args.pcamodel is not None:
+        pca_reload = pickle.load(open(args.pcamodel,'rb'))
+        _ = applyPCA(json_out, pca=pca_reload)
+
 
     json_file = 'geometric_pose_descriptor_c_%d_m%d_t%.2f_f%d.%d_mkpt%d'%(c,args.mode, _KEYPOINT_THRESHOLD, _FILTER, _FILTERMODE, _MINKPTs)
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
         print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
         json.dump(json_out, f)
 
-def applyPCA(json_data, dim):
+def applyPCA(json_data, dim=None, pca=None):
     gpds = [item['gpd'] for item in json_data]
-    pca = PCA(n_components=dim)
-    pca_result = pca.fit_transform(gpds)
-
+    if pca is None:
+        pca = PCA(n_components=dim)
+        pca_result = pca.fit_transform(gpds)
+    else:
+        pca_result = pca.transform(gpds)
     for i,item in enumerate(json_data):
         item['gpd'] = list(pca_result[i])
     
