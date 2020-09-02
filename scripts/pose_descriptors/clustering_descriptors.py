@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-descriptorFile','-descriptors',required=True,
                     help='Json file with keypoint descriptors in dicts with corresponding image id.')
 parser.add_argument("-validateMethod", "-val", help="Helping wih choosing the right k for k-means.")
+parser.add_argument("-validateks", "-ks", nargs=2, type=int, help="Range for ks (kmin,kmax) used for evaluation method.")
 parser.add_argument("-modelState", "-model", help="Choosing model state of k-means clustering.")
 parser.add_argument("-buildk", help="Building kmeans with specific k.", type=int)
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
@@ -56,15 +57,12 @@ def main():
         descriptors = np.array(descriptors)
 
         if args.validateMethod == 'ELBOW':
-            ks, sse = calculate_WSS(descriptors, 10, 200)
+            kmin, kmax = args.validateks
+            ks, sse = calculate_WSS(descriptors, kmin, kmax)
             
-            print(ks)
-            print(sse) # [4,20] = [2504852032.235484, 2409304817.4889417, 2316832857.527023, 2240042681.6462297, 2174669156.243677, 2105300280.3983455, 2053219336.5968208, 2014941360.954779, 1975832927.5999012, 1940372824.7540097, 1910655878.4689345, 1887375627.2133079, 1866513715.2268927, 1848455603.6091566, 1831448213.5342908, 1812663714.8990078, 1799162596.828914]
-            
-            #x = list(range(4,21))
-            #y = [2504852032.235484, 2409304817.4889417, 2316832857.527023, 2240042681.6462297, 2174669156.243677, 2105300280.3983455, 2053219336.5968208, 2014941360.954779, 1975832927.5999012, 1940372824.7540097, 1910655878.4689345, 1887375627.2133079, 1866513715.2268927, 1848455603.6091566, 1831448213.5342908, 1812663714.8990078, 1799162596.828914]
-            #range(10, 41)
-            #[2053631804.047893, 2014946369.9704697, 1976370100.9062285, 1940954321.4685426, 1910455630.6114764, 1887624982.6240237, 1870007242.325744, 1848736676.252347, 1828779060.699307, 1812995629.8788753, 1797739167.9761512, 1782064767.217926, 1770218266.3849127, 1754376014.8209932, 1743390712.383553, 1731782005.7899482, 1716388995.4056718, 1709820655.3970628, 1699235431.66977, 1687935369.3011081, 1677652721.873943, 1671238990.609453, 1663928175.9675093, 1656810981.0248902, 1648482667.2718027, 1643671713.0389514, 1636561000.9212172, 1629881471.3745308, 1623287422.6246467, 1615720513.840895, 1612565871.966705]
+            #print(ks)
+            #print(sse) # [4,20] = [2504852032.235484, 2409304817.4889417, 2316832857.527023, 2240042681.6462297, 2174669156.243677, 2105300280.3983455, 2053219336.5968208, 2014941360.954779, 1975832927.5999012, 1940372824.7540097, 1910655878.4689345, 1887375627.2133079, 1866513715.2268927, 1848455603.6091566, 1831448213.5342908, 1812663714.8990078, 1799162596.828914]
+
             df = pd.DataFrame({'k':ks , 'sse':sse})
             ax = sns.relplot(x="k", y="sse", sort=False, kind="line", markers=True, data=df)
             ax.fig.savefig(os.path.join(output_dir,"eval_elbowmethod_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))))
@@ -80,7 +78,8 @@ def main():
                   shuffle=True,
                   random_state=1)  # For reproducibility
             ks, silouettes = calc_silouette_scores(X, 3, 6, plot_clustersilhouettes = True, output_dir= output_dir)"""
-            ks, silouettes = calc_silouette_scores(descriptors, 10, 200, plot_clustersilhouettes = True, output_dir= output_dir)
+            kmin, kmax = args.validateks
+            ks, silouettes = calc_silouette_scores(descriptors, kmin, kmax, plot_clustersilhouettes = True, output_dir= output_dir)
 
 
             df = pd.DataFrame({'k':ks , 'silouette score':silouettes})
@@ -89,7 +88,7 @@ def main():
             plt.clf()
 
         elif args.validateMethod == 'T-SNE':
-            k = 30
+            k, _ = args.validateks
             X_embedded, labels = calc_tsne(descriptors, k)
 
             df = pd.DataFrame({'x':X_embedded[:,0] , 'y':X_embedded[:,1], 'labels': labels})

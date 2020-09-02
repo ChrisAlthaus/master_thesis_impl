@@ -12,6 +12,7 @@ from google.colab.patches import cv2_imshow
 
 import time
 import datetime
+import csv
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
@@ -65,6 +66,7 @@ parser.add_argument('-finetune','-fL',required=True,
                     help='Specify which layers should be trained. Either RESNET, HEADSALL or ALL.')
 parser.add_argument('-resume','-checkpoint', 
                     help='Train model from checkpoint given by path.')
+parser.add_argument('-numepochs','-epochs', type=int, help='Number of epochs to train.')
 
 args = parser.parse_args()
 
@@ -137,7 +139,7 @@ cfg.INPUT.CROP.SIZE = [0.9, 0.9]
 #Training Parameters
 cfg.SOLVER.IMS_PER_BATCH = 4 # Number of images per batch across all machines.
 
-num_epochs = 20   
+num_epochs = args.numepochs   
 cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 # 2 faster, and good enough for this toy dataset (default: 512)
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (ballon) ?
 cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17
@@ -221,11 +223,6 @@ from detectron2.layers.batch_norm import FrozenBatchNorm2d
 
 def BNFrozentoBN(model, layer_ids, inverse=False):
 
-    """first_layer = model.backbone.bottom_up.stem
-    weights = first_layer.conv1.norm.weight
-    num_features = first_layer.conv1.norm.num_features
-    first_layer.conv1.norm = BatchNorm2d(num_features)
-    first_layer.conv1.norm.weights = weights"""
     for block_name,l_ids in layer_ids.items():
         blocks = getattr(model.backbone.bottom_up, block_name)
         if isinstance(l_ids,list):
@@ -281,15 +278,22 @@ trainlayers = []
 #for l,w in list(model.named_parameters()):
 #    print(l)
 
+#Mapping for layers to enable batch normalization
+layersbn= { "ALL": {'stem':'', 'res2':''},
+            "SCRATCH": {'stem':'', 'res2':''},
+            "RESNETL": {'res4':[2,5], 'res5':[0,2]},
+            "RESNETF": {'res2':[0,2], 'res3':[0,3]},
+            "HEADSALL": ["ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]}
+
 if args.finetune == "ALL" or args.finetune == 'SCRATCH':
     #Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
     #because not implemented by cfg file
-    BNFrozentoBN(model, {'stem':'', 'res2':''})
+    BNFrozentoBN(model, layersbn['ALL'])
     print("test")
 
 elif args.finetune == "RESNETL":
-    layernamesResNet = ['res1','res2','res3','res4','res5']
-    trainConvBlocks = {'res4':[2,5], 'res5':[0,2]} #[start,end] with end inclusive
+    #layernamesResNet = ['res1','res2','res3','res4','res5']
+    trainConvBlocks = layersbn['RESNETL'] #[start,end] with end inclusive
 
     layerNoFreeze = []
     #Adding resnet layers which should be trained/ not freezed
@@ -311,8 +315,8 @@ elif args.finetune == "RESNETL":
     BNFrozentoBN(model, trainConvBlocks)
 
 elif args.finetune == "RESNETF":
-    layernamesResNet = ['res1','res2','res3','res4','res5']
-    trainConvBlocks = {'res2':[0,2], 'res3':[0,3]} #[start,end] with end inclusive
+    #layernamesResNet = ['res1','res2','res3','res4','res5']
+    trainConvBlocks = layersbn['RESNETF'] #[start,end] with end inclusive
 
     layerNoFreeze = []
     #Adding resnet layers which should be trained/ not freezed
@@ -332,7 +336,7 @@ elif args.finetune == "RESNETF":
     BNFrozentoBN(model, trainConvBlocks)
 
 elif args.finetune == 'HEADSALL':
-    layersNoFreezePrefix = [layername_prefixes[x] for x in ["ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
+    layersNoFreezePrefix = [layername_prefixes[x] for x in layersbn['HEADSALL']]
     
     for name, param in list(model.named_parameters()):
         isTrainLayer = any([name.find(l_name) != -1 for l_name in layersNoFreezePrefix])
@@ -343,7 +347,7 @@ elif args.finetune == 'HEADSALL':
             print("Train layer: ",name)
             trainlayers.append(name)
 
-elif args.finetune == 'FPN+HEADS':
+"""elif args.finetune == 'FPN+HEADS':
     layersNoFreezePrefix = [layername_prefixes[x] for x in ["FPN","ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
     
     for name, param in list(model.named_parameters()):
@@ -353,7 +357,7 @@ elif args.finetune == 'FPN+HEADS':
             param.requires_grad = False     #freeze layer
         else:
             print("Train layer: ",name)
-            trainlayers.append(name)
+            trainlayers.append(name)"""
 
 elif args.finetune == 'EVALBASELINE':
     for name, param in list(model.named_parameters()):
@@ -361,6 +365,23 @@ elif args.finetune == 'EVALBASELINE':
             param.requires_grad = False     #freeze layer
     
     
+def save_modelconfigs(outdir, cfg, layersbn_map, args):
+    filename = 'run_configs.csv'
+    filepath = os.path.join(outdir, filename)
+
+    if not os.path.exists(filepath):
+        with open(filepath, 'w') as f:
+            writer = csv.writer(f, delimiter='\t')
+            headers = ['Folder', 'NET', 'BN', 'LR', 'Gamma', 'Steps', 'Epochs', 'Data Augmentation', 'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Additional']
+            writer.writerow(headers)
+    folder = os.path.basename(cfg.OUTPUT_DIR)
+    bnlayers = layersbn_map[args.finetune]
+    data_augm = [cfg.INPUT.CROP.SIZE, .. , ..]  #TODO: add additional items to cfg object
+    
+    row = [folder, args.finetune, bnlayers, cfg.SOLVER.BASE_LR, cfg.SOLVER.GAMMA, cfg.SOLVER.STEPS
+            args.numepochs, data_augm, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE, cfg.INPUT.MIN_SIZE_TRAIN, cfg.SOLVER.IMS_PER_BATCH ]
+    with open(filepath, 'a') as f:
+        writer.writerow(row)
 
 
 checkParams = dict()    #Dict to save intial parameters for some random freezed layers

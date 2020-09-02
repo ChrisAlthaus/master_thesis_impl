@@ -27,7 +27,8 @@ parser.add_argument('-search_data','-search', action="store_true",
                     help='Whether to search the index for the input cluster data.')
 parser.add_argument('-eval_tresh','-evaltresh', action="store_true",
                     help='Computing cos-sim between gpd clusters to approximate a cutoff threshold.')
-parser.add_argument('-method', help='Select method for insert and searching data.')
+parser.add_argument('-method_ins', help='Select method for insert data.')
+parser.add_argument('-method_search', help='Select method for searching data.')
 parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
@@ -49,12 +50,17 @@ else:
 #       just a shortlist of N best-matching documents is queried for better performance
 #Method 2 uses a Distance-Measure to compute the sum between input features and raw features stored in the db (each similarity counts)
 #       the image with smallest distance is selected
-_METHODS = ['COSSIM', 'DISTSUM']
+_METHODS_INS = ['CLUSTER', 'RAW']
+_METHODS_SEARCH = ['COSSIM', 'DISTSUM']
 _ELEMNUM_COS = 20
 _NUMRES_DIST = 10
 
-if args.method not in _METHODS:
-    raise ValueError("Please specify a valid method.") 
+if args.method_search is not None:
+    if args.method_search not in _METHODS_SEARCH:
+        raise ValueError("Please specify a valid search method.") 
+if args.method_ins is not None:
+    if args.method_ins not in _METHODS_INS:
+        raise ValueError("Please specify a valid insert method.")
 
 
 def main():
@@ -78,7 +84,7 @@ def main():
 
         length = sum([len(buckets) for buckets in data.values()])
         print("Items in input data reduced: ",length)"""
-        data = data[:1000]
+        #data = data[:1000]
         
     elif args.search_data:
          print("Items in input data: ",len(data))
@@ -99,11 +105,11 @@ def main():
     
     if args.insert_data:
         
-        if args.method == _METHODS[0]:
-            createIndex(es, len(list(data.keys())[0]), _METHODS[0])
+        if args.method_ins == _METHODS_INS[0]:
+            createIndex(es, len(list(data.keys())[0]), _METHODS_INS[0])
             insertdata_cluster(args, data, es)
-        elif args.method == _METHODS[1]:
-            createIndex(es, len(data[0]['gpd']), _METHODS[1])
+        elif args.method_ins == _METHODS_INS[1]:
+            createIndex(es, len(data[0]['gpd']), _METHODS_INS[1])
             insertdata_raw(args, data, es)
 
 
@@ -111,12 +117,12 @@ def main():
         es.indices.refresh(index=_INDEX)
         #data format: {'1': [featurevector], ... , 'n': [featurevector]}
         imgids_final = []
-        if args.method == _METHODS[0]:
+        if args.method_search == _METHODS_SEARCH[0]:
             results = []
             print("Searching image descriptors from %s ..."%args.file)
             for img_descriptor in data:
                 print(img_descriptor)
-                image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_COS, args.method)
+                image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_COS, args.method_search)
                 results.append(list(zip(image_ids,scores)))
             print("Searching image descriptors done.")
             print(results)
@@ -125,13 +131,13 @@ def main():
             results = [item for sublist in results for item in sublist]
             imgids_final = bestmatching_cluster(results)
         
-        elif args.method == _METHODS[1]:
+        elif args.method_search == _METHODS_SEARCH[1]:
             results = []
             numElemAll = es.cat.count(_INDEX, params={"format": "json"})[0]['count']
             print("Total documents in the index: %d."%int(numElemAll))
             print("Searching image descriptors from %s ..."%args.file)
             for img_descriptor in data:
-                image_ids, scores = query(es, img_descriptor['gpd'], int(numElemAll), args.method)
+                image_ids, scores = query(es, img_descriptor['gpd'], int(numElemAll), args.method_search)
                 results.append(list(zip(image_ids,scores)))
             print("Searching image descriptors done.")
             
@@ -143,11 +149,11 @@ def main():
         if isinstance(imgids_final[0], tuple):
             [image_ids, rel_scores] = zip(*imgids_final)
             saveResults(list(image_ids), list(rel_scores), output_dir, image_dir)
-        elif isinstance(imgids_final[0], str):
+        elif isinstance(imgids_final[0], int):
             saveResults(imgids_final, None, output_dir, image_dir)
 
 
-    elif args.eval_tresh and args.method == _METHODS[0]:
+    elif args.eval_tresh and args.method_search == _METHODS_SEARCH[0]:
         #Compute cos-sim of each gpd cluster with each other gpd cluster and visualize
         gpdclusters = []
         for gpdcluster, _ in data.items():
@@ -199,7 +205,7 @@ def insertdata_cluster(args, data, es):
 
 
 def createIndex(es, dim, mode):
-    if mode == _METHODS[0]:
+    if mode == _METHODS_INS[0]:
         varname = "gpdcluster"
     else:
         varname = "gpd"
@@ -245,7 +251,7 @@ def insertdoc(es, gpdcluster, metadata, id, featurelabel):
         raise ValueError("Document not created.")
 
 def query(es, featurevector, size, method):
-    if method == _METHODS[0]:
+    if method == _METHODS_SEARCH[0]:
         request = { "size": size,
                                "min_score": _SIMILARITY_TRESH + 1, 
                                "query": {
@@ -395,7 +401,7 @@ def saveResults(image_ids, rel_scores, output_dir, image_dir):
     json_file = 'result-ranking'
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
         print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
-        json.dump(imagemetadata, f)
+        json.dump(imagemetadata, f, indent=4, separators=(',', ': '))
     print("Wrote %d ranked items to file."%len(image_ids))
 
 
