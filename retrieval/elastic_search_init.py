@@ -343,14 +343,30 @@ def bestmatching_cluster(image_scoring):
     print("Ranking query results with custom heuristic ...")
     ranked = sorted(grouped_by_imageid, key=lambda e: len(e) * np.mean([s[1] for s in e]), reverse=True)
     print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
-
+    
     #Only image ids as result
-    reduced_ranked = []
+    ranked_reduced = []
+    scoring = []
     for occurances in ranked:
-        reduced_ranked.append(occurances[0][0])
-    print(ranked)
-    print(reduced_ranked)
-    return reduced_ranked
+        scores = [item[1] for item in occurances]
+        score = sum(scores)/len(scores)
+        ranked_reduced.append(occurances[0][0])
+      
+        scoring.append(score)
+    
+    #linear norm because already previous filtered with threshold
+    print(scoring)
+    minscore, maxscore = min(scoring), max(scoring)
+    #all scores have the same value, normalize to all 1's
+    if minscore == maxscore:
+        scoring = [1 for i,x in enumerate(scoring)]
+    else:
+        lin_norm = lambda x: ( (x - minscore)/(maxscore - minscore) )
+        scoring = map(lin_norm, scoring)
+    
+    bestk = list(zip(ranked_reduced, scoring))
+    print("ranked:",bestk)
+    return bestk
 
 
 def get_alldocs(es):

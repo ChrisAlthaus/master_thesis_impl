@@ -17,7 +17,6 @@ import csv
 # import some common detectron2 utilities
 from detectron2 import model_zoo
 from detectron2.engine import DefaultPredictor
-#from DefaultPredictor import DefaultPredictor 
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
@@ -25,6 +24,7 @@ from detectron2.engine import DefaultTrainer
 import detectron2.data.build as build
 from detectron2.checkpoint.detection_checkpoint import DetectionCheckpointer
 from CustomTrainers import *
+from detectron2.data.datasets import register_coco_instances
 
 from plotAveragePrecisions import plotAPS
 
@@ -67,6 +67,7 @@ parser.add_argument('-finetune','-fL',required=True,
 parser.add_argument('-resume','-checkpoint', 
                     help='Train model from checkpoint given by path.')
 parser.add_argument('-numepochs','-epochs', type=int, help='Number of epochs to train.')
+parser.add_argument('-addconfig', help='Add selected configurations as an additional row to a csv file.', action="store_true")
 
 args = parser.parse_args()
 
@@ -77,47 +78,33 @@ if args.resume is not None:
         raise ValueError("Checkpoint does not exists.")
 
 
-#im = cv2.imread("/home/althausc/nfs/data/coco_17_small/train2017_styletransfer/000000000260_049649.jpg")
-
 cfg = get_cfg()
 # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
-#cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"))
-cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
+cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) #"COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"
 
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
-#cfg.MODEL.DEVICE='cpu'
-cfg.MODEL.DEVICE='cuda'
+cfg.MODEL.DEVICE='cuda' #'cpu'
 
 
 # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
-#cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml")
 if args.finetune != 'SCRATCH':
-    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")
+    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml") #"COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"
 else:
     cfg.MODEL.WEIGHTS = ""
 
-
-#predictor = DefaultPredictor(cfg)
-#outputs = predictor(im)
-
-# We can use `Visualizer` to draw the predictions on the image.
-#v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
-#out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-#cv2_imshow(out.get_image()[:, :, ::-1])
-#cv2.imwrite("output.jpg",out.get_image()[:, :, ::-1])
-
-
 #TRAIN ON STYLE_TRANSFERED DATASET
-from detectron2.data.datasets import register_coco_instances
 
 #Register to DatasetCatalog and MetadataCatalog
-register_coco_instances("my_dataset_train", {},"/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer")
+train_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json"
+train_dir = "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer"
+#train_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json"
+#train_dir = "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer"
+register_coco_instances("my_dataset_train", {}, train_ann, train_dir)
 
-register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer")
-#register_coco_instances("my_dataset_val", {},"/home/althausc/nfs/data/coco_17/annotations/person_keypoints_val2017.json", "/home/althausc/nfs/data/coco_17/val2017")
-#register_coco_instances("my_dataset_val", {}, "/home/althausc/nfs/data/coco_17_small/annotations_styletransfer/person_keypoints_val2017_stAPI.json", "/home/althausc/nfs/data/coco_17_small/val2017_styletransfer")
+val_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json"
+val_dir = "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer"
+register_coco_instances("my_dataset_val", {}, val_ann, val_dir)
 
-#print(MetadataCatalog.get("my_dataset_train"))
 metadata = MetadataCatalog.get("my_dataset_train").set(keypoint_names=COCO_PERSON_KEYPOINT_NAMES, keypoint_flip_map=COCO_PERSON_KEYPOINT_FLIP_MAP) 
 metadata = MetadataCatalog.get("my_dataset_train")
 
@@ -131,10 +118,11 @@ cfg.DATALOADER.NUM_WORKERS = 2 # Number of data loading threads
 
 cfg.INPUT.MIN_SIZE_TRAIN = 512#(640, 672, 704, 736, 768, 800) #512  #Size of the smallest side of the image during training
     	                     #Defaults: (640, 672, 704, 736, 768, 800)
-#cfg.update({'INPUT.FLIP.PROBABILITY': 0.25})
-#cfg.INPUT.FLIP.PROBABILITY = 0.25
+
 cfg.INPUT.CROP.TYPE = "relative_range"
 cfg.INPUT.CROP.SIZE = [0.9, 0.9]
+cfg.DATA_FLIP_PROBABILITY = 0.25 
+cfg.ROTATION = [-15,15]
 
 #Training Parameters
 cfg.SOLVER.IMS_PER_BATCH = 4 # Number of images per batch across all machines.
@@ -163,7 +151,6 @@ def get_iterations_for_epochs(dataset, num_epochs, batch_size):
     dataset= build.filter_images_with_only_crowd_annotations(dataset)
     dataset= build.filter_images_with_few_keypoints(dataset, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
     print("Images in datasets after removing images: ",len(dataset))
-    print(len(dataset), batch_size)
     
     one_epoch = len(dataset) / batch_size
     max_iter = int(one_epoch * num_epochs)
@@ -190,32 +177,15 @@ cfg.SOLVER.GAMMA = 0.95
 
 steps_exp = np.linspace(0,1,12)[1:-1] * max_iter
 steps_exp = np.linspace(191893/max_iter,1,12)[0:-1] * max_iter
+steps_exp.astype(np.int)
 
 cfg.SOLVER.STEPS = tuple(steps_exp)
 #(int(5/10*max_iter),int(6/10*max_iter), int(7/10*max_iter),int(8/10*max_iter),int(9/10*max_iter),int(98/100*max_iter))
 #(int(7/9*max_iter), int(8/9*max_iter))#(int(55/90*max_iter),int(75/90*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.                                          
 #TODO: dump config file for prediction
 
-os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-#trainer = DefaultTrainer(cfg) 
 trainer = COCOTrainer(cfg) #"multigpu"
-#trainer.build_evaluator(cfg, "my_dataset_val") #not necessary?!
 
-#TRIED TO SAVE MODEL GRAPH VISUALIZATION
-#model = trainer.model
-#shape_of_first_layer = list(model.parameters())[0].shape
-#print("Shape of first layer: ",shape_of_first_layer)
-
-#writer = SummaryWriter(cfg.OUTPUT_DIR)
-#x = [{'image': torch.randn(3,800,1190), 'height': 336, 'width': 500}]
-#x = torch.randn(3,800,1190,1,1)
-#x = torch.randn(3,800,1190)
-
-#y = predictor.model(x)
-#writer.add_graph(predictor.model,x)
-#writer.close()
-#summary(predictor.model, x)
-#torch.save(trainer.model, os.path.join(cfg.OUTPUT_DIR,'rcnn_model.pth'))
 
 model = trainer.model
 from detectron2.layers.wrappers import BatchNorm2d
@@ -265,18 +235,11 @@ print("Save model's configuration:")
 with open(os.path.join(cfg.OUTPUT_DIR, 'model_conf.txt'), 'w') as f:
     print(cfg,file=f)
 
-#print(list(len(model.named_parameters())))
-
-#FPN = list(model.children())[0]
-#ResNet = FPN.bottom_up
-#for s in ResNet.stages_and_names:
-#   if s[1] == 'res4':                                             
+                                            
 layername_prefixes = {"ResNet":"backbone.bottom_up", "RPN_ANCHOR":"proposal_generator.anchor_generator", "RPN_HEAD":"proposal_generator.rpn_head",
                       "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head",
                       "FPN":"backbone.fpn"} 
 trainlayers = []
-#for l,w in list(model.named_parameters()):
-#    print(l)
 
 #Mapping for layers to enable batch normalization
 layersbn= { "ALL": {'stem':'', 'res2':''},
@@ -284,6 +247,7 @@ layersbn= { "ALL": {'stem':'', 'res2':''},
             "RESNETL": {'res4':[2,5], 'res5':[0,2]},
             "RESNETF": {'res2':[0,2], 'res3':[0,3]},
             "HEADSALL": ["ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]}
+layernamesResNet = ['res1','res2','res3','res4','res5']
 
 if args.finetune == "ALL" or args.finetune == 'SCRATCH':
     #Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
@@ -292,7 +256,6 @@ if args.finetune == "ALL" or args.finetune == 'SCRATCH':
     print("test")
 
 elif args.finetune == "RESNETL":
-    #layernamesResNet = ['res1','res2','res3','res4','res5']
     trainConvBlocks = layersbn['RESNETL'] #[start,end] with end inclusive
 
     layerNoFreeze = []
@@ -315,7 +278,6 @@ elif args.finetune == "RESNETL":
     BNFrozentoBN(model, trainConvBlocks)
 
 elif args.finetune == "RESNETF":
-    #layernamesResNet = ['res1','res2','res3','res4','res5']
     trainConvBlocks = layersbn['RESNETF'] #[start,end] with end inclusive
 
     layerNoFreeze = []
@@ -347,6 +309,11 @@ elif args.finetune == 'HEADSALL':
             print("Train layer: ",name)
             trainlayers.append(name)
 
+elif args.finetune == 'EVALBASELINE':
+    for name, param in list(model.named_parameters()):
+        if name != 'roi_heads.keypoint_head.score_lowres.weight':
+            param.requires_grad = False     #freeze layer
+  
 """elif args.finetune == 'FPN+HEADS':
     layersNoFreezePrefix = [layername_prefixes[x] for x in ["FPN","ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
     
@@ -357,13 +324,7 @@ elif args.finetune == 'HEADSALL':
             param.requires_grad = False     #freeze layer
         else:
             print("Train layer: ",name)
-            trainlayers.append(name)"""
-
-elif args.finetune == 'EVALBASELINE':
-    for name, param in list(model.named_parameters()):
-        if name != 'roi_heads.keypoint_head.score_lowres.weight':
-            param.requires_grad = False     #freeze layer
-    
+            trainlayers.append(name)"""  
     
 def save_modelconfigs(outdir, cfg, layersbn_map, args):
     filename = 'run_configs.csv'
@@ -372,18 +333,22 @@ def save_modelconfigs(outdir, cfg, layersbn_map, args):
     if not os.path.exists(filepath):
         with open(filepath, 'w') as f:
             writer = csv.writer(f, delimiter='\t')
-            headers = ['Folder', 'NET', 'BN', 'LR', 'Gamma', 'Steps', 'Epochs', 'Data Augmentation', 'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Additional']
+            headers = ['Folder', 'NET', 'BN', 'LR', 'Gamma', 'Steps', 'Epochs', 'Data Augmentation [CropSize, FlipProb, RotationAngle]',
+                       'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Additional']
             writer.writerow(headers)
     folder = os.path.basename(cfg.OUTPUT_DIR)
     bnlayers = layersbn_map[args.finetune]
-    data_augm = [cfg.INPUT.CROP.SIZE, .. , ..]  #TODO: add additional items to cfg object
+    data_augm = [cfg.INPUT.CROP.SIZE, cfg.DATA_FLIP_PROBABILITY , cfg.ROTATION]  #TODO: add additional items to cfg object
     
-    row = [folder, args.finetune, bnlayers, cfg.SOLVER.BASE_LR, cfg.SOLVER.GAMMA, cfg.SOLVER.STEPS
+    row = [folder, args.finetune, bnlayers, str(cfg.SOLVER.BASE_LR), str(cfg.SOLVER.GAMMA), cfg.SOLVER.STEPS,
             args.numepochs, data_augm, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE, cfg.INPUT.MIN_SIZE_TRAIN, cfg.SOLVER.IMS_PER_BATCH ]
     with open(filepath, 'a') as f:
+        writer = csv.writer(f, delimiter='\t')
         writer.writerow(row)
 
-
+if args.addconfig:
+    save_modelconfigs(os.path.dirname(output_dir), cfg, layersbn, args)
+exit(1)
 checkParams = dict()    #Dict to save intial parameters for some random freezed layers
                         #for later checking if really not trained            
 numLayersForCheck = 20
