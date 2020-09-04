@@ -6,6 +6,7 @@ from config import cfg
 import cv2
 import sys
 import time
+import datetime
 import json
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -172,15 +173,17 @@ def test_net(tester, input_pose, det_range, gpu_id):
     return dump_results
 
 
-def test(test_model):
+def test(test_model, args):
     #modified
     # annotation load
-    d = Dataset()
+    inputpath = args.inputs
+    is_styleimg = args.transformid
+    d = Dataset(inputpath)
     #annot = d.load_annot(cfg.testset)
     
     # input pose load
     #input_pose = d.input_pose_load(annot, cfg.testset)
-    input_pose = d.input_pose_load(None, None)
+    input_pose = d.input_pose_load(None, None, is_styleimg)
     #modified end
 
     # job assign (multi-gpu)
@@ -198,7 +201,7 @@ def test(test_model):
         img_start = img_end
 
     def func(gpu_id):
-        cfg.set_args(args.gpu_ids.split(',')[gpu_id])
+        #cfg.set_args(args.gpu_ids.split(',')[gpu_id])
         tester = Tester(Model(), cfg)
         tester.load_weights(test_model)
         range = [ranges[gpu_id], ranges[gpu_id + 1]]
@@ -207,9 +210,21 @@ def test(test_model):
     MultiGPUFunc = MultiProc(len(args.gpu_ids.split(',')), func)
     result = MultiGPUFunc.work()
 
-    result_path = osp.join(cfg.result_dir, 'resultfinal.json')
+    #modified
+    output_dir = os.path.join(cfg.result_dir, datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    else:
+        raise ValueError("Output directory %s already exists."%output_dir)
+    
+    result_path = osp.join(output_dir, 'resultfinal.json')
+    print("Writing results to file: ",result_path)
     with open(result_path, 'w') as f:
         json.dump(result, f)
+
+    cfg.saveconfig(output_dir)
+    #modified end
+
     #modified
     # evaluation
     #d.evaluation(result, annot, cfg.result_dir, cfg.testset)
@@ -220,6 +235,10 @@ if __name__ == '__main__':
         parser = argparse.ArgumentParser()
         parser.add_argument('--gpu', type=str, dest='gpu_ids')
         parser.add_argument('--test_epoch', type=str, dest='test_epoch')
+        parser.add_argument('-modelfolder', type=str)
+        parser.add_argument('-inputs', type=str)
+        parser.add_argument('-transformid',action="store_true", 
+                    help='Wheather to tranform image id to style-transform image path or not (used for style transfered images.') 
         args = parser.parse_args()
 
         # test gpus
@@ -237,4 +256,8 @@ if __name__ == '__main__':
 
     global args
     args = parse_args()
-    test(int(args.test_epoch))
+    imgdir = os.path.dirname(args.inputs)
+    cfg.test_img_path = imgdir 
+    cfg.set_modeldir_for_test(args.modelfolder) 
+    
+    test(int(args.test_epoch), args)

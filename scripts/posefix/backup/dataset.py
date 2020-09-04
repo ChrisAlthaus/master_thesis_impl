@@ -29,15 +29,19 @@ class Dataset(object):
        .87, .89, .89]) / 10.0
     ignore_kps = []
 
+    def __init__(self, inputpath): 
+        self.input_pose_path = inputpath
 
-    test_on_trainset_path = osp.join('..', 'data', dataset_name, 'input_pose', 'test_on_trainset', 'result.json')
-    input_pose_path = osp.join('..', 'data', dataset_name, 'input_pose', 'result_val.json') #'input_pose_predictions.json') #'person_keypoints_test-dev2017_Simple152_results.json') # set directory of the input pose
-
-    img_path = osp.join('..', 'data', dataset_name, 'images')
+    #test_on_trainset_path = osp.join('..', 'data', dataset_name, 'input_pose', 'test_on_trainset', 'result.json')
+    #input_pose_path = osp.join('..', 'data', dataset_name, 'input_pose', 'result_val.json') #'input_pose_predictions.json') #'person_keypoints_test-dev2017_Simple152_results.json') # set directory of the input pose
+   
+    train_img_path = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'
+    #val_img_path = '/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer'
+    
     train_annot_path = osp.join('..', 'data', dataset_name, 'annotations', 'person_keypoints_train2017_stAPI.json')
-    #train_annot_path = osp.join('..', 'data', dataset_name, 'annotations', 'person_keypoints_val2017_stAPI.json')
+    #train_annot_path = ... TODO
     val_annot_path = osp.join('..', 'data', dataset_name, 'annotations', 'person_keypoints_val2017_stAPI.json')
-    #test_annot_path = osp.join('..', 'data', dataset_name, 'annotations', 'image_info_test-dev2017.json')
+    #val_annot_path = ... TODO
     test_annot_path = osp.join('..', 'data', dataset_name, 'annotations', 'person_keypoints_val2017_stAPI.json')
 
 
@@ -121,12 +125,13 @@ class Dataset(object):
         imgname = [db_set + '2017/' + i['file_name'] for i in imgs]
         return imgname
     
-    def input_pose_load(self, annot, db_set):
+    def input_pose_load(self, annot, db_set, is_styleimage):
         
         #gt_img_id = self.load_imgid(annot)
 
         with open(self.input_pose_path, 'r') as f:
             input_pose = json.load(f)
+        print("Loaded: ",self.input_pose_path)
         #input_pose = [i for i in input_pose if i['image_id'] in gt_img_id]
         input_pose = [i for i in input_pose if i['category_id'] == 1]
         input_pose = [i for i in input_pose if i['score'] > 0]
@@ -139,9 +144,12 @@ class Dataset(object):
         #modified: replacement for real image filename
         #imgname = self.imgid_to_imgname(annot, img_id, db_set)
         for i in range(len(input_pose)):
-            imgid = str(input_pose[i]['image_id'])
-            imgpath = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-            input_pose[i]['imgpath'] = imgpath
+            if is_styleimage:
+                imgid = str(input_pose[i]['image_id'])
+                imgpath = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+                input_pose[i]['imgpath'] = imgpath
+            else:
+                input_pose[i]['imgpath'] = "%s.jpg"%str(input_pose[i]['image_id'])
         #modified end
 
         # bbox generate
@@ -247,4 +255,7 @@ class Dataset(object):
         # Blend the keypoints.
         return cv2.addWeighted(img, 1.0 - alpha, kp_mask, alpha, 0)
 
-dbcfg = Dataset()
+dbcfg = Dataset(None)
+#def update_dbcfg(inputpath, imgdir):
+#    global dbcfg
+ #   dbcfg = Dataset(inputpath, imgdir)
