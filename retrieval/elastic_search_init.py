@@ -99,7 +99,7 @@ def main():
 
     image_dir = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'
 
-    es = Elasticsearch("http://localhost:30000",
+    es = Elasticsearch("http://localhost:9200", #30000
                        ca_certs=False,
                        verify_certs=False)
     
