@@ -4,7 +4,6 @@ from detectron2 import model_zoo
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.engine.defaults import DefaultPredictor
 from detectron2.utils.visualizer import Visualizer
-from google.colab.patches import cv2_imshow
 from detectron2.data import MetadataCatalog
 from detectron2.data.datasets.builtin_meta import KEYPOINT_CONNECTION_RULES, COCO_PERSON_KEYPOINT_NAMES, COCO_PERSON_KEYPOINT_FLIP_MAP
 from detectron2.data import detection_utils as utils
@@ -38,6 +37,8 @@ parser.add_argument('-vis','-visualize', action='store_true',
                     help='Specify to visualize predictions on images & save.')
 parser.add_argument('-visrandom','-validate', action='store_true',
                     help='Specify to randomy visualize k predictions.')
+parser.add_argument('-transformid',action="store_true", 
+                    help='Wheather to tranform image name to style-transform image id (used for style transfered images.')      
 args = parser.parse_args()
 
 
@@ -79,7 +80,7 @@ cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50
 #cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
 
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
-cfg.MODEL.DEVICE='cuda'
+cfg.MODEL.DEVICE='cpu'
 cfg.MIN_SIZE_TRAIN= 512
 cfg.MODEL.WEIGHTS = args.model_cp
 
@@ -108,9 +109,12 @@ with torch.no_grad():
         for img_path,pred in zip(image_paths[i:i+batchsize],preds):
             print("Predict images: ", image_paths)
             image_name = os.path.splitext(os.path.basename(img_path))[0]
-            content_id = image_name.split('_')[0]
-            style_id = image_name.split('_')[1]
-            image_id = int("%s%s"%(content_id,style_id))
+            if args.transformid:
+                content_id = image_name.split('_')[0]
+                style_id = image_name.split('_')[1]
+                image_id = int("%s%s"%(content_id,style_id))
+            else:
+                image_id = image_name #allow string image id
 
         
             for bbox, keypoints ,score in zip(pred["instances"].pred_boxes, pred["instances"].pred_keypoints, pred["instances"].scores.cpu().numpy()):

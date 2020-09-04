@@ -17,7 +17,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-file',required=True,
                     help='File with a list of dict items with fields imageid and keypoints.')
 parser.add_argument('-imagespath',required=True)    
-parser.add_argument('-outputdir',required=True)                
+parser.add_argument('-outputdir',required=True) 
+parser.add_argument('-transformid',action="store_true", 
+                    help='Wheather to split imageid to get image filepath (used for style transfered images.')                   
 args = parser.parse_args()
     
 data = None
@@ -32,9 +34,15 @@ MetadataCatalog.get("my_dataset_val").set(keypoint_names=COCO_PERSON_KEYPOINT_NA
 print("Visualize the predictions onto the original image(s) ...")
 for preds_imgs in grouped_by_imageid:
     imgid = str(preds_imgs[0]['image_id'])
-    imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-    imgname_out = "%s_%s_overlay.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-    img_path = os.path.join(args.imagespath, imgname)
+    
+    if args.transformid: #style-transfered image
+        imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+        imgname_out = "%s_%s_overlay.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+        img_path = os.path.join(args.imagespath, imgname)
+    else:
+        imgname = "%s.jpg"%(imgid)
+        imgname_out = "%s_overlay.jpg"%(imgid)
+        img_path = os.path.join(args.imagespath, imgname)
 
     img = cv2.imread(img_path, 0)
     height, width = img.shape[:2]
@@ -58,7 +66,10 @@ for preds_imgs in grouped_by_imageid:
 
     v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
     out = v.draw_instance_predictions(instances)
+     
     cv2.imwrite(os.path.join(args.outputdir, imgname_out),out.get_image()[:, :, ::-1])
+
+    print("Wrote image to path: ",os.path.join(args.outputdir, imgname_out))
 
     if out == None:
         print("img is none")

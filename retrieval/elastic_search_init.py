@@ -52,7 +52,8 @@ else:
 #       the image with smallest distance is selected
 _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['COSSIM', 'DISTSUM']
-_ELEMNUM_COS = 20
+_ELEMNUM_COS = 100
+_ELEMNUM_DIST = 1000 #bigger because relative score computation
 _NUMRES_DIST = 10
 
 if args.method_search is not None:
@@ -125,7 +126,7 @@ def main():
                 image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_COS, args.method_search)
                 results.append(list(zip(image_ids,scores)))
             print("Searching image descriptors done.")
-            print(results)
+            print("QUERY RESULTS: ",results)
         
             #Flattening list of indiv feature vector results
             results = [item for sublist in results for item in sublist]
@@ -136,8 +137,9 @@ def main():
             numElemAll = es.cat.count(_INDEX, params={"format": "json"})[0]['count']
             print("Total documents in the index: %d."%int(numElemAll))
             print("Searching image descriptors from %s ..."%args.file)
+            #_ELEMNUM_DIST = int(numElemAll)
             for img_descriptor in data:
-                image_ids, scores = query(es, img_descriptor['gpd'], int(numElemAll), args.method_search)
+                image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_DIST, args.method_search)
                 results.append(list(zip(image_ids,scores)))
             print("Searching image descriptors done.")
             
@@ -359,13 +361,16 @@ def bestmatching_cluster(image_scoring):
     minscore, maxscore = min(scoring), max(scoring)
     #all scores have the same value, normalize to all 1's
     if minscore == maxscore:
+        print("Applying no norm.")
         scoring = [1 for i,x in enumerate(scoring)]
     else:
+        print("Applying linear norm.")
         lin_norm = lambda x: ( (x - minscore)/(maxscore - minscore) )
         scoring = map(lin_norm, scoring)
     
     bestk = list(zip(ranked_reduced, scoring))
-    print("ranked:",bestk)
+    bestk = sorted(bestk, key=lambda x: x[1], reverse=True)
+    print("best k ranked: ",bestk)
     return bestk
 
 
