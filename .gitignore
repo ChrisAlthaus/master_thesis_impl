@@ -143,3 +143,4 @@ testImages
 detectron2/out/checkpoints
 posedescriptors/out
 results
+retrieval/out
