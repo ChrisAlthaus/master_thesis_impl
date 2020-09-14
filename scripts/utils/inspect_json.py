@@ -13,6 +13,7 @@ import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-file', help='Path to a json file.')
+parser.add_argument('-mode')
 
 args = parser.parse_args()
 
@@ -33,11 +34,21 @@ if isinstance(json_file,list):
     print("Sample at position 0: ",json_file[0])
     print("Entries sampled: ", json_file[:2])
 elif isinstance(json_file,dict):
-    print("Number of images: ",len(json_file['images']))
-    print("Sample at position 0: ",json_file['images'][0])
-    print("Number of annotations: ",len(json_file['annotations']))
-    print("Sample at position 0: ",json_file['annotations'][0])
-    print("Sample at position 0-9: ",json_file['annotations'][:10])
+    if args.mode == 'annimgs':
+        print("Number of images: ",len(json_file['images']))
+        print("Sample at position 0: ",json_file['images'][0])
+        print("Number of annotations: ",len(json_file['annotations']))
+        print("Sample at position 0: ",json_file['annotations'][0])
+        print("Sample at position 0-9: ",json_file['annotations'][:10])
+    else:
+        print("Number of entries: ",len(json_file))
+        k = 1
+        print("Printing first %d entries:"%k)
+        for i,entry in enumerate(json_file.items()):
+            print(str(entry)[:70000])
+            if i==k-1:
+                break
+
 
 
 

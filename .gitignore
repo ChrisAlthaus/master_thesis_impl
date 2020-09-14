@@ -135,6 +135,7 @@ dmypy.json
 *.jpg
 *.png
 *.csv
+*.json
 testImages
 
 #VSCode
@@ -144,3 +145,4 @@ detectron2/out/checkpoints
 posedescriptors/out
 results
 retrieval/out
+Scene-Graph-Benchmark.pytorch/out
