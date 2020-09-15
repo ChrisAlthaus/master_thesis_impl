@@ -14,6 +14,7 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument('-file', help='Path to a json file.')
 parser.add_argument('-mode')
+parser.add_argument('-firstn',type=int)
 
 args = parser.parse_args()
 
@@ -23,6 +24,9 @@ if not os.path.isfile(args.file):
 json_file = None
 with open(args.file, "r") as f:
     json_file = json.load(f)
+
+if args.firstn is not None:
+    print(str(json_file)[:args.firstn])
 
 if isinstance(json_file,list):
     print("Number of elements: ",len(json_file))

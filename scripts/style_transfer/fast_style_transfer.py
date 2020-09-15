@@ -23,6 +23,7 @@ import shutil
 import logging
 
 import tensorflow_hub as hub
+import datetime
 
 
 parser = argparse.ArgumentParser(description='')
@@ -36,6 +37,7 @@ parser.add_argument('-nS', '--numStyles', required=True, help='number of styles 
 parser.add_argument('-add','--add', default=False, action='store_true')
 parser.add_argument('-dimS','--dimStyle', default=256, type=int, help='dimension used for scaling style image, NOT USED')
 parser.add_argument('-dimC','--dimContent', default=1024, type=int, help='dimension used for scaling style image, NOT USED')
+parser.add_argument('-labelmode', required=True, default='aggregate', help='Used for naming of output file.')
 parser.add_argument('-v','--verbose', default=False, action='store_true')
 
 args = parser.parse_args()
@@ -107,6 +109,12 @@ assert os.path.isdir(args.pathStyles), "Style folder not exists."
 assert os.path.isdir(args.pathImages), "Image folder not exists."
 assert os.path.isdir(args.output), "Output folder not exists."
 
+"""output_dir = os.path.join(args.output, datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+else:
+    raise ValueError("Output directory %s already exists."%output_dir)"""
+output_dir = args.output
 
 style_paths = [os.path.join(args.pathStyles, x) for x in os.listdir(args.pathStyles)]
 style_paths = np.array(style_paths)
@@ -116,7 +124,6 @@ image_paths = [os.path.join(args.pathImages, x) for x in os.listdir(args.pathIma
 image_paths = np.array(image_paths)
 
 
-num_styles = int(args.numStyles)
 
 # Remove style & content images from path lists which are too large
 MAX_SIZE = 20971520 # 20 MBytes
@@ -132,7 +139,7 @@ for file_path in image_paths:
 		
 
 print("STYLIZE IMAGES ... ")
-print("Number of styles = ",num_styles)
+print("Number of styles = ",int(args.numStyles))
 
 # copy base image to output folder
 if args.add:
@@ -149,19 +156,25 @@ for img_path in image_paths:
 	#print("Stylize image ", os.path.basename(img_path))
 	#print("\nContent image ", img_path)
 
-	style_select = style_paths[np.random.choice(len(style_paths), size=num_styles, replace=False)]
-	
+	style_select = style_paths[np.random.choice(len(style_paths), size=int(args.numStyles), replace=False)]
+	#print(style_path, style_select)
 	out_img_base = os.path.join(args.output, os.path.basename(img_path))
 
 	for style_path in style_select:
 		logging.debug("Style image path: %s"%style_path)
 		
 		#Filename: contentImNumber (coco=12digits) _ styleImNumber(painterByNumbers=6digits)
-		style_filename = os.path.basename(style_path)
-		style_im_number = "%06d"%int(os.path.splitext(style_filename)[0])
-		file_name = os.path.basename(img_path).replace('.jpg','') + '_' + str(style_im_number) + os.path.splitext(style_filename)[1] 
+		
+		if args.labelmode == 'aggregate':
+			style_filename = os.path.basename(style_path)
+			style_im_number = "%06d"%int(os.path.splitext(style_filename)[0])
+			file_name = os.path.basename(img_path).replace('.jpg','') + '_' + str(style_im_number) + os.path.splitext(style_filename)[1] 
+		elif args.labelmode == 'keepcontent':
+			file_name = os.path.basename(img_path)
+		else:
+			raise ValueError('No valid output file labeling mode.')
 
-		out_img_path = os.path.join(args.output, file_name)
+		out_img_path = os.path.join(output_dir, file_name)
 		logging.debug("Output file path: %s"%out_img_path)
 
 		#Stylize image 
@@ -171,7 +184,14 @@ for img_path in image_paths:
 			continue
 		#Output size should be shape of content image
 		#content_max_dim = max(tf.cast(tf.shape(content_image)[:-1], tf.float32))
-		style_image = load_img(style_path,scale=True,resize_shape=tf.shape(content_image))
+		content_shape = tf.shape(content_image)
+		#target_np = content_shape.numpy()
+		#target_np[1] = target_np[1] * 2
+		#target_np[2] = target_np[2] * 2
+		#content_shape = tf.convert_to_tensor(target_np, np.float32)
+
+		#style_image = load_img(style_path,scale=True,resize_shape=tf.shape(content_image))
+		style_image = load_img(style_path,scale=True,resize_shape=content_shape)
 		
 		if(style_image is None):
 			continue
@@ -185,6 +205,8 @@ for img_path in image_paths:
 		#print(type(output_img.size))
 		logging.debug("Shape Output Image: %s"%str(output_img.size))
 		output_img.save(out_img_path)
+
+		
 	
 	num_counter = num_counter + 1
 	if num_counter % 10 == 0:
@@ -195,7 +217,7 @@ for img_path in image_paths:
 	if int(args.numContents) != -1 and num_counter >= int(args.numContents):
 		break
 	#print("Stylize image %s done."%(os.path.basename(img_path)))
-
+print("Time: %s seconds" % (time.time() - start_time))
 print("STYLIZE IMAGES DONE.")
 		
 		
