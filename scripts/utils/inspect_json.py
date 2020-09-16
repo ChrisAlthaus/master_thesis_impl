@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-file', help='Path to a json file.')
 parser.add_argument('-mode')
 parser.add_argument('-firstn',type=int)
+parser.add_argument('-search')
 
 args = parser.parse_args()
 
@@ -27,9 +28,18 @@ with open(args.file, "r") as f:
 
 if args.firstn is not None:
     print(str(json_file)[:args.firstn])
+    exit(1)
 
+#List of dicts
 if isinstance(json_file,list):
     print("Number of elements: ",len(json_file))
+    if args.search:
+        for elem in json_file:
+            if str(args.search) in str(elem):
+                print(elem)
+        exit(1)
+        
+    
     #unique_imgIds = []
     #for elem in json_file:
     #    if elem['image_id'] not in unique_imgIds:
@@ -46,7 +56,7 @@ elif isinstance(json_file,dict):
         print("Sample at position 0-9: ",json_file['annotations'][:10])
     else:
         print("Number of entries: ",len(json_file))
-        k = 1
+        k = 9
         print("Printing first %d entries:"%k)
         for i,entry in enumerate(json_file.items()):
             print(str(entry)[:70000])
