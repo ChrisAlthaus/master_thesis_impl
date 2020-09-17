@@ -2,7 +2,7 @@ import h5py
 
 import argparse
 import os
-
+import numpy as np
 
 
 parser = argparse.ArgumentParser()
@@ -22,6 +22,26 @@ for item in list(f):
     print(item + ": " + str(f[item].shape))
     print(f[item][:10])
     print()
+
+
+print(f['img_to_first_box'][len(f['img_to_first_box'])-100:])
+print(f['img_to_last_box'][len(f['img_to_last_box'])-100:])
+
+print(len(f['split']),type( f['split'][()]))
+print([f['split'][()] == 0][:20])
+print("split 0s: ",np.count_nonzero(f['split'][()] == 0))
+print("split 2s: ",np.count_nonzero(f['split'][()] == 2))
+
+invalid = []
+for x in f['img_to_first_box'][()]:
+    if x < 0:
+        invalid.append(x)
+print(len(invalid))
+#print(set(f['split']))
+
+print("max rel: ",np.max(f['relationships'][()].flatten()))
+print(f['relationships'].shape)
+
 exit(1)
 
 #root items: ['active_object_mask', 'attributes', 'boxes_1024', 'boxes_512', 'img_to_first_box', 'img_to_first_rel', 'img_to_last_box', 'img_to_last_rel', 'labels', 'predicates', 'relationships', 'split']
