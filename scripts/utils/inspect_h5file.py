@@ -22,6 +22,7 @@ for item in list(f):
     print(item + ": " + str(f[item].shape))
     print(f[item][:10])
     print()
+exit(1)
 
 
 print(f['img_to_first_box'][len(f['img_to_first_box'])-100:])

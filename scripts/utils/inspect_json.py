@@ -1,7 +1,6 @@
 import argparse
 import os
 
-from pycocotools.coco import COCO
 import datetime
 import json
 import random
@@ -30,6 +29,11 @@ if args.firstn is not None:
     print(str(json_file)[:args.firstn])
     exit(1)
 
+if args.mode == 'sizelist':
+    print("Num elem in file: ",len(json_file))
+    print(json_file[len(json_file)-10:])
+    exit(1)
+
 #List of dicts
 if isinstance(json_file,list):
     print("Number of elements: ",len(json_file))
@@ -54,6 +58,15 @@ elif isinstance(json_file,dict):
         print("Number of annotations: ",len(json_file['annotations']))
         print("Sample at position 0: ",json_file['annotations'][0])
         print("Sample at position 0-9: ",json_file['annotations'][:10])
+
+    elif args.mode =='elem0dictnames':
+        print("basekeys: ", list(json_file.keys()))
+        
+        first_entry = list(json_file.values())[0]
+        print(type(first_entry))
+        for key,val in list(first_entry.items()):
+            valarray = np.array(val)
+            print(key, valarray.shape)
     else:
         print("Number of entries: ",len(json_file))
         k = 9

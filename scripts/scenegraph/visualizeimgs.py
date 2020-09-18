@@ -8,16 +8,17 @@ import datetime
 import os
 
 import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument('-predictdir')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-predictdir')
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
-# load the following to files from DETECTED_SGG_DIR
-pred_dir = os.path.join(args.predictdir, 'custom_prediction.json')
-info_dir = os.path.join(args.predictdir, 'custom_data_info.json')
-custom_prediction = json.load(open(pred_dir))
-custom_data_info = json.load(open(info_dir))
+    # load the following to files from DETECTED_SGG_DIR
+    pred_dir = os.path.join(args.predictdir, 'custom_prediction.json')
+    info_dir = os.path.join(args.predictdir, 'custom_data_info.json')
+    custom_prediction = json.load(open(pred_dir))
+    custom_data_info = json.load(open(info_dir))
 
 def get_filterinds():
     ind_to_classes = ["__background__", "airplane", "animal", "arm", "bag", "banana", "basket",
@@ -94,12 +95,16 @@ def print_list(name, input_list, scores=None):
             print(name + ' ' + str(i) + ': ' + str(item) + '; score: ' + str(scores[i]))
     
 def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel_topk,
-               ind_to_classes, ind_to_predicates, box_scores=None, rel_scores=None):
+               ind_to_classes, ind_to_predicates, box_scores=None, rel_scores=None, filter=False):
     size = get_size(Image.open(img_path).size)
     pic = Image.open(img_path).resize(size)
     ann_str = ''
 
-    validlabels = get_filterinds()
+    if filter:
+        validlabels = get_filterinds()
+    else:
+        validlabels = ind_to_classes
+
     addedlabels = []    #remember added box index to the image
                         #to filter valid relations (relations having (boxid1,boxid2) items)
     ann_str = ann_str + 'box labels: \n'
@@ -184,36 +189,36 @@ def get_size(image_size):
     return (ow, oh)
 
 
+if __name__ == "__main__":
+    output_dir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    else:
+        raise ValueError("Output directory %s already exists."%output_dir)
 
-output_dir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
-else:
-    raise ValueError("Output directory %s already exists."%output_dir)
-
-# parameters
-#image_idx = 11
-box_topk = 20 # select top k bounding boxes
-rel_topk = 20 # select top k relationships
-ind_to_classes = custom_data_info['ind_to_classes']
-ind_to_predicates = custom_data_info['ind_to_predicates']
+    # parameters
+    #image_idx = 11
+    box_topk = 20 # select top k bounding boxes
+    rel_topk = 20 # select top k relationships
+    ind_to_classes = custom_data_info['ind_to_classes']
+    ind_to_predicates = custom_data_info['ind_to_predicates']
 
 
-for image_idx in range(len(custom_data_info['idx_to_files'])):
-    image_path = custom_data_info['idx_to_files'][image_idx]
-    bbox = custom_prediction[str(image_idx)]['bbox']
-    bbox_labels = custom_prediction[str(image_idx)]['bbox_labels']
-    bbox_scores = custom_prediction[str(image_idx)]['bbox_scores']
-    all_rel_labels = custom_prediction[str(image_idx)]['rel_labels']
-    all_rel_scores = custom_prediction[str(image_idx)]['rel_scores']
-    all_rel_pairs = custom_prediction[str(image_idx)]['rel_pairs']
-  
-    img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
-                     box_topk, rel_topk,
-                     ind_to_classes, ind_to_predicates, box_scores=bbox_scores, rel_scores=all_rel_scores)
-    imgname =  "%s_scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
-    img.save(os.path.join(output_dir, imgname))
+    for image_idx in range(len(custom_data_info['idx_to_files'])):
+        image_path = custom_data_info['idx_to_files'][image_idx]
+        bbox = custom_prediction[str(image_idx)]['bbox']
+        bbox_labels = custom_prediction[str(image_idx)]['bbox_labels']
+        bbox_scores = custom_prediction[str(image_idx)]['bbox_scores']
+        all_rel_labels = custom_prediction[str(image_idx)]['rel_labels']
+        all_rel_scores = custom_prediction[str(image_idx)]['rel_scores']
+        all_rel_pairs = custom_prediction[str(image_idx)]['rel_pairs']
+    
+        img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
+                        box_topk, rel_topk,
+                        ind_to_classes, ind_to_predicates, box_scores=bbox_scores, rel_scores=all_rel_scores)
+        imgname =  "%s_scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
+        img.save(os.path.join(output_dir, imgname))
 
-    annname = "%s_labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
-    with open(os.path.join(output_dir, annname), "w") as text_file:
-        text_file.write(ann_str)
+        annname = "%s_labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
+        with open(os.path.join(output_dir, annname), "w") as text_file:
+            text_file.write(ann_str)
