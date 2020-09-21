@@ -9,12 +9,15 @@ import time
 import itertools
 import numpy as np
 
+from PIL import Image
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-file', help='Path to a json file.')
 parser.add_argument('-mode')
 parser.add_argument('-firstn',type=int)
 parser.add_argument('-search')
+parser.add_argument('-custom',action='store_true')
 
 args = parser.parse_args()
 
@@ -24,6 +27,17 @@ if not os.path.isfile(args.file):
 json_file = None
 with open(args.file, "r") as f:
     json_file = json.load(f)
+
+if args.custom:
+    for elem in json_file:
+        im_id = int(os.path.splitext(os.path.basename(elem['url']))[0])
+        if im_id != elem['image_id']:
+            print(im_id,elem['image_id'])
+        if elem['image_id']==2344257:
+            im = Image.open(os.path.join('/home/althausc/nfs/data/vg/VG_100K/VG_100K','%d.jpg'%elem['image_id']))
+            width, height = im.size
+            print(elem, im.size)
+    exit(1)
 
 if args.firstn is not None:
     print(str(json_file)[:args.firstn])

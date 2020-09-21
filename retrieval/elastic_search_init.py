@@ -92,7 +92,7 @@ def main():
 
     output_dir = None
     if args.search_data or args.eval_tresh:
-        output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+        output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/humanposes', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         else:

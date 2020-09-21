@@ -67,6 +67,7 @@ def get_filterinds():
 
 def draw_single_box(pic, box, color='red', draw_info=None):
     draw = ImageDraw.Draw(pic)
+    #print("draw: ",box)
     x1,y1,x2,y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
     draw.rectangle(((x1, y1), (x2, y2)), outline=color)
     if draw_info:
@@ -95,21 +96,28 @@ def print_list(name, input_list, scores=None):
             print(name + ' ' + str(i) + ': ' + str(item) + '; score: ' + str(scores[i]))
     
 def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel_topk,
-               ind_to_classes, ind_to_predicates, box_scores=None, rel_scores=None, filter=False):
-    size = get_size(Image.open(img_path).size)
+               ind_to_classes, ind_to_predicates, box_scores=None, rel_scores=None, filter=False, box_indstart = None):
+    if filter:
+        size = get_size(Image.open(img_path).size)
+    else:
+        size = Image.open(img_path).size
+    print("resize: ",size)
     pic = Image.open(img_path).resize(size)
     ann_str = ''
 
-    if filter:
+    if filter:  #apply class filter
         validlabels = get_filterinds()
     else:
-        validlabels = ind_to_classes
+        validlabels = [ind_to_classes.index(elem) for elem in ind_to_classes]
 
     addedlabels = []    #remember added box index to the image
                         #to filter valid relations (relations having (boxid1,boxid2) items)
     ann_str = ann_str + 'box labels: \n'
     c = 0
     num_obj = len(boxes)
+    #print("boxes: ",boxes)
+    #print("rel_pairs: ",rel_pairs)
+    #print("box_labels: ",box_labels)
     for i in range(num_obj):
         if c == box_topk:
             break
@@ -118,8 +126,8 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
             draw_single_box(pic, boxes[i], draw_info=info)
             addedlabels.append(i)
             
-            info = info + "; " + str(box_scores[i])
-            print(info)
+            if box_scores is not None:
+                info = info + "; " + str(box_scores[i])
             ann_str = ann_str + info + '\n'
             c = c + 1
         else:
@@ -130,11 +138,24 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
     ann_str = ann_str + 'rel labels: \n'
     c = 0        
     num_rel = len(rel_pairs)
-    for i in range(num_rel):
+    #print("rel_pairs: ",rel_pairs)
+    #relationship values not starting from 0, e.g. for visualizing scene graph data
+    #for predictions rel values starting from 0 relative to box array length
+    if box_indstart is not None:
+        rel_pairs = np.array(rel_pairs) - box_indstart
+    #print(box_indstart, rel_pairs)
+   #print(rel_pairs)
+    #print("rel_pairs: ",rel_pairs)
+    #print("rel_labels: ",rel_labels)
+    #print("addedlabels: ",addedlabels)
+    for i in range(min(rel_topk,len(rel_pairs))):
         if c == rel_topk:
             break
         id1, id2 = rel_pairs[i]
 
+        if filter:
+            if id1 not in addedlabels or id2 not in addedlabels:
+                break
         if id1 in addedlabels and id2 in addedlabels:
             b1 = boxes[id1]
             b2 = boxes[id2]
@@ -142,23 +163,27 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
             b1_label = ind_to_classes[box_labels[id1]]
             b2_label = ind_to_classes[box_labels[id2]]
             relstr = str(id1) + '_' + b1_label + ' => ' + ind_to_predicates[rel_labels[i]] + ' => ' + str(id2) + '_' + b2_label
-            relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
-            print(relstr)
+            if rel_scores is not None:
+                relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
+            
             ann_str = ann_str + relstr + '\n'
             c = c + 1
+    
+ 
+    if filter: 
+        ann_str = ann_str + 'Actual Top-k rel: \n'
+        for i in range(rel_topk):
+            id1, id2 = rel_pairs[i]
 
-    ann_str = ann_str + 'Actual Top-k rel: \n'
-    for i in range(rel_topk):
-        id1, id2 = rel_pairs[i]
-
-        b1 = boxes[id1]
-        b2 = boxes[id2]
-        b1_label = ind_to_classes[box_labels[id1]]
-        b2_label = ind_to_classes[box_labels[id2]]
-        relstr = str(id1) + '_' + b1_label + ' => ' + ind_to_predicates[rel_labels[i]] + ' => ' + str(id2) + '_' + b2_label
-        relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
-        
-        ann_str = ann_str + relstr + '\n'
+            b1 = boxes[id1]
+            b2 = boxes[id2]
+            b1_label = ind_to_classes[box_labels[id1]]
+            b2_label = ind_to_classes[box_labels[id2]]
+            relstr = str(id1) + '_' + b1_label + ' => ' + ind_to_predicates[rel_labels[i]] + ' => ' + str(id2) + '_' + b2_label
+            if rel_scores is not None:
+                relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
+            
+            ann_str = ann_str + relstr + '\n'
 
     """print("img path: ",img_path)
     print('*' * 50)
