@@ -65,11 +65,13 @@ def main():
     print(data[0])
     print(data[1])
 
-    #skip header
-    for h in data[0]:
-        assert isinstance(h,str)
-    del data[0]
-    data = [[float(x) if i>0 else x for i,x in enumerate(row)] for row in data]
+    if args.insert:
+        #format of graph embeddings: type,x_0,x_1,x_2,x_3,..,x_n
+        #skip header
+        for h in data[0]:
+            assert isinstance(h,str)
+        del data[0]
+        data = [[float(x) if i>0 else x for i,x in enumerate(row)] for row in data]
 
     output_dir = None
     if args.search_data:
@@ -84,9 +86,12 @@ def main():
     es = Elasticsearch("http://localhost:9200", #30000
                        ca_certs=False,
                        verify_certs=False)
+
+    #print(get_alldocs(es))
+    #exit(1)
     
     if args.insert_data:
-        createIndex(es, len(data[1]))
+        createIndex(es, len(data[0])-1)
         insertdata(args, data, es)
 
 
@@ -214,6 +219,9 @@ def query(es, featurevector, size, method):
     except elasticsearch.ElasticsearchException as es1:  
         print("Error when querying for feature vector ",featurevector)
         print(es1,es1.info)
+
+    print("Returned: ", request)
+    exit(1)
 
     logger.debug("Query returned {} results stated.".format(res['hits']['total']['value'])) 
     logger.debug("Query returned {} results actual.".format(len(res['hits']['hits']))) 

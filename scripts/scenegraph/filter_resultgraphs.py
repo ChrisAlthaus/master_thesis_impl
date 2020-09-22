@@ -22,6 +22,12 @@ if not os.path.isfile(args.file) or not os.path.isfile(args.imginfo):
 if not os.path.isdir(args.outputdir):
     raise ValueError("Output directory does not exist.")
 
+output_dir = os.path.join(args.outputdir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+else:
+    raise ValueError("Output directory %s already exists."%output_dir)
+
 data = None
 with open(args.file, "r") as f:
     data = json.load(f)
@@ -92,7 +98,7 @@ for idx, preds in list(data.items()):
 
 
 print("Number of graphs in output file: ",len(graphs))
-outfile_name = "%s-topk.json"%os.path.splitext(os.path.basename(args.file))[0]
-with open(os.path.join(args.outputdir, outfile_name), 'w') as f:
-    print("Writing to file: ",os.path.join(args.outputdir, outfile_name))
+outfile_name = "graphs-topk.json"
+with open(os.path.join(output_dir, outfile_name), 'w') as f:
+    print("Writing to file: ",os.path.join(output_dir, outfile_name))
     json.dump(graphs, f)   

@@ -22,7 +22,7 @@ def filewithname(dir, searchstr):
             return os.path.join(dir,item)
     return None
 
-logpath = '/home/althausc/master_thesis_impl/results/logs/jupyter-notebook'
+logpath = '/home/althausc/master_thesis_impl/results/logs/jupyter-notebook/kptbranch'
 if not os.path.exists(logpath):
     os.makedirs(logpath)
     print("Successfully created output directory: ", logpath)
