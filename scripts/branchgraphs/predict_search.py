@@ -40,7 +40,7 @@ def filewithname(dir, searchstr):
 print("SCENE GRAPH PREDICTION:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
 model_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/causal_motif_sgdet'
-out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs'
+out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single'
 
 _EFFECT_TYPES = ['none', 'TDE', 'NIE', 'TE']
 _FUSION_TYPES = ['sum', 'gate']
@@ -70,7 +70,6 @@ os.system("{} python3.6 -m torch.distributed.launch \
 	            TEST.CUSTUM_PATH {} \
 	            DETECTED_SGG_DIR {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, img_dir, out_dir))
 
-out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single'
 outrun_dir = latestdir(out_dir)
 print("\n\n")
 

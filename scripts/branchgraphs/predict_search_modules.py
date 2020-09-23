@@ -9,6 +9,8 @@ import time
 import logging
 import itertools
 import shutil
+import cv2
+from PIL import Image
 
 
 """parser = argparse.ArgumentParser()
@@ -47,10 +49,10 @@ def predict_scenegraph(imagepath):
     shutil.copyfile(imagepath, os.path.join(img_dir, os.path.basename(imagepath)))
 
     # ----------------- SCENE GRAPH PREDICTION ---------------------
-    print("SCENE GRAPH PREDICTION:")
+    print("SCENE GRAPH PREDICTION ...")
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
     model_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/causal_motif_sgdet'
-    out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs'
+    out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single'
     logfile = os.path.join(logpath, '1-scenegraph.txt')
 
     _EFFECT_TYPES = ['none', 'TDE', 'NIE', 'TE']
@@ -82,56 +84,115 @@ def predict_scenegraph(imagepath):
                     DETECTED_SGG_DIR {} &> {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, img_dir, out_dir, logfile)):
         raise RuntimeError('Scene graph prediction failed.')
 
-    out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single'
+    print("SCENE GRAPH PREDICTION DONE.")
     outrun_dir = latestdir(out_dir)
     print('')
     return outrun_dir
 
-def visualize_scenegraph(anndir):
+def visualize_scenegraph(anndir, filterlabels = True):
+    print("VISUALIZE SCENEGRAPH ...")
     logfile = os.path.join(logpath, '2-visualize.txt')
 
     os.chdir("/home/althausc/master_thesis_impl/scripts/scenegraph")
-    if os.system("python3.6 visualizeimgs.py -predictdir {} &> {}".format(anndir, logfile)):
+    if os.system("python3.6 visualizeimgs.py -predictdir {} {} &> {}".format(anndir, '-filter' if filterlabels else ' ', logfile)):
         raise RuntimeError('Scene graph visualization failed.')
 
+    print("VISUALIZE SCENEGRAPH DONE.")
     outrun_dir = latestdir('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize')
-    img_files = [os.path.join(outrun_dir, f) for f in os.listdir(outrun_dir) if os.path.isfile(os.path.join(outrun_dir, f))]
-    return img_files
+    files = [os.path.join(outrun_dir, f) for f in os.listdir(outrun_dir) if os.path.isfile(os.path.join(outrun_dir, f))]
+    imgpath, ann = sorted(files, key=lambda x: os.path.splitext(os.path.basename(x))[0])
+    #print(sorted(files, key=lambda x: os.path.splitext(os.path.basename(x))[0]))
+    return imgpath, ann
 
 def transform_into_g2vformat(anndir):
     # ----------------- TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ---------------
-    print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT")
+    print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ...")
 
     pred_imginfo = os.path.join(anndir, 'custom_data_info.json')
     pred_file = os.path.join(anndir, 'custom_prediction.json')
     out_dir = "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single"
+    logfile = os.path.join(logpath, '3-transform.txt')
 
     os.chdir('/home/althausc/master_thesis_impl/scripts/scenegraph')
     os.system("python3.6 filter_resultgraphs.py \
                     -file {} \
                     -imginfo {} \
-                    -outputdir {}".format(pred_file, pred_imginfo, out_dir))
+                    -outputdir {} &> {}".format(pred_file, pred_imginfo, out_dir, logfile))
 
     outrun_dir = latestdir(out_dir)
     graphfile = os.path.join(outrun_dir, 'graphs-topk.json')
-    print('')
+    print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT DONE.")
     return graphfile
 
 def search_topk(graphfile, k):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
-    print("GRAPH2VEC PREDICTION & RETRIEVAL:")
-    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49/g2vmodel'
+    print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
+    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/22_16-47-04/g2vmodel' #'/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49/g2vmodel'
     inputfile = graphfile
     topk = k
+    logfile = os.path.join(logpath, '4-retrieval.txt')
 
     os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --input-path {} \
-    				 --inference --topk {}".format(g2v_model, inputfile, topk))
+    				 --inference --topk {} &> {}".format(g2v_model, inputfile, topk, logfile))
 
     out_dir = '/home/althausc/master_thesis_impl/retrieval/out/scenegraphs/09'
     outrun_dir = latestdir(out_dir)
-    with open(os.path.join(outrun_dir,"topkresults.json"), 'r') as f:
-        json_data = json.load(f)
 
-    return json_data
+    print("GRAPH2VEC PREDICTION & RETRIEVAL DONE.")
+    filename = os.path.join(outrun_dir,"topkresults.json")
+    with open(filename, 'r') as f:
+        json_data = json.load(f)
+        print("Results: ", json_data)
+
+    return filename
+
+def getImgs(topkresults):
+    #topkresults format [(filepath1, score1), ... ]
+
+    print("Reading from file: ",topkresults)
+    with open (topkresults, "r") as f:
+        topkdata = json.load(f)
+
+    imgs = []
+    scores = []
+    for item in topkdata:
+        imgs.append(Image.open(item[0][2:]))
+        scores.append(item[1])
+    
+    return imgs, scores
+
+def drawborder(imgpath):
+    im = cv2.imread(imgpath)
+    row, col = im.shape[:2]
+    bottom = im[row-2:row, 0:col]
+
+    bordersize = 7
+    border = cv2.copyMakeBorder(
+        im,
+        top=bordersize,
+        bottom=bordersize,
+        left=bordersize,
+        right=bordersize,
+        borderType=cv2.BORDER_CONSTANT,
+        value=[255, 0, 0]
+    )
+
+    img = cv2.cvtColor(border, cv2.COLOR_BGR2RGB)
+    img_pil = Image.fromarray(img)
+
+    return img_pil
+
+def treshIndex(tresh, rankedlist):
+    with open (rankedlist, "r") as f:
+        data = json.load(f)
+
+    k = 0
+    for item in data:
+        print(item)
+        if item[1]< tresh:
+            break
+        else:
+            k = k + 1
+    return k
 
 

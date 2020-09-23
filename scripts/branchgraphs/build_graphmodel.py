@@ -14,7 +14,10 @@ parser.add_argument('-imagedir',required=True,
                     help='Image directory for which to predict scene graphs & build g2v model.')
 args = parser.parse_args()
 
-
+logpath = '/home/althausc/master_thesis_impl/scripts/branchgraphs/trainlogs'
+if not os.path.exists(logpath):
+    os.makedirs(logpath)
+    print("Successfully created output directory: ", logpath)
 
 def latestdir(dir):
     diritems = [os.path.join(dir, d) for d in os.listdir(dir)]
@@ -41,6 +44,7 @@ _CONTEXTLAYER_TYPES = ['motifs', 'vctree', 'vtranse']
 effect_type = _EFFECT_TYPES[1]
 fusion_type = _FUSION_TYPES[0]
 contextlayer_type = _CONTEXTLAYER_TYPES[0] 
+logfile = os.path.join(logpath, '1-prediction.txt')
 
 print("{} python3.6 -m torch.distributed.launch \
 	            --master_port 10027 \
@@ -59,7 +63,7 @@ print("{} python3.6 -m torch.distributed.launch \
 	            OUTPUT_DIR {} \
 	            TEST.CUSTUM_EVAL True \
 	            TEST.CUSTUM_PATH {} \
-	            DETECTED_SGG_DIR {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, args.imagedir, out_dir))
+	            DETECTED_SGG_DIR {} &> {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, args.imagedir, out_dir, logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch')
 os.system("{} python3.6 -m torch.distributed.launch \
@@ -79,7 +83,7 @@ os.system("{} python3.6 -m torch.distributed.launch \
 	            OUTPUT_DIR {} \
 	            TEST.CUSTUM_EVAL True \
 	            TEST.CUSTUM_PATH {} \
-	            DETECTED_SGG_DIR {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, args.imagedir, out_dir))
+	            DETECTED_SGG_DIR {} &> {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, args.imagedir, out_dir, logfile))
 
 outrun_dir = latestdir(out_dir)
 print("\n\n")
@@ -90,12 +94,18 @@ print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT")
 pred_imginfo = os.path.join(outrun_dir, 'custom_data_info.json')
 pred_file = os.path.join(outrun_dir, 'custom_prediction.json')
 out_dir = "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/graphs"
+logfile = os.path.join(logpath, '2-transformg2vformat.txt')
+
+print("python3.6 filter_resultgraphs.py \
+				-file {} \
+				-imginfo {} \
+				-outputdir {} &> {}".format(pred_file, pred_imginfo, out_dir, logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/scripts/scenegraph')
 os.system("python3.6 filter_resultgraphs.py \
 				-file {} \
 				-imginfo {} \
-				-outputdir {}".format(pred_file, pred_imginfo, out_dir))
+				-outputdir {} &> {}".format(pred_file, pred_imginfo, out_dir, logfile))
 
 outrun_dir = latestdir(out_dir)
 print("\n\n")
@@ -106,6 +116,7 @@ print("GRAPH2VEC TRAINING:")
 inputfile = os.path.join(outrun_dir, 'graphs-topk.json')
 model_dir = '/home/althausc/master_thesis_impl/graph2vec/models'
 graph_emb_file = os.path.join(model_dir, 'graph_embeddings.csv')
+logfile = os.path.join(logpath, '3-g2vtrain.txt')
 
 print("python3.6 /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py \
             --input-path {} \
@@ -114,7 +125,7 @@ print("python3.6 /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py \
             --dimensions 128 \
             --epochs 1 \
             --wl-iterations 2 \
-            --down-sampling 0.0001".format(inputfile, graph_emb_file))
+            --down-sampling 0.0001 &> {}".format(inputfile, graph_emb_file, logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/graph2vec')
 os.system("python3.6 src/graph2vec.py \
@@ -124,7 +135,7 @@ os.system("python3.6 src/graph2vec.py \
             --dimensions 128 \
             --epochs 1 \
             --wl-iterations 2 \
-            --down-sampling 0.0001".format(inputfile, graph_emb_file))
+            --down-sampling 0.0001 &> {}".format(inputfile, graph_emb_file, logfile))
 
 outrun_dir = latestdir(model_dir)
 print("Graph2Vec model path: ",outrun_dir)

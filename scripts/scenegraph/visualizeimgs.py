@@ -11,6 +11,8 @@ import argparse
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-predictdir')
+    parser.add_argument('-filter', action='store_true', 
+                        help='Specify if boxes should be filtered by predefined labels. Filtered out boxes will be shown in green.')
 
     args = parser.parse_args()
 
@@ -65,10 +67,13 @@ def get_filterinds():
     return filter_inds
 
 
-def draw_single_box(pic, box, color='red', draw_info=None):
+def draw_single_box(pic, box, color='red', draw_info=None, validsize=None):
     draw = ImageDraw.Draw(pic)
     #print("draw: ",box)
     x1,y1,x2,y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+    if validsize != None:
+        if x1>validsize[0] or x2>validsize[0] or y1>validsize[1] or y2>validsize[1]:
+            print("Box partially not on image: ", box)
     draw.rectangle(((x1, y1), (x2, y2)), outline=color)
     if draw_info:
         draw.rectangle(((x1, y1), (x1+50, y1+10)), fill=color)
@@ -97,10 +102,8 @@ def print_list(name, input_list, scores=None):
     
 def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel_topk,
                ind_to_classes, ind_to_predicates, box_scores=None, rel_scores=None, filter=False, box_indstart = None):
-    if filter:
-        size = get_size(Image.open(img_path).size)
-    else:
-        size = Image.open(img_path).size
+
+    size = get_size(Image.open(img_path).size)
     print("resize: ",size)
     pic = Image.open(img_path).resize(size)
     ann_str = ''
@@ -112,7 +115,7 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
 
     addedlabels = []    #remember added box index to the image
                         #to filter valid relations (relations having (boxid1,boxid2) items)
-    ann_str = ann_str + 'box labels: \n'
+    ann_str = ann_str + 'Box labels: \n'
     c = 0
     num_obj = len(boxes)
     #print("boxes: ",boxes)
@@ -123,7 +126,7 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
             break
         if box_labels[i] in validlabels:
             info = str(i) + '_' + ind_to_classes[box_labels[i]]
-            draw_single_box(pic, boxes[i], draw_info=info)
+            draw_single_box(pic, boxes[i], draw_info=info, validsize=size)
             addedlabels.append(i)
             
             if box_scores is not None:
@@ -135,7 +138,7 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
             info = str(i) + '_' + ind_to_classes[box_labels[i]]
             draw_single_box(pic, boxes[i], draw_info=info, color='green')
 
-    ann_str = ann_str + 'rel labels: \n'
+    ann_str = ann_str + 'Rel labels: \n'
     c = 0        
     num_rel = len(rel_pairs)
     #print("rel_pairs: ",rel_pairs)
@@ -146,19 +149,25 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
     #print(box_indstart, rel_pairs)
    #print(rel_pairs)
     #print("rel_pairs: ",rel_pairs)
+    #print(len(rel_pairs))
     #print("rel_labels: ",rel_labels)
     #print("addedlabels: ",addedlabels)
-    for i in range(min(rel_topk,len(rel_pairs))):
+    for i in range(len(rel_pairs)):
+        #print(i ,c ,rel_topk)
         if c == rel_topk:
             break
         id1, id2 = rel_pairs[i]
+        #print(rel_pairs[i])
+        #if id1 in [13,1] and id2 in [13,1]:
+        #    print("found: ",id1,id2)
 
         if filter:
             if id1 not in addedlabels or id2 not in addedlabels:
-                break
+                continue
         if id1 in addedlabels and id2 in addedlabels:
             b1 = boxes[id1]
             b2 = boxes[id2]
+
             drawline(pic, b1, b2)
             b1_label = ind_to_classes[box_labels[id1]]
             b2_label = ind_to_classes[box_labels[id2]]
@@ -215,7 +224,7 @@ def get_size(image_size):
 
 
 if __name__ == "__main__":
-    output_dir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+    output_dir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     else:
@@ -240,10 +249,12 @@ if __name__ == "__main__":
     
         img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
                         box_topk, rel_topk,
-                        ind_to_classes, ind_to_predicates, box_scores=bbox_scores, rel_scores=all_rel_scores)
-        imgname =  "%s_scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
+                        ind_to_classes, ind_to_predicates, box_scores=bbox_scores, rel_scores=all_rel_scores, filter=args.filter)
+        imgname =  "1%s_scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
         img.save(os.path.join(output_dir, imgname))
 
-        annname = "%s_labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
+        annname = "2%s_labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
         with open(os.path.join(output_dir, annname), "w") as text_file:
             text_file.write(ann_str)
+
+    print("Saved visualizations to: ", output_dir)
