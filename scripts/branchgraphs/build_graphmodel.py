@@ -105,7 +105,8 @@ os.chdir('/home/althausc/master_thesis_impl/scripts/scenegraph')
 os.system("python3.6 filter_resultgraphs.py \
 				-file {} \
 				-imginfo {} \
-				-outputdir {} &> {}".format(pred_file, pred_imginfo, out_dir, logfile))
+				-outputdir {} \
+				-build_labelvectors &> {}".format(pred_file, pred_imginfo, out_dir, logfile))
 
 outrun_dir = latestdir(out_dir)
 print("\n\n")
@@ -115,7 +116,6 @@ print("GRAPH2VEC TRAINING:")
 
 inputfile = os.path.join(outrun_dir, 'graphs-topk.json')
 model_dir = '/home/althausc/master_thesis_impl/graph2vec/models'
-graph_emb_file = os.path.join(model_dir, 'graph_embeddings.csv')
 logfile = os.path.join(logpath, '3-g2vtrain.txt')
 
 print("python3.6 /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py \
@@ -125,7 +125,7 @@ print("python3.6 /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py \
             --dimensions 128 \
             --epochs 1 \
             --wl-iterations 2 \
-            --down-sampling 0.0001 &> {}".format(inputfile, graph_emb_file, logfile))
+            --down-sampling 0.0001 &> {}".format(inputfile, 'not used', logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/graph2vec')
 os.system("python3.6 src/graph2vec.py \
@@ -135,7 +135,7 @@ os.system("python3.6 src/graph2vec.py \
             --dimensions 128 \
             --epochs 1 \
             --wl-iterations 2 \
-            --down-sampling 0.0001 &> {}".format(inputfile, graph_emb_file, logfile))
+            --down-sampling 0.0001 &> {}".format(inputfile, 'not used', logfile))
 
 outrun_dir = latestdir(model_dir)
 print("Graph2Vec model path: ",outrun_dir)

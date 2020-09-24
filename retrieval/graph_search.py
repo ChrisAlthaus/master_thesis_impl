@@ -7,14 +7,25 @@ import numpy as np
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.test.utils import get_tmpfile
 
+import glob
+import hashlib
+import networkx as nx
+from tqdm import tqdm
+from joblib import Parallel, delayed
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+from gensim.test.utils import get_tmpfile
+
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 graph2vec_dir = '/home/althausc/master_thesis_impl/graph2vec/src'
 sys.path.insert(0,graph2vec_dir) 
+sgraphscript_dir = '/home/althausc/master_thesis_impl/scripts/scenegraph'
+sys.path.insert(0,sgraphscript_dir) 
 
-from graph2vec import *
+from graph2vec import WeisfeilerLehmanMachine, dataset_reader, feature_extractor, save_embedding
 
 parser = argparse.ArgumentParser(description="Run Graph2Vec.")
 parser.add_argument("--input-path",
@@ -27,9 +38,8 @@ parser.add_argument("--inference",
 parser.add_argument("--reweight",
                     action='store_true',
                     help="Include the box label intersections to reweight the top k results.")
-parser.add_argument("--reweightpath",
-                    action='store_true',
-                    help="Path to the g2v raw training set predictions.")
+parser.add_argument("--labelvecpath",
+                    help="Path to the g2v training set composed of all graphs.")
 parser.add_argument("--model",
                     help="Path to the previous trained Doc2Vec model.")
 parser.add_argument("--topk",
@@ -68,16 +78,61 @@ if args.inference:
     sims = model.docvecs.most_similar([vector], topn = args.topk)
     print("Top k similarities (with cos-sim): ",sims)
 
-    if args.reweight:
+    if args.reweight: #reweight on box and rel labels occurance similarities on the query and the result topk
+                      #e.g. annotation a1 with ['tree' * 5, ...] should be ranked higher for query image including ['tree']
+                      #     than for example a2 with ['tree' *2, ...]
         labeldata = None
-        with open(args.reweightpath, "r") as f:
+        with open(args.labelvecpath, "r") as f:
             labeldata = json.load(f)
 
+        print("test")
+        from filter_resultgraphs import getlabelvectors
+        #print(graphs) 
+        graph = graphs[0][1] 
+        print(graph)
+        g_features = sorted(list(graph['features'].items()), key=lambda x: x[0])
+        print(graph['features'].items())
+        g_features = [x[1] for x in g_features]
+        g_bclasses = g_features[:len(graph['box_scores'])]
+        g_rclasses = g_features[len(graph['box_scores']): len(graph['rel_scores'])]
+
+        g_boxlvec, g_rellvec = getlabelvectors(g_bclasses, g_rclasses, -1, -1)
+        print(g_boxlvec.shape, g_rellvec.shape)
+        #g_labelvec = np.concatenate([g_boxlvec, g_rellvec])    #TODO: resume
+        g_labelvec = np.stack([g_boxlvec, g_rellvec]).reshape(-1)
+
+        def getjaccard(vec1, vec2):
+            labelvec1 = []
+            for i,x in enumerate(vec1):
+                labelvec1.extend([i]*x)
+            labelvec2 = []
+            for i,x in enumerate(vec2):
+                labelvec2.extend([i]*x)  
+            s1, s2 = set(labelvec1), set(labelvec2)
+            print(vec1, vec2)
+            print(s1, s2)
+            return len(s1.intersection(s2)) / len(s1.union(s2)) 
+
+        reweight_scores = []
         for imgfile, score in sims:
-            for item in list(labeldata.items())
-                if item[0] == imgfile:
-                    #...
-            #TODO: calculate closest label vector scores
+            for item in labeldata:
+                if item['imagefile'] == imgfile:
+                    labelvec = item['boxvector'].extend(item['relvector'])
+                    #labelsim = getjaccard(g_labelvec, labelvec)
+                    labelsim = np.linalg.norm(g_labelvec - labelvec)
+                    reweight_scores.append([imgfile, labelsim])
+                    break
+                    
+        #normalize to [0,1]
+        rs = np.array(reweight_scores)
+        reweight_scores = (rs - np.min(rs)) / (np.max(rs) - np.min(rs))
+
+        #reweight topk results
+        sims = [[simitem[0], simitem[1]*rs] for simitem, rs in zip(sims,reweight_scores)]
+        sims = sims.sort(key=lambda x: x[1])
+
+        print("Reweighted topk images: ",sims)
+
 
 
         
