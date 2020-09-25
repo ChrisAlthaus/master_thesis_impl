@@ -61,8 +61,8 @@ def main(args):
     _SCORE_THRESH_RELS = args.relstresh
     _RELS_AS_NODES = args.relsasnodes
 
-    boxes_topk = 20
-    rels_topk = 20
+    _BOXES_TOPK = 20
+    _RELS_TOPK = 20
     graphs = dict()
     ann = ''
 
@@ -90,7 +90,7 @@ def main(args):
                 #Logging end
             else:
                 skipped_indices.append(i)
-            if len(b_valid) >= boxes_topk:
+            if len(b_valid) >= _BOXES_TOPK:
                 break
             
         print("Number of valid boxes: ",b_valid)
@@ -124,7 +124,7 @@ def main(args):
                     relstr = relstr + '; '+ str(rel_scores[i])
                     ann = ann + relstr + '\n'
                     #Logging end
-            if len(r_valid)>rels_topk:
+            if len(r_valid)>_RELS_TOPK:
                 break
             
 
@@ -190,7 +190,7 @@ def main(args):
     if args.build_labelvectors:
         labelvectors = []
         for idx, preds in enumerate(list(zip(b_labels_added, r_labels_added))):
-            box_labelvector, rels_labelvector = getlabelvectors(preds[0], preds[1], boxes_topk, rels_topk)
+            box_labelvector, rels_labelvector = getlabelvectors(preds[0], preds[1], _BOXES_TOPK, _RELS_TOPK)
         
             labelvectors.append({'imagefile': idx_to_files[int(idx)], 'boxvector': box_labelvector.tolist(), 'relvector': rels_labelvector.tolist()})
 

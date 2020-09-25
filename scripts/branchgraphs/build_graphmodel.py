@@ -66,7 +66,7 @@ print("{} python3.6 -m torch.distributed.launch \
 	            DETECTED_SGG_DIR {} &> {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, args.imagedir, out_dir, logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch')
-os.system("{} python3.6 -m torch.distributed.launch \
+if os.system("{} python3.6 -m torch.distributed.launch \
 	            --master_port 10027 \
 	            --nproc_per_node=1 tools/relation_test_net.py \
 	            --config-file \"configs/e2e_relation_X_101_32_8_FPN_1x.yaml\"  \
@@ -83,7 +83,8 @@ os.system("{} python3.6 -m torch.distributed.launch \
 	            OUTPUT_DIR {} \
 	            TEST.CUSTUM_EVAL True \
 	            TEST.CUSTUM_PATH {} \
-	            DETECTED_SGG_DIR {} &> {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, args.imagedir, out_dir, logfile))
+	            DETECTED_SGG_DIR {} &> {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, args.imagedir, out_dir, logfile)):
+	raise RuntimeError('Scene graph training failed.') 
 
 outrun_dir = latestdir(out_dir)
 print("\n\n")
@@ -93,20 +94,25 @@ print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT")
 
 pred_imginfo = os.path.join(outrun_dir, 'custom_data_info.json')
 pred_file = os.path.join(outrun_dir, 'custom_prediction.json')
+relasnodes = True
 out_dir = "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/graphs"
 logfile = os.path.join(logpath, '2-transformg2vformat.txt')
 
 print("python3.6 filter_resultgraphs.py \
 				-file {} \
 				-imginfo {} \
-				-outputdir {} &> {}".format(pred_file, pred_imginfo, out_dir, logfile))
+				-outputdir {} \
+				-build_labelvectors \
+				{} &> {}".format(pred_file, pred_imginfo, out_dir, '-relasnodes' if relasnodes else ' ', logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/scripts/scenegraph')
-os.system("python3.6 filter_resultgraphs.py \
+if os.system("python3.6 filter_resultgraphs.py \
 				-file {} \
 				-imginfo {} \
 				-outputdir {} \
-				-build_labelvectors &> {}".format(pred_file, pred_imginfo, out_dir, logfile))
+				-build_labelvectors \
+				{} &> {}".format(pred_file, pred_imginfo, out_dir, '-relasnodes' if relasnodes else ' ', logfile)):
+	raise RuntimeError('Transform into G2V format failed.') 
 
 outrun_dir = latestdir(out_dir)
 print("\n\n")
@@ -128,14 +134,15 @@ print("python3.6 /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py \
             --down-sampling 0.0001 &> {}".format(inputfile, 'not used', logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/graph2vec')
-os.system("python3.6 src/graph2vec.py \
+if os.system("python3.6 src/graph2vec.py \
             --input-path {} \
             --output-path {} \
             --workers 4 \
             --dimensions 128 \
             --epochs 1 \
             --wl-iterations 2 \
-            --down-sampling 0.0001 &> {}".format(inputfile, 'not used', logfile))
+            --down-sampling 0.0001 &> {}".format(inputfile, 'not used', logfile)):
+	raise RuntimeError('G2V training failed.') 
 
 outrun_dir = latestdir(model_dir)
 print("Graph2Vec model path: ",outrun_dir)

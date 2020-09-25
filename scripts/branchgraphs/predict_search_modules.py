@@ -104,7 +104,7 @@ def visualize_scenegraph(anndir, filterlabels = True):
     #print(sorted(files, key=lambda x: os.path.splitext(os.path.basename(x))[0]))
     return imgpath, ann
 
-def transform_into_g2vformat(anndir):
+def transform_into_g2vformat(anndir, relasnodes=True):
     # ----------------- TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ---------------
     print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ...")
 
@@ -112,28 +112,43 @@ def transform_into_g2vformat(anndir):
     pred_file = os.path.join(anndir, 'custom_prediction.json')
     out_dir = "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single"
     logfile = os.path.join(logpath, '3-transform.txt')
+    anndir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single/09-23_14-51-50'
 
     os.chdir('/home/althausc/master_thesis_impl/scripts/scenegraph')
-    os.system("python3.6 filter_resultgraphs.py \
+    if os.system("python3.6 filter_resultgraphs.py \
                     -file {} \
                     -imginfo {} \
-                    -outputdir {} &> {}".format(pred_file, pred_imginfo, out_dir, logfile))
+                    -outputdir {} \
+                    {} &> {}".format(pred_file, pred_imginfo, out_dir, '-relsasnodes' if relasnodes else ' ', logfile)):
+        raise RuntimeError('Transform predictions failed.')
 
     outrun_dir = latestdir(out_dir)
     graphfile = os.path.join(outrun_dir, 'graphs-topk.json')
     print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT DONE.")
     return graphfile
 
-def search_topk(graphfile, k):
+def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
-    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/22_16-47-04/g2vmodel' #'/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49/g2vmodel'
-    inputfile = graphfile
+    modeldir = '/home/althausc/master_thesis_impl/graph2vec/models/22_16-47-04' #'/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49'
+    g2v_model = os.path.join(modeldir, 'g2vmodel') 
+    labelvecpath = os.path.join(modeldir, 'labelvectors-topk.json')
+    inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-25_15-23-04/graphs-topk.json'
+    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-23_14-52-00/graphs-topk.json' #graphfile
     topk = k
     logfile = os.path.join(logpath, '4-retrieval.txt')
 
-    os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --input-path {} \
-    				 --inference --topk {} &> {}".format(g2v_model, inputfile, topk, logfile))
+    if reweight:
+        if os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py \
+                        --model {} --inputpath {} \
+    				    --inference --topk {} \
+                        --reweight --reweightmode {} \
+                        --labelvecpath {} &> {}".format(g2v_model, inputfile, topk, r_mode, labelvecpath, logfile)):
+            raise RuntimeError('Scene graph search failed.')            
+    else:
+        if os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --inputpath {} \
+    				 --inference --topk {} &> {}".format(g2v_model, inputfile, topk, logfile)):
+            raise RuntimeError('Scene graph search failed.')         
 
     out_dir = '/home/althausc/master_thesis_impl/retrieval/out/scenegraphs/09'
     outrun_dir = latestdir(out_dir)
