@@ -30,7 +30,7 @@ def filewithname(dir, searchstr):
             return os.path.join(dir,item)
     return None
 
-
+"""
 # ----------------- SCENE GRAPH PREDICTION ---------------------
 print("SCENE GRAPH PREDICTION:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
@@ -103,7 +103,7 @@ print("python3.6 filter_resultgraphs.py \
 				-imginfo {} \
 				-outputdir {} \
 				-build_labelvectors \
-				{} &> {}".format(pred_file, pred_imginfo, out_dir, '-relasnodes' if relasnodes else ' ', logfile))
+				{} &> {}".format(pred_file, pred_imginfo, out_dir, '-relsasnodes' if relasnodes else ' ', logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/scripts/scenegraph')
 if os.system("python3.6 filter_resultgraphs.py \
@@ -111,11 +111,12 @@ if os.system("python3.6 filter_resultgraphs.py \
 				-imginfo {} \
 				-outputdir {} \
 				-build_labelvectors \
-				{} &> {}".format(pred_file, pred_imginfo, out_dir, '-relasnodes' if relasnodes else ' ', logfile)):
+				{} &> {}".format(pred_file, pred_imginfo, out_dir, '-relsasnodes' if relasnodes else ' ', logfile)):
 	raise RuntimeError('Transform into G2V format failed.') 
 
 outrun_dir = latestdir(out_dir)
-print("\n\n")
+print("\n\n")"""
+outrun_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/graphs/09-28_13-15-09'
 
 # ----------------- GRAPH2VEC TRAINING ---------------------
 print("GRAPH2VEC TRAINING:")
@@ -131,7 +132,7 @@ print("python3.6 /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py \
             --dimensions 128 \
             --epochs 1 \
             --wl-iterations 2 \
-            --down-sampling 0.0001 &> {}".format(inputfile, 'not used', logfile))
+            --down-sampling 0.0001 &> {}".format(inputfile, 'notused', logfile))
 
 os.chdir('/home/althausc/master_thesis_impl/graph2vec')
 if os.system("python3.6 src/graph2vec.py \
@@ -141,7 +142,7 @@ if os.system("python3.6 src/graph2vec.py \
             --dimensions 128 \
             --epochs 1 \
             --wl-iterations 2 \
-            --down-sampling 0.0001 &> {}".format(inputfile, 'not used', logfile)):
+            --down-sampling 0.0001 &> {}".format(inputfile, 'notused', logfile)):
 	raise RuntimeError('G2V training failed.') 
 
 outrun_dir = latestdir(model_dir)

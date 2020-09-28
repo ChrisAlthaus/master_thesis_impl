@@ -94,6 +94,9 @@ def main(args):
                 break
             
         print("Number of valid boxes: ",b_valid)
+        if len(b_valid) == 0: #exclude images which don't have valid bounding boxes
+            continue 
+
         rels = preds['rel_pairs']
         rel_scores = preds['rel_scores']
         rel_labels = preds['rel_labels']
@@ -145,7 +148,7 @@ def main(args):
 
         b_labels_added.append(b_valid)
         r_labels_added.append(r_labels)
-        print("Annotations filtered (for validation purposes): \n", ann)
+        #print("Annotations filtered (for validation purposes): \n", ann)
 
         r_indices = range(max(b_valid), max(b_valid) + len(r_valid))
         if _RELS_AS_NODES:  #e.g. triple person - before - mountain -> edges (not labeled!): {(person, before), (before,mountain)}

@@ -11,6 +11,8 @@ import itertools
 import shutil
 import cv2
 from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib.widgets as widgets
 
 
 """parser = argparse.ArgumentParser()
@@ -209,5 +211,33 @@ def treshIndex(tresh, rankedlist):
         else:
             k = k + 1
     return k
+
+def cropImage(imagepath, p1, p2, resize=True):
+    outfile = os.path.splitext(imagepath)[0] + "_transformed.jpg"
+    img = Image.open(imagepath)
+    area = (p1[0], p1[1], p2[0], p2[1])
+    cropped_img = img.crop(area)
+    width, height = cropped_img.size
+    if resize:
+        maxwidth, maxheight = 512,512
+       
+        ratio = min(maxwidth/width, maxheight/height)
+        newsize = np.asarray(cropped_img.size) * ratio
+        newsize = tuple(newsize.astype(int))
+        
+        cropped_img = cropped_img.resize(newsize, Image.ANTIALIAS)
+        cropped_img.save(outfile, "JPEG")
+        print("Cropped & Resized image to file: ",outfile)
+    else:
+        cropped_img.save(outfile, "JPEG")
+        print("Cropped image to file: ",outfile)
+
+    return outfile
+
+    
+    
+ 
+
+
 
 

@@ -9,6 +9,12 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 from param_parser import parameter_parser
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+from gensim.test.utils import get_tmpfile
+from gensim.models.callbacks import CallbackAny2Vec
+import os
+import datetime
+import shutil
+import dill
 
 class WeisfeilerLehmanMachine:
     """
@@ -118,6 +124,75 @@ def save_embedding(output_path, model, files, dimensions):
 
     print("Wrote graph embedding to file: ",output_path)
 
+def save_prediction_emb(output_path, emb, dimensions):  #not used
+    assert len(emb) == dimensions
+    column_names = ["x_"+str(dim) for dim in range(dimensions)]
+    out = pd.DataFrame([emb], columns=column_names)
+    out.to_csv(output_path, index=None)
+
+    print("Wrote graph embedding to file: ",output_path)
+
+
+
+def getSimilarityScore(traindocs, model):
+    #Querying with same images & specify similarities between the best-matching which should be the input image
+    num_docs = 100
+    dim = model.vector_size
+
+    evalscore = 0
+    numdocs_found = 0
+    ranks = []
+
+    for doc in traindocs:
+        imgname = doc.tags[0]
+        #model.random.seed(0)
+        vector = model.infer_vector(doc.words)
+        sims = model.docvecs.most_similar([vector], topn = num_docs)
+        for r,item in enumerate(sims):
+            if item[0] == imgname:
+                evalscore = evalscore + item[1]
+                numdocs_found = numdocs_found + 1
+                ranks.append(r)
+                break
+    print("Number of documents in train set: ",len(traindocs))
+    print("Number of matched documents in top-%d = %d"%(num_docs, numdocs_found))
+    print("Mean rank number: ",sum(ranks)/len(ranks))
+    return evalscore
+    
+def getcallback(traindocs):
+    #Monitoring the loss value of every epoch
+    class SimilarityCallback(CallbackAny2Vec):
+        def __init__(self):
+            self.epoch = 1
+
+        def on_epoch_end(self, model):
+            score = getSimilarityScore(traindocs, model)
+            print("Evaluation score in epoch %d = %f"%(self.epoch, score))
+            self.epoch += 1
+
+    return SimilarityCallback()
+
+def getcallback_epochsaver(modeldir, epochnum): 
+    class EpochSaver(CallbackAny2Vec):
+        '''Callback to save model after each epoch.'''
+        def __init__(self, modeldir, epochnum):
+           self.modeldir = modeldir
+           self.epoch = 1
+           self.epochnum = epochnum
+
+        def on_epoch_end(self, model):
+            if self.epoch % self.epochnum == 0 and self.epoch != 0:
+                num_docs = model.corpus_count
+                dim = model.vector_size
+                #fname = get_tmpfile(os.path.join(modeldir, 'g2vmodelc%dd%de%d'%(num_docs, dim, self.epoch)))
+                #model.save(fname)
+                with open(os.path.join(modeldir, 'g2vmodelc%dd%de%d'%(num_docs, dim, self.epoch)),'wb') as f:
+                    dill.dump(model, f)
+                print("Wrote model to file: ",os.path.join(modeldir, 'g2vmodel'))
+            self.epoch += 1
+
+    return EpochSaver(modeldir, epochnum)
+
 def main(args):
     """
     Main function to read the graph list, extract features.
@@ -128,13 +203,25 @@ def main(args):
     
     data = None
     with open(args.input_path, "r") as f:
-        data = json.load(f)
+        data = json.load(f)  
+        
+    modeldir = os.path.join('/home/althausc/master_thesis_impl/graph2vec/models', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    if not os.path.exists(modeldir):
+        os.makedirs(modeldir)
+    else:
+        raise ValueError("Output directory %s already exists."%modeldir)
     
     graphs = list(data.items()) #[(filename, graph) ... , (filename, graph)]
+                                #graph = {'edges': ... , 'features': ... , 'box_scores': ... , 'rel_scores': ...}
     print("\nFeature extraction started.\n")
     document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in tqdm(graphs))
     print("\nOptimization started.\n")
     
+    c_evaluation = getcallback(document_collections)
+    c_epochsaver = getcallback_epochsaver(modeldir, args.epochsave)
+
+    
+    #Training the Word2Vec model
     model = Doc2Vec(document_collections,
                     vector_size=args.dimensions,
                     window=0,
@@ -143,11 +230,28 @@ def main(args):
                     sample=args.down_sampling,
                     workers=args.workers,
                     epochs=args.epochs,
-                    alpha=args.learning_rate)
+                    alpha=args.learning_rate,
+                    compute_loss=True,
+                    callbacks=[c_evaluation, c_epochsaver])
     print(type(graphs))
-    filenames = [item[0] for item in graphs]
-    save_embedding(args.output_path, model, filenames , args.dimensions)
 
+    #save storage
+    model.delete_temporary_training_data(keep_doctags_vectors=True, keep_inference=True)
+    filenames = [item[0] for item in graphs]
+    
+    graph_emb_file = os.path.join(modeldir, 'graph_embeddings.csv')
+    save_embedding(graph_emb_file, model, filenames , args.dimensions)
+    
+
+
+    #Copy corresponding input training graph file to the model directory, for easier finding
+    labelvectopk = os.path.join(os.path.dirname(args.input_path), 'labelvectors_topk.json')
+    if os.path.isfile(labelvectopk):
+        shutil.copyfile(labelvectopk, os.path.join(modeldir, 'labelvectors_topk.json'))
+        print("Copied %s -> %s ."%(labelvectopk, os.path.join(modeldir, 'labelvectors_topk.json')))
+    else:
+        print("Couldn't copy labelvector file from %s, because not existing."%os.path.dirname(args.input_path))
+        
 if __name__ == "__main__":
     args = parameter_parser()
     main(args)
