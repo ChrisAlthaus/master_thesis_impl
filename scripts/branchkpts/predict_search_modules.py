@@ -125,16 +125,23 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None):
     gpdfile = filewithname(outrun_dir, 'geometric_pose_descriptor')
     return gpdfile
 
-def search(gpdfile, method_search, tresh):
+def search(gpdfile, method_search, gpdtype, tresh=None):
     # -------------------------- ELASTIC SEARCH -----------------------------
     print("SEARCH FOR GPD IN DATABASE:")
 
     inputfile = gpdfile
     logfile = os.path.join(logpath, '4-search.txt')
     print("GPD file: ",inputfile)
+    _METHODS_SEARCH = ['COSSIM', 'DISTSUM']
+    _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
 
-    method_search = 'COSSIM' #['COSSIM', 'DISTSUM']
-    evaltresh_on = True
+    assert method_search in _METHODS_SEARCH
+    assert gpdtype in range(_GPD_TYPES)
+
+    method_search = 'COSSIM' #['COSSIM', 'DISTSUM'] #testing
+    gpdtype = _GPD_TYPES[gpdtype]
+
+    #evaltresh_on = True
 
     #Querying on the database images
     if method_search == 'COSSIM':
@@ -142,16 +149,19 @@ def search(gpdfile, method_search, tresh):
         #res = input("Do you want to evaluate the treshold on the gpu clustering first? [yes/no]")
         #if res == 'yes':
         #    os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -method_search {} -evaltresh".format(inputfile, method_search))
-
-        tresh = float(input("Please specify a similarity treshold for cossim result list: "))
-        print("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -tresh {} &> {}"\
-                                                                                                .format(inputfile, method_search, tresh, logfile))
+        if tresh is None:
+            tresh = float(input("Please specify a similarity treshold for cossim result list: "))
+        print("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
+                                                                                                -gpd_type {} -tresh {} &> {}"\
+                                                                                                .format(inputfile, method_search, gpdtype, tresh, logfile))
         
-        os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -tresh {} &> {}"\
-                                                                                                .format(inputfile, method_search, tresh, logfile))
+        os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
+                                                                                                -gpd_type {} -tresh {} &> {}"\
+                                                                                                .format(inputfile, method_search, gpdtype, tresh, logfile))
     else:
-        os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search --method_search {} &> {}"\
-                                                                                                .format(inputfile, method_search, logfile))
+        os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search --method_search {} \
+                                                                                                -gpd_type {} &> {}"\
+                                                                                                .format(inputfile, method_search, gpdtype, logfile))
     print('\n\n')
 
     outrun_dir = latestdir('/home/althausc/master_thesis_impl/retrieval/out/09')

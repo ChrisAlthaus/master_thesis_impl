@@ -16,6 +16,7 @@ import argparse
 import json
 import logging
 import ast
+import csv
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-file',required=True,
@@ -28,6 +29,7 @@ parser.add_argument('-search_data','-search', action="store_true",
 parser.add_argument('-eval_tresh','-evaltresh', action="store_true",
                     help='Computing cos-sim between gpd clusters to approximate a cutoff threshold.')
 parser.add_argument('-method_ins', help='Select method for insert data.')
+parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
 parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
@@ -40,7 +42,7 @@ if args.verbose:
     logger.setLevel(logging.DEBUG)
 #logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
-_INDEX = 'imgid_gpdcluster'
+
 #Min score used for cossim
 if args.tresh is None:
     _SIMILARITY_TRESH = 0.95
@@ -48,13 +50,23 @@ else:
     _SIMILARITY_TRESH = args.tresh 
 #Method 1 uses Cosinus-Similarity for comparing features with features in db produced by visual codebook preprocessing, 
 #       just a shortlist of N best-matching documents is queried for better performance
-#Method 2 uses a Distance-Measure to compute the sum between input features and raw features stored in the db (each similarity counts)
-#       the image with smallest distance is selected
+#Method 2 uses a Distance-Measure to compute the sum of L2-distances between input features 
+#       and raw features stored in the db (each similarity counts). The image with smallest distance is selected
 _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['COSSIM', 'DISTSUM']
+_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
+
+assert args.method_ins in _METHODS_INS
+assert args.gpd_type in _GPD_TYPES
+
+_INDEX = 'imgid_gpd_%s_%s'%(args.method_ins, args.gpd_type)
+print("Current index: ",_INDEX)
+
 _ELEMNUM_COS = 100
 _ELEMNUM_DIST = 1000 #bigger because relative score computation
 _NUMRES_DIST = 10
+
+_CONFIGDIR = '/home/althausc/master_thesis_impl/retrieval/out/configs'
 
 if args.method_search is not None:
     if args.method_search not in _METHODS_SEARCH:
@@ -113,6 +125,7 @@ def main():
             createIndex(es, len(data[0]['gpd']), _METHODS_INS[1])
             insertdata_raw(args, data, es)
 
+        saveconfig(_INDEX, len(data))
 
     elif args.search_data:
         es.indices.refresh(index=_INDEX)
@@ -178,7 +191,17 @@ def main():
         ax.figure.savefig(os.path.join(output_dir,"eval_simtresh_c%d.png"%sim[0].size))
         plt.clf()
         
-            
+def saveconfig(indexname, numdocs):
+    if not os.path.exists(os.path.join(_CONFIGDIR, 'elastic_config.csv')):
+        with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'w') as f:
+            writer = csv.writer(f, delimiter='\t')
+            headers = ['Indexname', 'Number Documents']
+            writer.writerow(headers)
+    
+    with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'w') as f:
+        writer = csv.writer(f, delimiter='\t')
+        writer.writerow([indexname, numdocs])
+                
 def insertdata_raw(args, data ,es):           
     id = 0
     print("Inserting image descriptors from %s ..."%args.file)
@@ -239,6 +262,7 @@ def createIndex(es, dim, mode):
     )
     if response['acknowledged'] != True:
         raise ValueError('Index was not created')
+    print("Successfully created index: %s"%_INDEX)
 
 def insertdoc(es, gpdcluster, metadata, id, featurelabel):
     doc = {
