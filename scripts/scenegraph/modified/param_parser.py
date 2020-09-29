@@ -61,5 +61,24 @@ def parameter_parser():
                         default=0.0001,
 	                help="Down sampling rate of features. Default is 0.0001.")
 
+    parser.add_argument("--valsize",
+                        type=int,
+                        default=10,
+	                help="Size of validation dataset.")
+
+    parser.add_argument("--valeval",
+                        type=int,
+                        default=5,
+	                help="When to evaluate model on validation dataset.")
+
+    parser.add_argument("--evaltopk",
+                        type=int,
+                        default=100,
+	                help="Consider topk retrieved image-similarity pairs for computing evaluation scores for each evaluation image.")
+
+    parser.add_argument("--plotepoch",
+                        type=int,
+                        default=20,
+	                help="Epoch at which to plot the loss log.")
 
     return parser.parse_args()

@@ -11,10 +11,16 @@ from param_parser import parameter_parser
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.test.utils import get_tmpfile
 from gensim.models.callbacks import CallbackAny2Vec
-import os
+import os, sys
 import datetime
 import shutil
 import dill
+import random
+import csv
+import matplotlib.pyplot as plt
+
+sgraphscript_dir = '/home/althausc/master_thesis_impl/scripts/scenegraph'
+sys.path.insert(0,sgraphscript_dir) 
 
 class WeisfeilerLehmanMachine:
     """
@@ -134,16 +140,16 @@ def save_prediction_emb(output_path, emb, dimensions):  #not used
 
 
 
-def getSimilarityScore(traindocs, model):
+def getSimilarityScore(valdocs, model, log, topk):
     #Querying with same images & specify similarities between the best-matching which should be the input image
-    num_docs = 100
+    num_docs = topk
     dim = model.vector_size
 
     evalscore = 0
     numdocs_found = 0
     ranks = []
 
-    for doc in traindocs:
+    for doc in valdocs:
         imgname = doc.tags[0]
         #model.random.seed(0)
         vector = model.infer_vector(doc.words)
@@ -152,22 +158,39 @@ def getSimilarityScore(traindocs, model):
             if item[0] == imgname:
                 evalscore = evalscore + item[1]
                 numdocs_found = numdocs_found + 1
-                ranks.append(r)
+                ranks.append(r+1)
                 break
-    print("Number of documents in train set: ",len(traindocs))
-    print("Number of matched documents in top-%d = %d"%(num_docs, numdocs_found))
-    print("Mean rank number: ",sum(ranks)/len(ranks))
-    return evalscore
+
+    #print("Number of matched documents in top-%d = %d"%(num_docs, numdocs_found))
+    #print("Mean rank number: ",sum(ranks)/len(ranks) if numdocs_found != 0 else 'Nan')
+     
+    mrank = sum(ranks)/len(ranks) if numdocs_found != 0 else 'Nan'
+    return evalscore, mrank, numdocs_found
     
-def getcallback(traindocs):
+def getcallback(docs_collection, epochnum = 1, log=None, istrain=True, topk=100):
     #Monitoring the loss value of every epoch
     class SimilarityCallback(CallbackAny2Vec):
         def __init__(self):
             self.epoch = 1
+            self.docs = docs_collection
+            self.epochnum = epochnum
+            self.log = log
 
         def on_epoch_end(self, model):
-            score = getSimilarityScore(traindocs, model)
-            print("Evaluation score in epoch %d = %f"%(self.epoch, score))
+            if self.epoch % self.epochnum == 0:
+                score, mrank, numfound = getSimilarityScore(self.docs, model, self.log, topk)
+                if istrain is False:
+                    print("Validation on %d images -> Epoch %d, Evaluation Score: %f, Mean Rank: %s, Num docs matched: %d/%d"\
+                                                                        %(len(self.docs),self.epoch,score, str(mrank), numfound, len(self.docs)))
+                else:
+                    print("Epoch %d, Evaluation Score: %f, Mean Rank: %s, Num docs matched: %d/%d"%(self.epoch,score, str(mrank), numfound, len(self.docs)))
+
+                with open(self.log, 'a') as f:
+                    writer = csv.writer(f, delimiter='\t')
+                    if istrain:
+                        writer.writerow([self.epoch, score, mrank, numfound, 'notused', 'notused', 'notused'])
+                    else:
+                        writer.writerow([self.epoch, 'notused', 'notused', 'notused', score, mrank, numfound])
             self.epoch += 1
 
     return SimilarityCallback()
@@ -193,6 +216,100 @@ def getcallback_epochsaver(modeldir, epochnum):
 
     return EpochSaver(modeldir, epochnum)
 
+
+def getcallback_logplot(log, epochnum, saveimgpath):
+    class PlotCallback(CallbackAny2Vec):
+        def __init__(self):
+            self.epoch = 1
+            self.log = log
+            self.epochnum = epochnum
+            self.imgpath = saveimgpath
+
+        def on_epoch_end(self, model):
+            if self.epoch % self.epochnum == 0:
+                print("Plotting Log")
+                headers = ['Epoch','Train Loss', 'Train Mean Rank', 'Train Matched Docs', 'Val Loss', 'Val Mean Rank', 'Val Matched Docs']
+                df = pd.read_csv(self.log, delimiter='\t', names=headers)
+
+                def isfloat(x):
+                    try:
+                        x = float(x)
+                        return True
+                    except ValueError:
+                        return False
+
+                points = [(x,float(y)) for x,y in zip(df['Epoch'].to_list(), df['Train Loss'].to_list()) if isfloat(y)]
+                x,y = zip(*points)
+                plt.plot(x,y,label='Train Loss')
+
+                points = [(x,float(y)) for x,y in zip(df['Epoch'].to_list(), df['Train Mean Rank'].to_list()) if isfloat(y)]
+                x,y = zip(*points)
+                plt.plot(x,y,label='Train Mean Rank')
+
+                points = [(x,float(y)) for x,y in zip(df['Epoch'].to_list(), df['Train Matched Docs'].to_list()) if isfloat(y)]
+                x,y = zip(*points)
+                plt.plot(x,y,label='Train Matched Docs')
+
+
+                points = [(x,float(y)) for x,y in zip(df['Epoch'].to_list(), df['Val Loss'].to_list()) if isfloat(y)]
+                x,y = zip(*points)
+                plt.plot(x,y,label='Val Loss')
+
+                points = [(x,float(y)) for x,y in zip(df['Epoch'].to_list(), df['Val Mean Rank'].to_list()) if isfloat(y)]
+                x,y = zip(*points)
+                plt.plot(x,y,label='Val Mean Rank')
+
+                points = [(x,float(y)) for x,y in zip(df['Epoch'].to_list(), df['Val Matched Docs'].to_list()) if isfloat(y)]
+                x,y = zip(*points)
+                plt.plot(x,y,label='Val Matched Docs')
+
+                epochs = list(map(int, df['Epoch'].to_list()[1:]))
+                plt.xticks(range(min(epochs), max(epochs)+1, 10))
+                plt.legend(loc="upper left")
+                plt.savefig(self.imgpath)
+                plt.clf()
+
+            self.epoch += 1
+
+    return PlotCallback()
+
+
+def getvaldocs(graphs, args):
+    #Get an partially unseen validation set by modifying some node classes
+    #Image name stay the same to allow for similarity evaluation
+    from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VALID_RELLABELS
+
+    _NUM_EXCHANGE_LABEL = 0.1
+    graphs = graphs[:args.valsize]
+    for filename, g in graphs:
+        exchangenum = int(len(g['features'])* _NUM_EXCHANGE_LABEL)
+        sample = dict(random.sample(g['features'].items(), exchangenum))
+        for k,v in sample.items():
+            if v in VALID_BBOXLABELS:
+                sample[k] = random.choice(VALID_BBOXLABELS) 
+            elif v in VALID_RELLABELS:
+                sample[k] = random.choice(VALID_RELLABELS)
+        g['features'].update(sample) 
+    print("\nFeature extraction for validation dataset started.\n")
+    document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in tqdm(graphs))
+    print("\nOptimization started.\n")
+    return document_collections
+
+def getlogforlosses(outdir): 
+    with open(os.path.join(outdir, 'trainval_losses.csv'), 'w') as f:
+        writer = csv.writer(f, delimiter='\t')
+        headers = ['Epoch','Train Loss', 'Train Mean Rank', 'Train Matched Docs', 'Val Loss', 'Val Mean Rank', 'Val Matched Docs']
+        writer.writerow(headers)
+    return os.path.join(outdir, 'trainval_losses.csv')
+
+def saveconfig(outdir, args, numtraindocs):
+    with open(os.path.join(outdir, 'config.csv'), 'w') as f:
+        writer = csv.writer(f, delimiter='\t')
+        headers = ['Epochs', 'Trainsize', 'Valsize', 'Dim', 'Min-Count', 'WL-Iterations', 'LR', 'Down-Sampling', 'EvalTopk']
+        writer.writerow(headers)
+        writer.writerow([args.epochs, numtraindocs, args.valsize, args.dimensions, args.min_count, args.wl_iterations,
+                                args.learning_rate, args.down_sampling, args.evaltopk])
+
 def main(args):
     """
     Main function to read the graph list, extract features.
@@ -210,17 +327,29 @@ def main(args):
         os.makedirs(modeldir)
     else:
         raise ValueError("Output directory %s already exists."%modeldir)
+
+    #Save configuration
+    saveconfig(modeldir, args, len(data))
     
     graphs = list(data.items()) #[(filename, graph) ... , (filename, graph)]
                                 #graph = {'edges': ... , 'features': ... , 'box_scores': ... , 'rel_scores': ...}
-    print("\nFeature extraction started.\n")
+    print("Number of training graphs: ",len(graphs))
+    print("\nFeature extraction for train dataset started.\n")
     document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in tqdm(graphs))
     print("\nOptimization started.\n")
     
-    c_evaluation = getcallback(document_collections)
+    documents_validation = getvaldocs(graphs, args)
+    logpath = getlogforlosses(modeldir)
+    c_eval_val = getcallback(documents_validation, epochnum=args.valeval, log=logpath, istrain=False, topk=args.evaltopk)
+    c_eval_train = getcallback(document_collections, log=logpath)
     c_epochsaver = getcallback_epochsaver(modeldir, args.epochsave)
 
-    
+    plotfile = os.path.join(modeldir, 'loss_log.jpg')
+    c_loss_plotter = getcallback_logplot(logpath, args.plotepoch, plotfile)
+
+    #Some parameters:
+    #   sample (float, optional) – The threshold for configuring which higher-frequency words are randomly downsampled, useful range is (0, 1e-5).
+    #   min_count (int, optional) – Ignores all words with total frequency lower than this.
     #Training the Word2Vec model
     model = Doc2Vec(document_collections,
                     vector_size=args.dimensions,
@@ -232,7 +361,7 @@ def main(args):
                     epochs=args.epochs,
                     alpha=args.learning_rate,
                     compute_loss=True,
-                    callbacks=[c_evaluation, c_epochsaver])
+                    callbacks=[c_eval_train, c_eval_val, c_epochsaver, c_loss_plotter])
     print(type(graphs))
 
     #save storage
