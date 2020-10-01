@@ -109,7 +109,7 @@ cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (ballon) ?
 cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17
 cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = 1 #10 # Images with too few (or no) keypoints are excluded from training (default: 1)
 
-output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m/%d_%H-%M-%S_'+args.finetune.lower()))
+output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m-%d_%H-%M-%S_'+args.finetune.lower()))
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
     print("Successfully created output directory: ", output_dir)
@@ -326,8 +326,9 @@ def save_modelconfigs(outdir, cfg, layersbn_map, args):
     print("Sucessfully wrote hyper-parameter row to configs file.")
 
 if args.addconfig:
-    save_modelconfigs(os.path.dirname(output_dir), cfg, layersbn, args)
-exit(1)
+    cfgdir = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints'
+    save_modelconfigs(cfgdir, cfg, layersbn, args)
+
 checkParams = dict()    #Dict to save intial parameters for some random freezed layers
                         #for later checking if really not trained            
 numLayersForCheck = 20

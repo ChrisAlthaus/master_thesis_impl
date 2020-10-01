@@ -164,7 +164,7 @@ def search(gpdfile, method_search, gpdtype, tresh=None):
                                                                                                 .format(inputfile, method_search, gpdtype, logfile))
     print('\n\n')
 
-    outrun_dir = latestdir('/home/althausc/master_thesis_impl/retrieval/out/09')
+    outrun_dir = latestdir('/home/althausc/master_thesis_impl/retrieval/out/humanposes')
     print(outrun_dir)
     rankingfile = os.path.join(outrun_dir, 'result-ranking.json')
 

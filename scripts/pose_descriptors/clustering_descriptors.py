@@ -28,6 +28,8 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity",
 
 args = parser.parse_args()
 
+_VALIDATION_METHODS = ['ELBOW', 'SILHOUETTE', 'T-SNE']
+
 if not os.path.isfile(args.descriptorFile):
     raise ValueError("No valid input file.")
 if args.modelState is not None:
@@ -35,10 +37,12 @@ if args.modelState is not None:
         raise ValueError("No valid input model file.")
 if args.verbose:
     logging.basicConfig(level=logging.DEBUG)
-
+if args.validateMethod not in _VALIDATION_METHODS:
+    raise ValueError("No valid validation mode.")
 
 def main():
-    output_dir = os.path.join('/home/althausc/master_thesis_impl/posedescriptors/clustering/out', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+    output_dir = '/home/althausc/master_thesis_impl/posedescriptors/clustering/%s'%('eval' if args.validateMethod is not None else 'out')
+    output_dir = os.path.join(output_dir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     else:
@@ -108,10 +112,11 @@ def main():
             fig.savefig(os.path.join(output_dir,"eval_tsne_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))) )
             plt.clf()
 
-
-
         else:
             raise ValueError("Please specify a valid k-finding method.")
+
+        saveconfig(output_dir,'eval',args.descriptorfile)
+        
     else:
         v_codebook_assign = None
         if args.modelState is not None:
@@ -134,6 +139,19 @@ def main():
         with open(os.path.join(output_dir, json_file+'.txt'), 'w') as f:
             f.write(str(v_codebook_assign)) 
 
+        saveconfig(output_dir,'build',args.descriptorfile, buildk=args.buildk, kmeansmod=args.modelfile)
+
+def saveconfig(outputdir, mode, inputfile, buildk=None, kmeansmod=None):
+    if mode=='eval':
+        with open(os.path.join(outputdir, 'evalconfig.txt'), 'a') as f:
+            f.write('Input File: %s\n'%inputfile)
+    if mode=='build':
+        with open(os.path.join(outputdir, 'buildconfig.txt'), 'a') as f:
+            f.write('Input File: %s\n'%inputfile)  
+            f.write('Build k: %d\n'%buildk)
+            f.write('K-Means Model: %s\n'%kmeansmod)     
+
+    
 def kmeans_and_visual_codebook(json_data, model=None, k=100):
     descriptors = []
 
@@ -157,7 +175,7 @@ def kmeans_and_visual_codebook(json_data, model=None, k=100):
 
     #Create index mapping {gpd_cluster1: [{image_id: 1, score: 0.9, vis: [...]}, ..., {image_id: M, score: 0.78, vis: [...]}]}],
     #                        ...
-    #                     {gpd_clusterK: [{image_id: 1, score: 0.9, vis: [...]}, ..., {image_id: L, score: 0.78, vis: [...]}]}] }
+    #                     {gpd_clusterK: [{image_id: 1, score: 0.9, vis: [...]}, ..., {image_id: L, score: 0.78, vis: [...]}]}] }  <- v_codebook
     v_codebook = {}
     map_codeword_ids = {}
     for i,centroid in enumerate(centroids):

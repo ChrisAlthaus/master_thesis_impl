@@ -54,7 +54,7 @@ else:
 #       and raw features stored in the db (each similarity counts). The image with smallest distance is selected
 _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['COSSIM', 'DISTSUM']
-_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
+_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
 
 assert args.method_ins in _METHODS_INS
 assert args.gpd_type in _GPD_TYPES
@@ -104,7 +104,7 @@ def main():
 
     output_dir = None
     if args.search_data or args.eval_tresh:
-        output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/humanposes', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+        output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/humanposes', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         else:
@@ -264,11 +264,11 @@ def createIndex(es, dim, mode):
         raise ValueError('Index was not created')
     print("Successfully created index: %s"%_INDEX)
 
-def insertdoc(es, feature, metadata, id, featurelabel):
+def insertdoc(es, gpdcluster, metadata, id, featurelabel):
     doc = {
     'imageid': metadata['image_id'],
     'score': metadata['score'],
-    featurelabel: list(feature)
+    featurelabel: list(gpdcluster)
     }
 
     res = es.index(index=_INDEX, id=id, body=doc) 

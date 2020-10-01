@@ -20,14 +20,14 @@ parser.add_argument('-inputFile',required=True,
 parser.add_argument("-mode", type=int, help="Specify types of features which will be computed.")
 parser.add_argument("-pca", type=int, help="Specify dimensions of pca vector.")
 parser.add_argument("-pcamodel", type=str, help="Specify pca model file for prediction.")
+parser.add_argument("-target", type=str, help="If purpose is for inserting or query db. Used for output folder selection.")
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
 args = parser.parse_args()
 
-test_entry = {'image_id': 23899057496, 'category_id': 1, 'bbox': [211.99081420898438, 139.43743896484375, 425.96087646484375, 355.24871826171875], 'keypoints': [334.2212219238281, 201.67015075683594, 1.079627275466919, 331.54656982421875, 189.38385009765625, 1.7378227710723877, 312.2892761230469, 192.58897399902344, 1.028214931488037, 334.7561340332031, 202.20433044433594, 0.08344336599111557, 269.4952697753906, 213.9564208984375, 0.38487914204597473, 346.5245056152344, 262.033203125, 0.13131119310855865, 288.2176513671875, 285.5373840332031, 0.10808556526899338, 425.1584777832031, 354.4474182128906, 0.020250316709280014, 383.434326171875, 328.8064880371094, 0.012223891913890839, 276.44927978515625, 354.4474182128906, 0.01989334262907505, 425.1584777832031, 354.4474182128906, 0.020259613171219826, 425.1584777832031, 354.4474182128906, 0.02405051700770855, 403.761474609375, 354.4474182128906, 0.02277219668030739, 425.1584777832031, 354.4474182128906, 0.03073735162615776, 425.1584777832031, 354.4474182128906, 0.03939764201641083, 425.1584777832031, 354.4474182128906, 0.02348250150680542, 425.1584777832031, 354.4474182128906, 0.03718782961368561], 'score': 0.9582511186599731}
+#test_entry = {'image_id': 23899057496, 'category_id': 1, 'bbox': [211.99081420898438, 139.43743896484375, 425.96087646484375, 355.24871826171875], 'keypoints': [334.2212219238281, 201.67015075683594, 1.079627275466919, 331.54656982421875, 189.38385009765625, 1.7378227710723877, 312.2892761230469, 192.58897399902344, 1.028214931488037, 334.7561340332031, 202.20433044433594, 0.08344336599111557, 269.4952697753906, 213.9564208984375, 0.38487914204597473, 346.5245056152344, 262.033203125, 0.13131119310855865, 288.2176513671875, 285.5373840332031, 0.10808556526899338, 425.1584777832031, 354.4474182128906, 0.020250316709280014, 383.434326171875, 328.8064880371094, 0.012223891913890839, 276.44927978515625, 354.4474182128906, 0.01989334262907505, 425.1584777832031, 354.4474182128906, 0.020259613171219826, 425.1584777832031, 354.4474182128906, 0.02405051700770855, 403.761474609375, 354.4474182128906, 0.02277219668030739, 425.1584777832031, 354.4474182128906, 0.03073735162615776, 425.1584777832031, 354.4474182128906, 0.03939764201641083, 425.1584777832031, 354.4474182128906, 0.02348250150680542, 425.1584777832031, 354.4474182128906, 0.03718782961368561], 'score': 0.9582511186599731}
 _KEYPOINT_THRESHOLD = 0.5
-_REFs = {5: "left_shoulder", 6: "right_shoulder"}
-#_REFs = {1: "left_shoulder"}
+_REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
 _MINKPTs = 10
 _NUMKPTS = 17
 _MODES = ['JcJLdLLa_reduced', 'JLd_all']
@@ -38,14 +38,17 @@ if not os.path.isfile(args.inputFile):
     raise ValueError("No valid input file.")
 if args.verbose:
     logging.basicConfig(level=logging.DEBUG, format='%(message)s')
-if args.mode not in range(0, len(_MODES)):
-     raise ValueError("No valid mode number.")
+if args.mode not in _MODES:
+    raise ValueError("No valid mode number.")
+if args.target not in ['query', 'insert']:
+    raise ValueError("No valid purpose.")
 
 
 def main():
     #calculateGPD(test_entry['keypoints'])
     #exit(1)
-    output_dir = os.path.join('/home/althausc/master_thesis_impl/posedescriptors/out', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+    output_dir = os.path.join('/home/althausc/master_thesis_impl/posedescriptors/out', args.target)
+    output_dir = os.path.join(output_dir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     else:
@@ -54,7 +57,7 @@ def main():
     #Writing config to file
     with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
         f.write("Minimum KPTS: %d"%_MINKPTs + os.linesep)
-        f.write("Mode: %s"%_MODES[args.mode] + os.linesep)
+        f.write("Mode: %s"%args.mode + os.linesep)
         f.write("Filter: %d"%_FILTER + os.linesep)
         f.write("Filter mode: %d"%_FILTERMODE + os.linesep)
         f.write("Keypoint threshold: %d"%_KEYPOINT_THRESHOLD + os.linesep)
@@ -81,7 +84,7 @@ def main():
             #logging.debug("LATER:",person['keypoints'])
             
             if isvalid:
-                keypoint_descriptor, visibilities = calculateGPD(person['keypoints'], _MODES[args.mode])
+                keypoint_descriptor, visibilities = calculateGPD(person['keypoints'], args.mode)
                 json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': person['score'], 'vis': visibilities})
                 c = c + 1
         if i%1000 == 0 and i!=0:
@@ -99,7 +102,7 @@ def main():
         _ = applyPCA(json_out, pca=pca_reload)
 
 
-    json_file = 'geometric_pose_descriptor_c_%d_m%d_t%.2f_f%d.%d_mkpt%d'%(c,args.mode, _KEYPOINT_THRESHOLD, _FILTER, _FILTERMODE, _MINKPTs)
+    json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d.%d_mkpt%d'%(c,args.mode, _KEYPOINT_THRESHOLD, _FILTER, _FILTERMODE, _MINKPTs)
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
         print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
         json.dump(json_out, f)

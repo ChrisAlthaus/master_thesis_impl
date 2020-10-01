@@ -30,6 +30,7 @@ if not os.path.isfile(args.gt_annotations):
 
 #Preprocessing: search for every prediction the most probable corresponding gt bounding box
 #               in the annotation file
+#   -> Keypoints of the predictions should be retained, whereas bboxes should be replaced by ground truth
 
 with open(args.prediction_path, "r") as f:
     preds = json.load(f)
@@ -104,5 +105,5 @@ print("Length of filtered & combined predictions: ",len(preds_with_gtbbox))
 print("Length of previous predictions: ",len(preds))
 
 
-with open(os.path.join(output_dir,'result.json'), 'w') as f:
+with open(os.path.join(output_dir,'predictions_bbox_gt.json'), 'w') as f:
     json.dump(preds_with_gtbbox, f, separators=(', ', ': '))    

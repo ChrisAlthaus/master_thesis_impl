@@ -207,9 +207,36 @@ if not os.path.exists(output_dir):
 else:
     raise ValueError("Output directory %s already exists."%output_dir)
 
+#Format as far: [["g_/home/althausc/nfs/data/styleimgs_test/styles/75379.jpg", 0.07508829236030579], 
+#                ["g_/home/althausc/nfs/data/styleimgs_test/styles/62187.jpg", 0.05341362580657005], ...]
+#Target Format: 
+#    {
+#   "imagedir": "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer",
+#   "0": {
+#       "filename": "000000359029_100645.jpg",
+#       "relscore": 1.0
+#   },
+#   "1": {
+#       "filename": "000000416510_062615.jpg",
+#       "relscore": 1.0 } ... 
+#    }
+
+outdata = {}
+prefixes = []
+for r,item in enumerate(sims):
+    fname = item[0]
+    if fname.startswith('g_'):
+        fname = fname[2:]
+    fname = os.path.basename(fname)
+    prefixes.append(os.path.dirname(fname))
+    outdata[r] = {"filename": fname, "relscore": float(item[1])}
+
+assert all(x == prefixes[0] for x in prefixes)
+outdata['imagedir'] = prefixes[0]
+
 with open(os.path.join(output_dir, 'topkresults.json'), 'w') as f:
     print("Writing to file: ",os.path.join(output_dir, 'topkresults.json'))
-    json.dump(sims, f)
+    json.dump(outdata, f)
 
     
 

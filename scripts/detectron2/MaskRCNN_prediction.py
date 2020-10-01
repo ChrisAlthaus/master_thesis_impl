@@ -31,14 +31,19 @@ parser.add_argument('-model_cp','-mc',required=True,
                     help='Path to the model checkpoint file.')
 parser.add_argument('-image_path','-img', 
                     help='Path to the image for which pose inference will be calculated.')
-parser.add_argument('-image_folder','-imgDir', 
+parser.add_argument('-image_folder','-imgdir', 
                     help='Path to a directory containing images only.')
 parser.add_argument('-vis','-visualize', action='store_true',
                     help='Specify to visualize predictions on images & save.')
 parser.add_argument('-visrandom','-validate', action='store_true',
                     help='Specify to randomy visualize k predictions.')
+parser.add_argument('-vistresh', type=float, default=0.0,
+                    help='Specify a treshold for visualization.')
 parser.add_argument('-transformid',action="store_true", 
-                    help='Wheather to tranform image name to style-transform image id (used for style transfered images.')      
+                    help='Wheather to tranform image name to style-transform image id (used for style transfered images.')   
+parser.add_argument('-target',
+                    help='Whether to later use predictions for training other model or for querying.\
+                         Output folder will then be different (train/single).')     
 args = parser.parse_args()
 
 
@@ -53,6 +58,9 @@ if args.image_folder is not None:
 
 if args.image_path is None and args.image_folder is None:
     raise ValueError("Please specify an image or an image directory.")
+
+if args.target not in ['train', 'single']:
+    raise ValueError("Please specify a valid prediction purpose.")
 
 #cfg = get_cfg()
 
@@ -82,7 +90,8 @@ cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
 cfg.MODEL.DEVICE='cpu'
 cfg.MIN_SIZE_TRAIN= 512
-cfg.MODEL.WEIGHTS = args.model_cp
+#cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml") 
+cfg.MODEL.WEIGHTS = args.model_cp #uncomment for specified checkpoint
 
 outputs = []
 outputs_raw = []
@@ -139,7 +148,8 @@ MetadataCatalog.get("my_dataset_val").set(keypoint_names=COCO_PERSON_KEYPOINT_NA
 #Specification of a threshold for the keypoints in: /home/althausc/.local/lib/python3.6/site-packages/detectron2/utils/visualizer.py
 
 
-output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/art_predictions', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/art_predictions', args.target)
+output_dir = os.path.join(output_dir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 else:
@@ -154,7 +164,7 @@ if args.vis:
     print("Visualize the predictions onto the original image(s) ...")
     for img_path, pred_out in zip(image_paths, outputs_raw):
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
-        out = v.draw_instance_predictions(pred_out["instances"].to("cpu"))
+        out = v.draw_instance_predictions(pred_out["instances"].to("cpu"), args.vistresh)
         img_name = os.path.basename(img_path)
         if out == None:
             print("img is none")
@@ -168,7 +178,7 @@ if args.visrandom:
         img_path = image_paths[k]
         pred_out = outputs_raw[k]
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
-        out = v.draw_instance_predictions(pred_out["instances"].to("cpu"))
+        out = v.draw_instance_predictions(pred_out["instances"].to("cpu"), args.vistresh)
         img_name = os.path.basename(img_path)
         if out == None:
             print("img is none")
@@ -177,3 +187,4 @@ if args.visrandom:
 #Getting categories names & ids
 #coco = COCO('/home/althausc/nfs/data/coco_17/annotations/instances_val2017.json')
 #print(coco.cats)
+print("Output directory: ",output_dir)
