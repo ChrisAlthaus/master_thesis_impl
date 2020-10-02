@@ -28,7 +28,7 @@ _EXEC_CMDS = False
 
 # ----------------- MASK-RCNN TRAIN ---------------------
 print("MASK-RCNN TRAINING:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
 finetune = 'ALL'    #["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS','SCRATCH']
 numepochs = 20
 maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth'
@@ -51,7 +51,7 @@ print("Output Directory: %s\n"%out_dir)
 # ----------------- MASK-RCNN PREDICTIONS ---------------------
 print("MASK-RCNN PREDICTION:")
 maskrcnn_cp = os.path.join(outrun_dir, 'model_0214999.pth')  #Specify model checkpoint here
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
 img_dir = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'  #Predictions used for later PoseFix training
 
 target = 'train'
@@ -149,7 +149,7 @@ print("Output Directory: %s\n"%out_dir)
 print("CLUSTERING (optional):")
 clust_on = True
 val_on = True
-valmethods = ['SILHOUETTE', 'ELBOW']
+valmethods = ['SILHOUETTE', 'ELBOW', 'T-SNE', 'COS-TRESH']
 ks = [10,20] #[kmin, kmax] for validation methods
 
 inputfile = filewithname(outrun_dir, 'geometric_pose_descriptor')
@@ -157,8 +157,13 @@ print("GPD file: ",inputfile)
 
 if clust_on:    
     for val in valmethods:
-        cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -val {} -validateks {} {}"\
+        if val != valmethods[3]:
+            cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -val {} -validateks {} {}"\
                                                                                                                         .format(inputfile, val, ks[0], ks[1])
+        else:
+            cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -val {}"\
+                                                                                                                        .format(inputfile, val)
+                                                                                                                        
         if _PRINT_CMDS:
             print(cmd)
         if _EXEC_CMDS:

@@ -17,7 +17,7 @@ import itertools
 parser = argparse.ArgumentParser()
 parser.add_argument('-inputFile',required=True,
                     help='File with keypoint annotations/ predictions.')
-parser.add_argument("-mode", type=int, help="Specify types of features which will be computed.")
+parser.add_argument("-mode", type=str, help="Specify types of features which will be computed.")
 parser.add_argument("-pca", type=int, help="Specify dimensions of pca vector.")
 parser.add_argument("-pcamodel", type=str, help="Specify pca model file for prediction.")
 parser.add_argument("-target", type=str, help="If purpose is for inserting or query db. Used for output folder selection.")
@@ -53,15 +53,6 @@ def main():
         os.makedirs(output_dir)
     else:
         raise ValueError("Output directory %s already exists."%output_dir)
-
-    #Writing config to file
-    with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
-        f.write("Minimum KPTS: %d"%_MINKPTs + os.linesep)
-        f.write("Mode: %s"%args.mode + os.linesep)
-        f.write("Filter: %d"%_FILTER + os.linesep)
-        f.write("Filter mode: %d"%_FILTERMODE + os.linesep)
-        f.write("Keypoint threshold: %d"%_KEYPOINT_THRESHOLD + os.linesep)
-        f.write("Ref(s): %s"%str(_REFs) + os.linesep)
 
     print("Reading from file: ",args.inputFile)
     with open (args.inputFile, "r") as f:
@@ -100,6 +91,19 @@ def main():
     if args.pcamodel is not None:
         pca_reload = pickle.load(open(args.pcamodel,'rb'))
         _ = applyPCA(json_out, pca=pca_reload)
+
+
+    #Writing config to file
+    with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
+        f.write("Minimum KPTS: %d"%_MINKPTs + os.linesep)
+        f.write("Mode: %s"%args.mode + os.linesep)
+        f.write("Filter: %d"%_FILTER + os.linesep)
+        f.write("Filter mode: %d"%_FILTERMODE + os.linesep)
+        f.write("Keypoint threshold: %d"%_KEYPOINT_THRESHOLD + os.linesep)
+        f.write("Ref(s): %s"%str(_REFs) + os.linesep)
+        f.write("PCA dimension: %s"%(str(args.pca) if args.pca is not None else 'not used')+ os.linesep)
+        f.write("Number input predictions: %d"%len(json_data) + os.linesep)
+        f.write("Number calculated descriptors: %d"%c + os.linesep)
 
 
     json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d.%d_mkpt%d'%(c,args.mode, _KEYPOINT_THRESHOLD, _FILTER, _FILTERMODE, _MINKPTs)

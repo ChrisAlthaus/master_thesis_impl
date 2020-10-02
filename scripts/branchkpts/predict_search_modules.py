@@ -47,18 +47,18 @@ def predict(imgpath):
     # ----------------- MASK-RCNN PREDICTIONS ---------------------
     print("MASK-RCNN PREDICTION ...")
     maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth'
-    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
+    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
     out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/09'
     transform_arg = "-tranformid" if is_styletranfered_img(imgpath) else ""
+    target = 'query'
     logfile = os.path.join(logpath, '1-maskrcnn.txt')
 
     #print("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py \-model_cp {} -img {} -vis > {}"\
     #                                                                                            .format(gpu_cmd, maskrcnn_cp, imgpath, logfile))
 
-    if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py \-model_cp {} -img {} {} -vis &> {}"\
-                                                                                        .format(gpu_cmd, maskrcnn_cp, imgpath, transform_arg, logfile)):
+    if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -img {} {} -target {} -vis &> {}"\
+                                                                                        .format(gpu_cmd, maskrcnn_cp, imgpath, transform_arg, target, logfile)):
         raise RuntimeError('Mask RCNN Prediction failed.')
-    
 
     outrun_dir = latestdir(out_dir)
     print("MASK-RCNN PREDICTION DONE.")
@@ -88,13 +88,14 @@ def predict(imgpath):
     ubuntu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run.sh'
     inputfile = os.path.join(outrun_dir,"resultfinal.json")
     imagespath = os.path.dirname(imgpath) #'/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer'
+    tresh = 0.1
     #Save visualization image in dir from which the script is started
     outputdir = os.path.dirname(os.path.realpath(__file__))
     logfile = os.path.join(logpath, '3-visualize.txt')
 
    
-    if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} {} &> {}"\
-                                                                                .format(ubuntu_cmd, inputfile, imagespath, outputdir, transform_arg, logfile)):
+    if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -vistresh {} {} &> {}"\
+                                                                        .format(ubuntu_cmd, inputfile, imagespath, outputdir, tresh, transform_arg, logfile)):
         raise RuntimeError('Visualize prediction failed.')
     print("VISUALIZE POSEFIX PREDICTIONS DONE.")
 
@@ -107,16 +108,21 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None):
     #methodgpd = 0 #['JcJLdLLa_reduced', 'JLd_all']
     #pca_on = False #True
     #pca_model = '/home/althausc/master_thesis_impl/posedescriptors/out/08/27_13-49-24/modelpca64.pkl'
+    target = 'query'
     logfile = os.path.join(logpath, '4-gpd.txt')
     
+    print("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py \
+                                                                    -inputFile {} -mode {} -pcamodel {} -target {} &> {}"\
+                                                                     .format(annpath, methodgpd, pca_model, target, logfile))
     if pca_on:
         if pca_model is None:
             raise ValueError("Please specify a pca model file for feature reduction.")
-        os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -pcamodel {} &> {}"\
-                                                                                                                .format(annpath, methodgpd, pca_model, logfile))
+        os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py \
+                                                                    -inputFile {} -mode {} -pcamodel {} -target {} &> {}"\
+                                                                     .format(annpath, methodgpd, pca_model, target, logfile))
     else:
-        os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} &> {}"\
-                                                                                                            .format(annpath, methodgpd, logfile))
+        os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -target {} &> {}"\
+                                                                                                            .format(annpath, methodgpd, target, logfile))
 
     print("CALCULATE GPD DESCRIPTORS DONE.")
     out_dir = '/home/althausc/master_thesis_impl/posedescriptors/out/09'
@@ -136,10 +142,9 @@ def search(gpdfile, method_search, gpdtype, tresh=None):
     _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
 
     assert method_search in _METHODS_SEARCH
-    assert gpdtype in range(_GPD_TYPES)
+    assert gpdtype in _GPD_TYPES
 
     method_search = 'COSSIM' #['COSSIM', 'DISTSUM'] #testing
-    gpdtype = _GPD_TYPES[gpdtype]
 
     #evaltresh_on = True
 

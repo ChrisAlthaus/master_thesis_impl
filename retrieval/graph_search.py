@@ -14,6 +14,7 @@ from tqdm import tqdm
 from joblib import Parallel, delayed
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.test.utils import get_tmpfile
+import dill
 
 
 import pandas as pd
@@ -56,8 +57,9 @@ document_collections = Parallel(n_jobs=1)(delayed(feature_extractor)(gd[0], gd[1
 print("\nOptimization started.\n")
 
 if args.inference:
-    fname = get_tmpfile(args.model)
-    model = Doc2Vec.load(fname)
+    with open(args.model,'rb') as f:
+        model = dill.load(f)
+
     print("Doc2Vec state: ")
     print(', '.join("%s: %s" % item for item in vars(model).items()))
     print("feature: ",document_collections)
@@ -73,7 +75,7 @@ if args.inference:
 
     if args.reweight: #reweight on box and rel labels occurance similarities on the query and the result topk
                       #e.g. annotation a1 with ['tree' * 5, ...] should be ranked higher for query image including ['tree']
-                      #     than for example a2 with ['tree' *2, ...]
+                      #     than for example a2 with ['car' *2, ...]
         if args.reweightmode not in _REWEIGHT_MODES:
             raise ValueError("No valid reweight mode specified.")
         
@@ -130,6 +132,8 @@ if args.inference:
             return len(s1.intersection(s2)) / len(s1.union(s2)) 
 
         reweight_scores = []
+        imgfiles = []
+
         for imgfile, score in sims:
             for item in labeldata:
                 if os.path.basename(item['imagefile']) == os.path.basename(imgfile):
@@ -147,18 +151,28 @@ if args.inference:
                         metadata = [imgfile]
                         labelsim = getjaccard(g_labelvec, labelvec, metadata)
 
-                    reweight_scores.append([imgfile, labelsim])
+                    imgfiles.append(imgfile)
+                    reweight_scores.append(labelsim)
                     break
                     
         #normalize reweight vector to other range
-        rs = np.array([item[1] for item in reweight_scores])
+        rs = np.array(reweight_scores)
         print("Reweight score before normalization: ",rs)
-        scalemin, scalemax = 0.5, 1
-        reweight_scores = ( (rs - np.min(rs)) / (np.max(rs) - np.min(rs)) ) * (scalemax - scalemin) + scalemin
+        scalemin, scalemax = 0.5, 1 #TODO: as arguments?
+        rs = ( (rs - np.min(rs)) / (np.max(rs) - np.min(rs)) ) * (scalemax - scalemin) + scalemin
   
-        print("Reweight scores: ", [ [simitem[0], rs] for simitem, rs in zip(sims,reweight_scores) ])
-        #reweight topk results
-        sims = [[simitem[0], simitem[1]*rs] for simitem, rs in zip(sims,reweight_scores)]
+        print("Image names: ",imgfiles)
+        print("Reweight scores normalized: ", rs)
+        #reweight topk results which are found in train labelvectors
+        notfound = 0
+        print(sims)
+        for i in range(len(sims)):
+            if sims[i][0] in imgfiles:
+                r_ind = imgfiles.index(sims[i][0])
+                sims[i] = [sims[i][0], sims[i][1]*rs[r_ind]]
+            else:
+                notfound = notfound + 1
+        print("Number of not reweighted retrieval results: %d"%notfound)
         sims.sort(key=lambda x: x[1], reverse=True)
 
         print("Reweighted topk images: ",sims)
@@ -201,7 +215,7 @@ elif args.evaluations:
 
 
 
-output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/scenegraphs', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
+output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/scenegraphs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 else:
@@ -227,8 +241,8 @@ for r,item in enumerate(sims):
     fname = item[0]
     if fname.startswith('g_'):
         fname = fname[2:]
-    fname = os.path.basename(fname)
     prefixes.append(os.path.dirname(fname))
+    fname = os.path.basename(fname)
     outdata[r] = {"filename": fname, "relscore": float(item[1])}
 
 assert all(x == prefixes[0] for x in prefixes)

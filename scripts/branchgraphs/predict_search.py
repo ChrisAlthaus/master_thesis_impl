@@ -17,12 +17,8 @@ args = parser.parse_args()
 #Folder with input image only
 img_dir = os.path.dirname(args.inputImg)
 
-"""os.path.join('/home/althausc/master_thesis_impl/scripts/branchkpts/tmp', datetime.datetime.now().strftime('%m/%d_%H-%M-%S'))
-if not os.path.exists(img_dir):
-    os.makedirs(img_dir)
-else:
-    raise ValueError("Output directory %s already exists."%img_dir)"""
-
+_PRINT_CMDS = True
+_EXEC_CMDS = False
 
 def latestdir(dir):
     diritems = [os.path.join(dir, d) for d in os.listdir(dir)]
@@ -38,7 +34,7 @@ def filewithname(dir, searchstr):
 
 # ----------------- SCENE GRAPH PREDICTION ---------------------
 print("SCENE GRAPH PREDICTION:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-2.sh'
 model_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/causal_motif_sgdet'
 out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single'
 
@@ -50,62 +46,93 @@ effect_type = _EFFECT_TYPES[1]
 fusion_type = _FUSION_TYPES[0]
 contextlayer_type = _CONTEXTLAYER_TYPES[0] 
 
-os.chdir('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch')
-os.system("{} python3.6 -m torch.distributed.launch \
-	            --master_port 10027 \
-	            --nproc_per_node=1 tools/relation_test_net.py \
-	            --config-file \"configs/e2e_relation_X_101_32_8_FPN_1x.yaml\"  \
-	            MODEL.ROI_RELATION_HEAD.USE_GT_BOX False \
-	            MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False \
-	            MODEL.ROI_RELATION_HEAD.PREDICTOR CausalAnalysisPredictor \
-	            MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE {} \
-	            MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE {} \
-	            MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER {} \
-	            TEST.IMS_PER_BATCH 1 \
-	            DTYPE \"float16\" \
-	            GLOVE_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/glove \
-	            MODEL.PRETRAINED_DETECTOR_CKPT {} \
-	            OUTPUT_DIR {} \
-	            TEST.CUSTUM_EVAL True \
-	            TEST.CUSTUM_PATH {} \
-	            DETECTED_SGG_DIR {}".format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, img_dir, out_dir))
+cmd = ("{} python3.6 -m torch.distributed.launch --master_port 10027 --nproc_per_node=1 \t"+ \
+	 			"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_test_net.py \t" +\
+	            "--config-file \"configs/e2e_relation_X_101_32_8_FPN_1x.yaml\"  \t" +\
+	            "MODEL.ROI_RELATION_HEAD.USE_GT_BOX False \t" +\
+	            "MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False \t" +\
+	            "MODEL.ROI_RELATION_HEAD.PREDICTOR CausalAnalysisPredictor \t" +\
+	            "MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE {} \t" +\
+	            "MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE {} \t" +\
+	            "MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER {} \t" +\
+	            "TEST.IMS_PER_BATCH 1 \t" +\
+	            "DTYPE \"float16\" \t" +\
+	            "GLOVE_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/glove \t" +\
+	            "MODEL.PRETRAINED_DETECTOR_CKPT {} \t" +\
+	            "OUTPUT_DIR {} \t" +\
+	            "TEST.CUSTUM_EVAL True \t" +\
+	            "TEST.CUSTUM_PATH {} \t" +\
+	            "DETECTED_SGG_DIR {}").format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, img_dir, out_dir)
+if _PRINT_CMDS:
+    print(cmd)
+if _EXEC_CMDS:
+    os.system(cmd)
 
 outrun_dir = latestdir(out_dir)
-print("\n\n")
+print("Output Directory: %s\n"%out_dir)
+
+
+# ----------------------- VISUALIZE SCENE GRAPH -----------------------
+print("VISUALIZE SCENEGRAPH ...")
+out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize'
+filterlabels = True
+cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} {}"\
+														.format(outrun_dir, '-filter' if filterlabels else ' ')
+if _PRINT_CMDS:
+    print(cmd)
+if _EXEC_CMDS:
+    os.system(cmd)
+
+#outrun_dir = latestdir(out_dir)
+print("Output Directory: %s\n"%out_dir)
 
 
 # ----------------- TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ---------------
 print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT")
-
+out_dir = "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single"
 pred_imginfo = os.path.join(outrun_dir, 'custom_data_info.json')
 pred_file = os.path.join(outrun_dir, 'custom_prediction.json')
-out_dir = "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single"
+relasnodes = True
 
-os.chdir('/home/althausc/master_thesis_impl/scripts/scenegraph')
-os.system("python3.6 filter_resultgraphs.py \
-				-file {} \
-				-imginfo {} \
-				-outputdir {}".format(pred_file, pred_imginfo, out_dir))
+cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/filter_resultgraphs.py -file {} -imginfo {} -outputdir {} -build_labelvectors {}" \
+			 .format(pred_file, pred_imginfo, out_dir, '-relsasnodes' if relasnodes else ' ')				
+if _PRINT_CMDS:
+    print(cmd)
+if _EXEC_CMDS:
+    os.system(cmd)
 
 outrun_dir = latestdir(out_dir)
-print("\n\n")
+print("Output Directory: %s\n"%out_dir)
 
 
 # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
-print("GRAPH2VEC PREDICTION & RETRIEVAL:")
-g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49/g2vmodel'
+print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
+modeldir = latestdir('/home/althausc/master_thesis_impl/graph2vec/models') #'/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49'
+g2v_model = os.path.join(modeldir, filewithname(modeldir, 'g2vmodel')) 
+labelvecpath = os.path.join(modeldir, 'labelvectors-topk.json')
 inputfile = os.path.join(outrun_dir, 'graphs-topk.json')
+_REWEIGHT_MODES = ['jaccard', 'euclid']
+
 topk = 10
+reweight = True
+r_mode = _REWEIGHT_MODES[0]
 
-os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --input-path {} \
-				 --inference --topk {}".format(g2v_model, inputfile, topk))
-
-out_dir = '/home/althausc/master_thesis_impl/retrieval/out/scenegraphs/09'
+if reweight:
+    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py " +\
+                    "--model {} --inputpath {} " +\
+				    "--inference --topk {} " +\
+                    "--reweight --reweightmode {} " +\
+                    "--labelvecpath {}").format(g2v_model, inputfile, topk, r_mode, labelvecpath)         
+else:
+    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py" +\
+									"--model {} --inputpath {} --inference --topk {}")\
+										.format(g2v_model, inputfile, topk)
+if _PRINT_CMDS:
+    print(cmd)
+if _EXEC_CMDS:
+    os.system(cmd)
+        
+out_dir = '/home/althausc/master_thesis_impl/retrieval/out/scenegraphs'
 outrun_dir = latestdir(out_dir)
-with open(os.path.join(outrun_dir,"topkresults.json"), 'r') as f:
-    json_data = json.load(f)
-
-print("Top k: ",json_data)
-print("\n\n")
-
+print("Output Directory: %s\n"%out_dir)
 

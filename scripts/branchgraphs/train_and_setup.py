@@ -54,7 +54,7 @@ print("Output Directory: %s\n"%out_dir)
 
 # ------------------- SCENE GRAPH FASTER-RCNN TRAINING -----------------------
 print("SCENE GRAPH FASTER-RCNN TRAINING:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G4d4.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G4d4-2.sh'
 out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_trained'
 
 cmd = ("{} python3.6 -m torch.distributed.launch --master_port 27000 --nproc_per_node=4" +\
@@ -82,7 +82,7 @@ print("Output Directory: %s\n"%out_dir)
 
 # ------------------- SCENE GRAPH GENERATION TRAINING -----------------------
 print("SCENE GRAPH FASTER-RCNN TRAINING:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G4d4.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G4d4-2.sh'
 pretrained_frcnn = out_dir #or /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn
 
 #notes: effect type only used for prediction/inference
@@ -124,7 +124,7 @@ print("Output Directory: %s\n"%out_dir)
 
 # ----------------- SCENE GRAPH PREDICTION ---------------------
 print("SCENE GRAPH PREDICTION:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-2.sh'
 model_dir = out_dir  #default: '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/causal_motif_sgdet'
 img_dir = '/home/althausc/nfs/data/vg_styletransfer/VG_100K'
 out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs'

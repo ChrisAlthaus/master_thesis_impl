@@ -12,7 +12,7 @@ import cv2
 
 
 def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, weight_branches = 0.5):
-    # Format: 
+    # Format of input files: 
     # {
     #"imagedir": "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer",
     #"0": {
@@ -27,20 +27,21 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, weight_branche
     with open (topkkpt_file, "r") as f:
         kpt_data = json.load(f)
 
-    imagedir = kpt_data['imagedir']
+    kpt_imagedir = kpt_data['imagedir']
     del kpt_data['imagedir']
 
-    #Format: [["g_/home/althausc/nfs/data/styleimgs_test/styles/75379.jpg", 0.07508829236030579], 
-    #         ["g_/home/althausc/nfs/data/styleimgs_test/styles/62187.jpg", 0.05341362580657005], ...]  #TODO
     print("Reading graphs from file: ",topngraph_file)
     with open (topngraph_file, "r") as f:
         graph_data = json.load(f)
 
+    graph_imagedir = graph_data['imagedir']
+    del graph_data['imagedir']
+
     intersection = []
     #First get all intersections
-    for pos,item1 in list(kpt_data.items())
-        for item2 in graph_data:
-            if os.path.basename(item1['filename']) == os.path.basename(item2[0]):
+    for pos1,item1 in list(kpt_data.items())
+        for pos2,item2 in list(graph_data.items()):
+            if os.path.basename(item1['filename']) == os.path.basename(item2['filename']):
                 intersection.append(item1['filename'])
 
     #Order the remaining images by their individual score, weighted by importance factor
@@ -49,7 +50,6 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, weight_branche
 
     scores_kpts = [item['relscore'] for pos,item in list(kpt_data.items())]
     scores_graphs = [item['relscore'] for pos,item in list(graph_data.items())]
-    #scores_graphs = [item[1] for item in graph_data]
 
     assert min(scores_kpts) == 0.5 and max(scores_kpts) == 1, "Scores not in normalized range [0.5, 1]."
     assert min(scores_graphs) == 0.5 and max(scores_graphs) == 1, "Scores not in normalized range [0.5, 1]."

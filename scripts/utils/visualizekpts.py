@@ -19,7 +19,8 @@ parser.add_argument('-file',required=True,
 parser.add_argument('-imagespath',required=True)    
 parser.add_argument('-outputdir',required=True) 
 parser.add_argument('-transformid',action="store_true", 
-                    help='Wheather to split imageid to get image filepath (used for style transfered images.')                   
+                    help='Wheather to split imageid to get image filepath (used for style transfered images.')    
+parser.add_argument('-vistresh',type=float, default=0.0)                
 args = parser.parse_args()
     
 data = None
@@ -65,7 +66,7 @@ for preds_imgs in grouped_by_imageid:
     instances.pred_keypoints = torch.Tensor(keypoints)
 
     v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
-    out = v.draw_instance_predictions(instances)
+    out = v.draw_instance_predictions(instances, args.vistresh)
      
     cv2.imwrite(os.path.join(args.outputdir, imgname_out),out.get_image()[:, :, ::-1])
 

@@ -52,7 +52,7 @@ def predict_scenegraph(imagepath):
 
     # ----------------- SCENE GRAPH PREDICTION ---------------------
     print("SCENE GRAPH PREDICTION ...")
-    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
+    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-2.sh'
     model_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/causal_motif_sgdet'
     out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single'
     logfile = os.path.join(logpath, '1-scenegraph.txt')
@@ -135,8 +135,8 @@ def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     modeldir = '/home/althausc/master_thesis_impl/graph2vec/models/22_16-47-04' #'/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49'
     g2v_model = os.path.join(modeldir, 'g2vmodel') 
     labelvecpath = os.path.join(modeldir, 'labelvectors-topk.json')
-    inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-25_15-23-04/graphs-topk.json'
-    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-23_14-52-00/graphs-topk.json' #graphfile
+    inputfile = graphfile   #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-25_15-23-04/graphs-topk.json'
+                            #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-23_14-52-00/graphs-topk.json' #graphfile
     topk = k
     logfile = os.path.join(logpath, '4-retrieval.txt')
 

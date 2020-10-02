@@ -48,6 +48,11 @@ if args.mode == 'sizelist':
     print(json_file[len(json_file)-10:])
     exit(1)
 
+if args.mode == 'graph-prediction':
+    for elem in list(json_file['0'].items()):
+        print(elem[0],np.array(elem[1]).shape)
+    exit(1)
+
 #List of dicts
 if isinstance(json_file,list):
     print("Number of elements: ",len(json_file))

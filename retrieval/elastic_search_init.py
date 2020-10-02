@@ -26,8 +26,8 @@ parser.add_argument('-insert_data','-insert', action="store_true",
                     help='Whether to build an index from the cluster mapped data.')
 parser.add_argument('-search_data','-search', action="store_true",
                     help='Whether to search the index for the input cluster data.')
-parser.add_argument('-eval_tresh','-evaltresh', action="store_true",
-                    help='Computing cos-sim between gpd clusters to approximate a cutoff threshold.')
+#parser.add_argument('-eval_tresh','-evaltresh', action="store_true",
+#                    help='Computing cos-sim between gpd clusters to approximate a cutoff threshold.')
 parser.add_argument('-method_ins', help='Select method for insert data.')
 parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
@@ -56,11 +56,11 @@ _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['COSSIM', 'DISTSUM']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
 
-assert args.method_ins in _METHODS_INS
-assert args.gpd_type in _GPD_TYPES
-
 _INDEX = 'imgid_gpd_%s_%s'%(args.method_ins, args.gpd_type)
+_INDEX = 'imgid_gpdcluster' #test index
 print("Current index: ",_INDEX)
+
+_TEST_IS_STYLETRANSFER = True
 
 _ELEMNUM_COS = 100
 _ELEMNUM_DIST = 1000 #bigger because relative score computation
@@ -74,6 +74,7 @@ if args.method_search is not None:
 if args.method_ins is not None:
     if args.method_ins not in _METHODS_INS:
         raise ValueError("Please specify a valid insert method.")
+assert args.gpd_type in _GPD_TYPES
 
 
 def main():
@@ -110,12 +111,16 @@ def main():
         else:
             raise ValueError("Output directory %s already exists."%output_dir)
 
-    image_dir = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'
+    
 
     es = Elasticsearch("http://localhost:9200", #30000
                        ca_certs=False,
                        verify_certs=False)
-    
+    _INDICES_ALL = es.indices.get_alias("*").keys()
+
+    #print(get_alldocs(es)[:10])
+    #exit(1)
+
     if args.insert_data:
         
         if args.method_ins == _METHODS_INS[0]:
@@ -125,9 +130,10 @@ def main():
             createIndex(es, len(data[0]['gpd']), _METHODS_INS[1])
             insertdata_raw(args, data, es)
 
-        saveconfig(_INDEX, len(data))
+        saveconfig(_INDEX, len(data), image_dir)
 
     elif args.search_data:
+        assert _INDEX in _INDICES_ALL, "Index %s not found."%_INDEX
         es.indices.refresh(index=_INDEX)
         #data format: {'1': [featurevector], ... , 'n': [featurevector]}
         imgids_final = []
@@ -161,11 +167,12 @@ def main():
             imgids_final = bestmatching_sumdist(results, _NUMRES_DIST)
         print("Best matched images: ", imgids_final)
 
+        image_dir = getimgdir()
         if isinstance(imgids_final[0], tuple):
             [image_ids, rel_scores] = zip(*imgids_final)
-            saveResults(list(image_ids), list(rel_scores), output_dir, image_dir)
+            saveResults(list(image_ids), list(rel_scores), output_dir, image_dir, isstyletransfer=_TEST_IS_STYLETRANSFER)
         elif isinstance(imgids_final[0], int):
-            saveResults(imgids_final, None, output_dir, image_dir)
+            saveResults(imgids_final, None, output_dir, image_dir, isstyletransfer=_TEST_IS_STYLETRANSFER)
 
 
     elif args.eval_tresh and args.method_search == _METHODS_SEARCH[0]:
@@ -190,17 +197,17 @@ def main():
         ax = sns.swarmplot(x='Source GPD cluster', y='Cosine Similarities', data=df, size=2, color=".25")
         ax.figure.savefig(os.path.join(output_dir,"eval_simtresh_c%d.png"%sim[0].size))
         plt.clf()
-        
-def saveconfig(indexname, numdocs):
+
+def saveconfig(indexname, numdocs, imgdir):
     if not os.path.exists(os.path.join(_CONFIGDIR, 'elastic_config.csv')):
         with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'w') as f:
             writer = csv.writer(f, delimiter='\t')
-            headers = ['Indexname', 'Number Documents']
+            headers = ['Indexname', 'Number Documents', 'Src Image Folder']
             writer.writerow(headers)
     
     with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'w') as f:
         writer = csv.writer(f, delimiter='\t')
-        writer.writerow([indexname, numdocs])
+        writer.writerow([indexname, numdocs, imgdir])
                 
 def insertdata_raw(args, data ,es):           
     id = 0
@@ -237,6 +244,13 @@ def createIndex(es, dim, mode):
 
     mapping = {
         "mappings": {
+            # "_meta": { 
+            #    "class": "MyApp::User",
+            #    "version": {
+            #        "min": "1.0",
+            #        "max": "1.3"
+            #    }
+            #},
             "properties": {
                 "imageid": {
                     "type": "text"
@@ -429,19 +443,27 @@ def get_alldocs(es):
         scroll_size = len(res['hits']['hits'])
     """
 
-def saveResults(image_ids, rel_scores, output_dir, image_dir):
+def getimgdir():
+    #TODO
+    default = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'
+    return default
+
+def saveResults(image_ids, rel_scores, output_dir, image_dir, isstyletransfer=False):
     imagemetadata = {'imagedir': image_dir}
     if rel_scores is None:
-        for rank, imageid in enumerate(image_ids):
-            imgid = str(imageid) 
-            imgpath = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-            imgpath = os.path.join(image_dir, imgpath)
-            imagemetadata[rank] = {'filepath': imgpath}
-    else:
-        for rank, (imageid, relscore) in enumerate(zip(image_ids, rel_scores)):
-            imgid = str(imageid) 
-            imgpath = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-            imagemetadata[rank] = {'filepath': imgpath, 'relscore': relscore}
+        rel_scores = ['unknown'] * len(image_ids)
+
+    for rank, (imageid, relscore) in enumerate(zip(image_ids, rel_scores)):
+        imgid = str(imageid) 
+        if isstyletransfer:
+            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+        else:
+            root, ext = os.path.splitext(imgid)
+            if not ext:
+                imgname = "%s.jpg"%imgid
+            else:
+                imgname = imgid
+        imagemetadata[rank] = {'filepath': imgname, 'relscore': relscore}
     
     json_file = 'result-ranking'
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:

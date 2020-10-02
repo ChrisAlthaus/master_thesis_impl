@@ -9,6 +9,7 @@ import logging
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
 from sklearn.manifold import TSNE
+from sklearn.metrics.pairwise import cosine_similarity
 import pickle
 from collections import OrderedDict
 
@@ -17,7 +18,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-descriptorFile','-descriptors',required=True,
+parser.add_argument('-descriptorfile','-descriptors',required=True,
                     help='Json file with keypoint descriptors in dicts with corresponding image id.')
 parser.add_argument("-validateMethod", "-val", help="Helping wih choosing the right k for k-means.")
 parser.add_argument("-validateks", "-ks", nargs=2, type=int, help="Range for ks (kmin,kmax) used for evaluation method.")
@@ -28,9 +29,9 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity",
 
 args = parser.parse_args()
 
-_VALIDATION_METHODS = ['ELBOW', 'SILHOUETTE', 'T-SNE']
+_VALIDATION_METHODS = ['ELBOW', 'SILHOUETTE', 'T-SNE', 'COS-TRESH']
 
-if not os.path.isfile(args.descriptorFile):
+if not os.path.isfile(args.descriptorfile):
     raise ValueError("No valid input file.")
 if args.modelState is not None:
     if not os.path.isfile(args.modelState):
@@ -48,8 +49,8 @@ def main():
     else:
         raise ValueError("Output directory %s already exists."%output_dir)
    
-    print("Reading from file: ",args.descriptorFile)
-    with open (args.descriptorFile, "r") as f:
+    print("Reading from file: ",args.descriptorfile)
+    with open (args.descriptorfile, "r") as f:
         json_data = json.load(f)
 
       
@@ -63,9 +64,6 @@ def main():
         if args.validateMethod == 'ELBOW':
             kmin, kmax = args.validateks
             ks, sse = calculate_WSS(descriptors, kmin, kmax)
-            
-            #print(ks)
-            #print(sse) # [4,20] = [2504852032.235484, 2409304817.4889417, 2316832857.527023, 2240042681.6462297, 2174669156.243677, 2105300280.3983455, 2053219336.5968208, 2014941360.954779, 1975832927.5999012, 1940372824.7540097, 1910655878.4689345, 1887375627.2133079, 1866513715.2268927, 1848455603.6091566, 1831448213.5342908, 1812663714.8990078, 1799162596.828914]
 
             df = pd.DataFrame({'k':ks , 'sse':sse})
             ax = sns.relplot(x="k", y="sse", sort=False, kind="line", markers=True, data=df)
@@ -112,11 +110,40 @@ def main():
             fig.savefig(os.path.join(output_dir,"eval_tsne_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))) )
             plt.clf()
 
+        elif args.validateMethod == 'COS-TRESH':
+            print("Computing cos-sim between all clusters ...")
+            #Compute cos-sim of each gpd cluster with each other gpd cluster and visualize
+            sim = cosine_similarity(descriptors, descriptors)
+            print("Computing cos-sim between all clusters done.")
+
+            x = []
+            y = []
+            for i,row in enumerate(sim):
+                for j,s in enumerate(row):
+                    if i == j:
+                        x.append('Same')
+                        y.append(s) 
+                    else:
+                        x.append('Different')
+                        y.append(s)
+
+            df = pd.DataFrame({'Cluster Similarity Mode':x, 'Cosine Similarities':y})
+            
+            ax = sns.boxplot(x='Cluster Similarity Mode', y='Cosine Similarities', data=df, flierprops = dict(markerfacecolor = '0.50', markersize = 0.5, marker='_'))
+            #ax = sns.swarmplot(x='Cluster Similarity Mode', y='Cosine Similarities', data=df, size=1, color=".25")
+            ax.figure.savefig(os.path.join(output_dir,"eval_simtresh_c%d.png"%sim[0].size))
+            plt.clf()
+
+            stats = df.groupby('Cluster Similarity Mode')['Cosine Similarities'].describe()
+            with open(os.path.join(output_dir,"eval_statistics.txt"), "w") as f:
+                f.write(str(stats))
+            
         else:
             raise ValueError("Please specify a valid k-finding method.")
-
-        saveconfig(output_dir,'eval',args.descriptorfile)
         
+        saveconfig(output_dir,'eval',args.descriptorfile, len(descriptors))
+        print("Output directory of evaluation: ", output_dir)
+            
     else:
         v_codebook_assign = None
         if args.modelState is not None:
@@ -130,26 +157,26 @@ def main():
             raise ValueError("Nothing to do. Please specify valid arguments.")
 
         json_file = 'codebook_mapping'
-        #with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
-        #    print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
-        #    json.dump(v_codebook_assign, f)
-        #with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
-        #    pickle.dump(v_codebook_assign, f)
-
         with open(os.path.join(output_dir, json_file+'.txt'), 'w') as f:
             f.write(str(v_codebook_assign)) 
 
-        saveconfig(output_dir,'build',args.descriptorfile, buildk=args.buildk, kmeansmod=args.modelfile)
+        
+        saveconfig(output_dir,'build',args.descriptorfile, len(json_data), buildk=args.buildk, kmeansmod=args.modelfile)
+        print("Output directory of clustering: ", output_dir)
 
-def saveconfig(outputdir, mode, inputfile, buildk=None, kmeansmod=None):
+
+def saveconfig(outputdir, mode, inputfile, numdescriptors, buildk=None, kmeansmod=None):
     if mode=='eval':
         with open(os.path.join(outputdir, 'evalconfig.txt'), 'a') as f:
             f.write('Input File: %s\n'%inputfile)
+            f.write('Number Descriptors: %d\n'%numdescriptors)
     if mode=='build':
         with open(os.path.join(outputdir, 'buildconfig.txt'), 'a') as f:
-            f.write('Input File: %s\n'%inputfile)  
+            f.write('Input File: %s\n'%inputfile)
+            f.write('Number Descriptors: %d\n'%numdescriptors)   
             f.write('Build k: %d\n'%buildk)
-            f.write('K-Means Model: %s\n'%kmeansmod)     
+            f.write('K-Means Model: %s\n'%kmeansmod) 
+               
 
     
 def kmeans_and_visual_codebook(json_data, model=None, k=100):

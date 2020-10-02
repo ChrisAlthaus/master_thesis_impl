@@ -31,7 +31,7 @@ def filewithname(dir, searchstr):
 # ----------------- MASK-RCNN PREDICTIONS ---------------------
 print("MASK-RCNN PREDICTION:")
 maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth'
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
 out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/single'
 target = 'query'
 
@@ -48,7 +48,7 @@ print("Output Directory: %s\n"%out_dir)
 
 # ----------------- POSEFIX PREDICTIONS ---------------------
 print("POSEFIX PREDICTION:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D3.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
 model_dir = latestdir('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO')
 model_epoch = 140
 inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")

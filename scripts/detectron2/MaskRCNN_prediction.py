@@ -59,7 +59,7 @@ if args.image_folder is not None:
 if args.image_path is None and args.image_folder is None:
     raise ValueError("Please specify an image or an image directory.")
 
-if args.target not in ['train', 'single']:
+if args.target not in ['train', 'query']:
     raise ValueError("Please specify a valid prediction purpose.")
 
 #cfg = get_cfg()
