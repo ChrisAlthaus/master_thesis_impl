@@ -1,5 +1,5 @@
 #Path: /home/althausc/.local/lib/python3.6/site-packages/detectron2/utils/events.py
-
+#NOTUSED ?!
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import datetime
 import json

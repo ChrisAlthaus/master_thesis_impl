@@ -1,5 +1,5 @@
 #Path: /home/althausc/.local/lib/python3.6/site-packages/detectron2/evaluation/coco_evaluation.py
-
+#NOTUSED ?!
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import contextlib
 import copy

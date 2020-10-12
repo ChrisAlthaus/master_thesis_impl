@@ -143,6 +143,7 @@ testImages
 
 detectron2/out/checkpoints
 posedescriptors/out
+posedescriptors/clustering
 results
 retrieval/out
 Scene-Graph-Benchmark.pytorch/out

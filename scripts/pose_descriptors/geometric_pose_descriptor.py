@@ -17,6 +17,7 @@ import itertools
 parser = argparse.ArgumentParser()
 parser.add_argument('-inputFile',required=True,
                     help='File with keypoint annotations/ predictions.')
+parser.add_argument("-gtAnn", action='store_true', help="If input file is a groundtruth file. Used for testing and debugging.")
 parser.add_argument("-mode", type=str, help="Specify types of features which will be computed.")
 parser.add_argument("-pca", type=int, help="Specify dimensions of pca vector.")
 parser.add_argument("-pcamodel", type=str, help="Specify pca model file for prediction.")
@@ -57,7 +58,9 @@ def main():
     print("Reading from file: ",args.inputFile)
     with open (args.inputFile, "r") as f:
         json_data = json.load(f)
-
+    
+    if args.gtAnn:
+        json_data = json_data['annotations']
     json_data = sorted(json_data, key=lambda k: k['image_id']) 
 
     #Output format: [{image_id, [gpd1,...,gpdn]}, ... ,{image_id, [gpd1,...,gpdm]}]
@@ -76,7 +79,10 @@ def main():
             
             if isvalid:
                 keypoint_descriptor, visibilities = calculateGPD(person['keypoints'], args.mode)
-                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': person['score'], 'vis': visibilities})
+                if args.gtAnn:
+                    json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': [1]*len(keypoint_descriptor), 'vis': visibilities})
+                else:
+                    json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': person['score'], 'vis': visibilities})
                 c = c + 1
         if i%1000 == 0 and i!=0:
             print("Processed %d elements."%i)
@@ -128,9 +134,13 @@ def filterKeypoints(pose_keypoints, strict=False):
     #Filter out keypoints above a treshold
     #Skip pose if too few keypoints or reference point is not contained
     
+    #Visibility flag: v=0: not labeled (in which case x=y=0), 
+    #                 v=1: labeled but not visible
+    #                 v=2: labeled and visible 
+
     if not strict:
     #Write None to keypoints for each vis under the threshold
-    #For later descriptors None values will be replaced by default value (=0)
+    #For later descriptors None values will be replaced by default value (=0) #deprecated?
         for idx in range(0,_NUMKPTS):
             x, y, prob = pose_keypoints[idx:idx+3]
             if prob <= _KEYPOINT_THRESHOLD:
@@ -144,7 +154,7 @@ def filterKeypoints(pose_keypoints, strict=False):
             return True
         else:
             return False
-    else:
+    else:   #same as above?
     #Keypoints are sorted out or given back fully/not reduced
         c = 0
         for idx in range(0,_NUMKPTS):

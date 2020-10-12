@@ -46,9 +46,15 @@ effect_type = _EFFECT_TYPES[1]
 fusion_type = _FUSION_TYPES[0]
 contextlayer_type = _CONTEXTLAYER_TYPES[0] 
 
+#filter prediction settings
+topkboxes = 20
+topkrels = 40
+ftresh_boxes = 0.5
+ftresh_rels = 0.5
+
 cmd = ("{} python3.6 -m torch.distributed.launch --master_port 10027 --nproc_per_node=1 \t"+ \
 	 			"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_test_net.py \t" +\
-	            "--config-file \"configs/e2e_relation_X_101_32_8_FPN_1x.yaml\"  \t" +\
+	            "--config-file \"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml\"  \t" +\
 	            "MODEL.ROI_RELATION_HEAD.USE_GT_BOX False \t" +\
 	            "MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False \t" +\
 	            "MODEL.ROI_RELATION_HEAD.PREDICTOR CausalAnalysisPredictor \t" +\
@@ -59,10 +65,14 @@ cmd = ("{} python3.6 -m torch.distributed.launch --master_port 10027 --nproc_per
 	            "DTYPE \"float16\" \t" +\
 	            "GLOVE_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/glove \t" +\
 	            "MODEL.PRETRAINED_DETECTOR_CKPT {} \t" +\
+                "SOLVER.PRE_VAL False \t" +\
 	            "OUTPUT_DIR {} \t" +\
 	            "TEST.CUSTUM_EVAL True \t" +\
 	            "TEST.CUSTUM_PATH {} \t" +\
-	            "DETECTED_SGG_DIR {}").format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, img_dir, out_dir)
+	            "DETECTED_SGG_DIR {} \t" +\
+                "topkboxes {} topkrels {} \t"+\
+				"filtertresh_boxes {} filtertresh_rels {} \t").format(gpu_cmd, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, img_dir, out_dir,
+                                                                        topkboxes, topkrels, ftresh_boxes, ftresh_rels)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:

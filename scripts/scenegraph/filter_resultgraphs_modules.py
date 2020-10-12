@@ -13,7 +13,7 @@ from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VAL
 #Can be used for scene graph prediction topk filtering before saving
 #Otherwise much too large (~7MB/prediction)
 
-def get_topkpredictions(preds):   
+def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtertresh_rels):   
     #  Example pred format:
     #  bbox (80, 4)    (sizes may differ)
     #  bbox_labels (80,)
@@ -23,11 +23,11 @@ def get_topkpredictions(preds):
     #  rel_scores (6320,)
     #  rel_all_scores (6320, 51)
 
-    _SCORE_THRESH_BOXES = 0.5
-    _SCORE_THRESH_RELS = 0.5
+    _SCORE_THRESH_BOXES = filtertresh_boxes
+    _SCORE_THRESH_RELS = filtertresh_rels
 
-    _BOXES_TOPK = 20
-    _RELS_TOPK = 20
+    _BOXES_TOPK = topk_boxes
+    _RELS_TOPK = topk_rels
 
     boxes = preds['bbox']
     box_labels = preds['bbox_labels']   #assumption: model just supports valid labels
@@ -57,7 +57,8 @@ def get_topkpredictions(preds):
     rel_labels = preds['rel_labels']
     rel_scores = preds['rel_scores']
     
-    
+    print("box indices: ",b_indices)
+    print("skipped: ",skipped_indices)
     #filter out unvalid relations
     r_data = []
     r_scores = []
@@ -73,15 +74,24 @@ def get_topkpredictions(preds):
             break
 
     #align rels indices to match the new box ordering
+    b_indices_map = dict()
+    for i,b_ind in enumerate(b_indices):
+        b_indices_map[b_ind] = i
+    print("b_indices_map: ",b_indices_map)
     print("r_data: ",r_data)
-    for i in skipped_indices:
+    for rel in r_data:
+        rel[0] = b_indices_map[rel[0]]
+        rel[1] = b_indices_map[rel[1]]   
+
+    print("r_data: ",r_data)
+    """for i in skipped_indices:
         for rel in r_data:
             if rel[0] > i:
                 rel[0] = rel[0] - 1
             if rel[1] > i:
                 rel[1] = rel[1] - 1
     print("skipped: ",skipped_indices)
-    print("r_data: ",r_data)
+    print("r_data: ",r_data)"""
 
     pred_filtered = {'bbox': b_data, 'bbox_labels': b_labels, 'bbox_scores': b_scores, 
                     'rel_pairs': r_data, 'rel_labels': r_labels, 'rel_scores': r_scores}

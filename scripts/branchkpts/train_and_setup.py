@@ -50,13 +50,15 @@ print("Output Directory: %s\n"%out_dir)
 
 # ----------------- MASK-RCNN PREDICTIONS ---------------------
 print("MASK-RCNN PREDICTION:")
-maskrcnn_cp = os.path.join(outrun_dir, 'model_0214999.pth')  #Specify model checkpoint here
+maskrcnn_cp = "/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth" #debug, uncomment for usage os.path.join(outrun_dir, 'model_0214999.pth')  #Specify model checkpoint here
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
 img_dir = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'  #Predictions used for later PoseFix training
+topk = 20
+score_tresh = 0.7
 
 target = 'train'
-cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgDir {} -target {} -visrandom "\
-                                                                                        .format(gpu_cmd, maskrcnn_cp, img_dir, target)
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target {} -visrandom  "\
+                                                                                        .format(gpu_cmd, maskrcnn_cp, img_dir, topk, score_tresh, target)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
@@ -193,8 +195,8 @@ if clust_on:
     print("Clustering file: ",inputfile)
 
     method_insert = 'CLUSTER' #['CLUSTER', 'RAW'] 
-    cmd = "python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -gpd_type {}"\
-                                                                                            .format(inputfile, method_insert, methodgpd)
+    cmd = "python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
+                                                                                            .format(inputfile, method_insert, img_dir, methodgpd)
     if _PRINT_CMDS:
         print(cmd)
     if _EXEC_CMDS:
@@ -204,8 +206,8 @@ else:
     print("GPD file: ",inputfile)
 
     method_insert = 'RAW' #['CLUSTER', 'RAW'] 
-    cmd = "python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -gpd_type {}"\
-                                                                                            .format(inputfile, method_insert, methodgpd)
+    cmd = "python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
+                                                                                            .format(inputfile, method_insert, img_dir, methodgpd)
     if _PRINT_CMDS:
         print(cmd)
     if _EXEC_CMDS:

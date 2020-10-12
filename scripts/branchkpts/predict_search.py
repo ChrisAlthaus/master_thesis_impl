@@ -34,9 +34,11 @@ maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/0
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
 out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/single'
 target = 'query'
+topk = 20
+score_tresh = 0.7
 
-cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -img {} -target {} -vis"\
-                                                                    .format(gpu_cmd, maskrcnn_cp, args.inputImg, target)
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -img {} -topk {} -score_tresh {} -target {} -vis"\
+                                                                    .format(gpu_cmd, maskrcnn_cp, args.inputImg, topk, score_tresh, target)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:

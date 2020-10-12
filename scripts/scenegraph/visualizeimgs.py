@@ -12,7 +12,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-predictdir')
     parser.add_argument('-filter', action='store_true', 
-                        help='Specify if boxes should be filtered by predefined labels. Filtered out boxes will be shown in green.')
+                        help='Specify if boxes should be filtered by predefined labels. Filtered out boxes will be shown in green.\
+                              Not necessary when filtered previously.')
 
     args = parser.parse_args()
 
@@ -181,7 +182,7 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
  
     if filter: 
         ann_str = ann_str + 'Actual Top-k rel: \n'
-        for i in range(rel_topk):
+        for i in range(min(len(rel_pairs), rel_topk)):
             id1, id2 = rel_pairs[i]
 
             b1 = boxes[id1]

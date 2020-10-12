@@ -342,6 +342,7 @@ while(numAdded < 20):
         checkParams.update({name:param})
         numAdded = numAdded + 1
 
+trainer.model = model #necessary?
 if args.resume is not None:
     print("Resuming training from checkpoint %s."%args.resume)
     DetectionCheckpointer(trainer.model).load(args.resume)

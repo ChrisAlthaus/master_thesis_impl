@@ -23,12 +23,13 @@ parser.add_argument('-file',required=True,
                     help='Json file with clustering centroids as keys and a list of image metadata as values.\
                     Or for search a dict of image descriptors')
 parser.add_argument('-insert_data','-insert', action="store_true",
-                    help='Whether to build an index from the cluster mapped data.')
+                    help='Whether to build an index from the raw descriptors or the cluster mapped data descriptors.')
 parser.add_argument('-search_data','-search', action="store_true",
                     help='Whether to search the index for the input cluster data.')
 #parser.add_argument('-eval_tresh','-evaltresh', action="store_true",
 #                    help='Computing cos-sim between gpd clusters to approximate a cutoff threshold.')
 parser.add_argument('-method_ins', help='Select method for insert data.')
+parser.add_argument('-imgdir', help='Image directory the descriptors refer to (insert or search).')
 parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
 parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
@@ -118,19 +119,20 @@ def main():
                        verify_certs=False)
     _INDICES_ALL = es.indices.get_alias("*").keys()
 
+    _SRCIMG_DIR = getimgdir(args.imgdir)
     #print(get_alldocs(es)[:10])
     #exit(1)
 
     if args.insert_data:
         
         if args.method_ins == _METHODS_INS[0]:
-            createIndex(es, len(list(data.keys())[0]), _METHODS_INS[0])
+            createIndex(es, len(list(data.keys())[0]), _METHODS_INS[0], _SRCIMG_DIR)
             insertdata_cluster(args, data, es)
         elif args.method_ins == _METHODS_INS[1]:
-            createIndex(es, len(data[0]['gpd']), _METHODS_INS[1])
+            createIndex(es, len(data[0]['gpd']), _METHODS_INS[1], _SRCIMG_DIR)
             insertdata_raw(args, data, es)
 
-        saveconfig(_INDEX, len(data), image_dir)
+        saveconfig(_INDEX, len(data), _SRCIMG_DIR)
 
     elif args.search_data:
         assert _INDEX in _INDICES_ALL, "Index %s not found."%_INDEX
@@ -167,7 +169,7 @@ def main():
             imgids_final = bestmatching_sumdist(results, _NUMRES_DIST)
         print("Best matched images: ", imgids_final)
 
-        image_dir = getimgdir()
+
         if isinstance(imgids_final[0], tuple):
             [image_ids, rel_scores] = zip(*imgids_final)
             saveResults(list(image_ids), list(rel_scores), output_dir, image_dir, isstyletransfer=_TEST_IS_STYLETRANSFER)
@@ -236,7 +238,7 @@ def insertdata_cluster(args, data, es):
     print("Inserting image descriptors done.")
 
 
-def createIndex(es, dim, mode):
+def createIndex(es, dim, mode, imgdir):
     if mode == _METHODS_INS[0]:
         varname = "gpdcluster"
     else:
@@ -244,13 +246,9 @@ def createIndex(es, dim, mode):
 
     mapping = {
         "mappings": {
-            # "_meta": { 
-            #    "class": "MyApp::User",
-            #    "version": {
-            #        "min": "1.0",
-            #        "max": "1.3"
-            #    }
-            #},
+            "_meta": { 
+                "imagedir": imgdir
+            },
             "properties": {
                 "imageid": {
                     "type": "text"
@@ -443,10 +441,15 @@ def get_alldocs(es):
         scroll_size = len(res['hits']['hits'])
     """
 
-def getimgdir():
-    #TODO
-    default = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'
-    return default
+def getimgdir(imgdir):
+    if imgdir is not None:
+        if os.path.isdir(imgdir):
+            return imgdir
+        else:
+            raise ValueError("No valid src image directory.")
+    else:
+        default = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'
+        return default
 
 def saveResults(image_ids, rel_scores, output_dir, image_dir, isstyletransfer=False):
     imagemetadata = {'imagedir': image_dir}

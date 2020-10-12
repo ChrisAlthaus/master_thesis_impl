@@ -51,13 +51,15 @@ def predict(imgpath):
     out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/09'
     transform_arg = "-tranformid" if is_styletranfered_img(imgpath) else ""
     target = 'query'
+    topk = 10
+    score_tresh = 0.7
     logfile = os.path.join(logpath, '1-maskrcnn.txt')
 
     #print("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py \-model_cp {} -img {} -vis > {}"\
     #                                                                                            .format(gpu_cmd, maskrcnn_cp, imgpath, logfile))
 
-    if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -img {} {} -target {} -vis &> {}"\
-                                                                                        .format(gpu_cmd, maskrcnn_cp, imgpath, transform_arg, target, logfile)):
+    if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -img {} -topk {} -score_tresh {} {} -target {} -vis &> {}"\
+                                                                                        .format(gpu_cmd, maskrcnn_cp, imgpath, topk, score_tresh, transform_arg, target, logfile)):
         raise RuntimeError('Mask RCNN Prediction failed.')
 
     outrun_dir = latestdir(out_dir)
