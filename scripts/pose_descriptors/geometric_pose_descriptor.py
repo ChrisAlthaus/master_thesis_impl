@@ -27,7 +27,7 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity",
 args = parser.parse_args()
 
 #test_entry = {'image_id': 23899057496, 'category_id': 1, 'bbox': [211.99081420898438, 139.43743896484375, 425.96087646484375, 355.24871826171875], 'keypoints': [334.2212219238281, 201.67015075683594, 1.079627275466919, 331.54656982421875, 189.38385009765625, 1.7378227710723877, 312.2892761230469, 192.58897399902344, 1.028214931488037, 334.7561340332031, 202.20433044433594, 0.08344336599111557, 269.4952697753906, 213.9564208984375, 0.38487914204597473, 346.5245056152344, 262.033203125, 0.13131119310855865, 288.2176513671875, 285.5373840332031, 0.10808556526899338, 425.1584777832031, 354.4474182128906, 0.020250316709280014, 383.434326171875, 328.8064880371094, 0.012223891913890839, 276.44927978515625, 354.4474182128906, 0.01989334262907505, 425.1584777832031, 354.4474182128906, 0.020259613171219826, 425.1584777832031, 354.4474182128906, 0.02405051700770855, 403.761474609375, 354.4474182128906, 0.02277219668030739, 425.1584777832031, 354.4474182128906, 0.03073735162615776, 425.1584777832031, 354.4474182128906, 0.03939764201641083, 425.1584777832031, 354.4474182128906, 0.02348250150680542, 425.1584777832031, 354.4474182128906, 0.03718782961368561], 'score': 0.9582511186599731}
-_KEYPOINT_THRESHOLD = 0.5
+_VISIBILITY_TRESH = 0.1 #refering to visibility probability of keypoints , TODO:check if valid, range [0,1]? 
 _REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
 _MINKPTs = 10
 _NUMKPTS = 17
@@ -75,6 +75,8 @@ def main():
         if "keypoints" in person:
             #logging.debug("PREV:",person['keypoints'])
             isvalid = filterKeypoints(person['keypoints'], _FILTERMODE)
+            #if person['score'] >= 0.9:
+            #    print(person['keypoints'][2::3], isvalid, person['score'])
             #logging.debug("LATER:",person['keypoints'])
             
             if isvalid:
@@ -101,20 +103,21 @@ def main():
 
     #Writing config to file
     with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
+        f.write("Input file: %s"%args.inputFile + os.linesep)
         f.write("Minimum KPTS: %d"%_MINKPTs + os.linesep)
         f.write("Mode: %s"%args.mode + os.linesep)
         f.write("Filter: %d"%_FILTER + os.linesep)
         f.write("Filter mode: %d"%_FILTERMODE + os.linesep)
-        f.write("Keypoint threshold: %d"%_KEYPOINT_THRESHOLD + os.linesep)
+        f.write("Keypoint threshold: %d"%_VISIBILITY_TRESH + os.linesep)
         f.write("Ref(s): %s"%str(_REFs) + os.linesep)
         f.write("PCA dimension: %s"%(str(args.pca) if args.pca is not None else 'not used')+ os.linesep)
         f.write("Number input predictions: %d"%len(json_data) + os.linesep)
         f.write("Number calculated descriptors: %d"%c + os.linesep)
 
 
-    json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d.%d_mkpt%d'%(c,args.mode, _KEYPOINT_THRESHOLD, _FILTER, _FILTERMODE, _MINKPTs)
+    json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d.%d_mkpt%d'%(c,args.mode, _VISIBILITY_TRESH, _FILTER, _FILTERMODE, _MINKPTs)
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
-        print("Writing to file: ",os.path.join(output_dir,json_file+'.json'))
+        print("Writing to folder: ",output_dir)
         json.dump(json_out, f)
 
 def applyPCA(json_data, dim=None, pca=None):
@@ -143,7 +146,7 @@ def filterKeypoints(pose_keypoints, strict=False):
     #For later descriptors None values will be replaced by default value (=0) #deprecated?
         for idx in range(0,_NUMKPTS):
             x, y, prob = pose_keypoints[idx:idx+3]
-            if prob <= _KEYPOINT_THRESHOLD:
+            if prob <= _VISIBILITY_TRESH:
                 #Set visible value to indicate invalid keypoint
                 pose_keypoints[idx+2] = None
                 if idx/3 in _REFs.keys():
@@ -159,7 +162,7 @@ def filterKeypoints(pose_keypoints, strict=False):
         c = 0
         for idx in range(0,_NUMKPTS):
             x, y, prob = pose_keypoints[idx:idx+3]
-            if prob <= _KEYPOINT_THRESHOLD:
+            if prob <= _VISIBILITY_TRESH:
                 if idx/3 in _REFs.keys():
                     return False
             else:   

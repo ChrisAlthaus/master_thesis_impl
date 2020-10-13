@@ -42,21 +42,23 @@ def is_styletranfered_img(imgpath):
     else:
         return False
 
+_PRINT_CMDS = True #False
 
 def predict(imgpath):
     # ----------------- MASK-RCNN PREDICTIONS ---------------------
     print("MASK-RCNN PREDICTION ...")
     maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth'
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
-    out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/09'
-    transform_arg = "-tranformid" if is_styletranfered_img(imgpath) else ""
+    out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query'
+    transform_arg = "-transformid" if is_styletranfered_img(imgpath) else ""
     target = 'query'
     topk = 10
     score_tresh = 0.7
     logfile = os.path.join(logpath, '1-maskrcnn.txt')
 
-    #print("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py \-model_cp {} -img {} -vis > {}"\
-    #                                                                                            .format(gpu_cmd, maskrcnn_cp, imgpath, logfile))
+    if _PRINT_CMDS:
+        print("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -img {} -topk {} -score_tresh {} {} -target {} -vis &> {}"\
+                                                                                        .format(gpu_cmd, maskrcnn_cp, imgpath, topk, score_tresh, transform_arg, target, logfile))
 
     if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -img {} -topk {} -score_tresh {} {} -target {} -vis &> {}"\
                                                                                         .format(gpu_cmd, maskrcnn_cp, imgpath, topk, score_tresh, transform_arg, target, logfile)):
@@ -73,8 +75,9 @@ def predict(imgpath):
     inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
     logfile = os.path.join(logpath, '2-posefix.txt')
 
-    #print("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} > {}"\
-    #                                                                                        .format(gpu_cmd, model_epoch, model_dir, inputfile, logfile))
+    if _PRINT_CMDS: 
+        print("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} {} &> {}"\
+                                                                                    .format(gpu_cmd, model_epoch, model_dir, inputfile, transform_arg, logfile))                                                                                  
     
     #-gpu argument not used
     if os.system("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} {} &> {}"\
@@ -85,7 +88,7 @@ def predict(imgpath):
     outrun_dir = latestdir(out_dir)
     print("POSEFIX PREDICTION DONE.")
 
-    #Visualize PoseFix predictions
+    # --------------------- Visualize PoseFix predictions --------------------------
     print("VISUALIZE POSEFIX PREDICTIONS ...")
     ubuntu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run.sh'
     inputfile = os.path.join(outrun_dir,"resultfinal.json")
@@ -95,7 +98,9 @@ def predict(imgpath):
     outputdir = os.path.dirname(os.path.realpath(__file__))
     logfile = os.path.join(logpath, '3-visualize.txt')
 
-   
+    if _PRINT_CMDS:
+        print("{} python3.6 /home/althausc/master_thesis_impl/scripts/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -vistresh {} {} &> {}"\
+                                                                        .format(ubuntu_cmd, inputfile, imagespath, outputdir, tresh, transform_arg, logfile))
     if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -vistresh {} {} &> {}"\
                                                                         .format(ubuntu_cmd, inputfile, imagespath, outputdir, tresh, transform_arg, logfile)):
         raise RuntimeError('Visualize prediction failed.')
@@ -113,40 +118,47 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None):
     target = 'query'
     logfile = os.path.join(logpath, '4-gpd.txt')
     
-    print("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py \
-                                                                    -inputFile {} -mode {} -pcamodel {} -target {} &> {}"\
-                                                                     .format(annpath, methodgpd, pca_model, target, logfile))
+   
     if pca_on:
         if pca_model is None:
             raise ValueError("Please specify a pca model file for feature reduction.")
+        if _PRINT_CMDS:
+            print("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py \
+                                                                    -inputFile {} -mode {} -pcamodel {} -target {} &> {}"\
+                                                                     .format(annpath, methodgpd, pca_model, target, logfile))
         os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py \
                                                                     -inputFile {} -mode {} -pcamodel {} -target {} &> {}"\
                                                                      .format(annpath, methodgpd, pca_model, target, logfile))
     else:
+        if _PRINT_CMDS:
+            print("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -target {} &> {}"\
+                                                                                                            .format(annpath, methodgpd, target, logfile))
         os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -target {} &> {}"\
                                                                                                             .format(annpath, methodgpd, target, logfile))
 
     print("CALCULATE GPD DESCRIPTORS DONE.")
-    out_dir = '/home/althausc/master_thesis_impl/posedescriptors/out/09'
+    out_dir = '/home/althausc/master_thesis_impl/posedescriptors/out/query'
     outrun_dir = latestdir(out_dir)
 
     gpdfile = filewithname(outrun_dir, 'geometric_pose_descriptor')
     return gpdfile
 
-def search(gpdfile, method_search, gpdtype, tresh=None):
+def search(gpdfile, method_search, gpdtype, method_insert, tresh=None):
     # -------------------------- ELASTIC SEARCH -----------------------------
     print("SEARCH FOR GPD IN DATABASE:")
 
     inputfile = gpdfile
-    logfile = os.path.join(logpath, '4-search.txt')
+    logfile = os.path.join(logpath, '5-search.txt')
     print("GPD file: ",inputfile)
     _METHODS_SEARCH = ['COSSIM', 'DISTSUM']
     _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
+    _METHODS_INSERT = ['CLUSTER', 'RAW']
 
     assert method_search in _METHODS_SEARCH
     assert gpdtype in _GPD_TYPES
+    assert method_insert in _METHODS_INSERT
 
-    method_search = 'COSSIM' #['COSSIM', 'DISTSUM'] #testing
+    #method_search = 'COSSIM' #['COSSIM', 'DISTSUM'] #testing
 
     #evaltresh_on = True
 
@@ -158,17 +170,23 @@ def search(gpdfile, method_search, gpdtype, tresh=None):
         #    os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -method_search {} -evaltresh".format(inputfile, method_search))
         if tresh is None:
             tresh = float(input("Please specify a similarity treshold for cossim result list: "))
-        print("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
-                                                                                                -gpd_type {} -tresh {} &> {}"\
-                                                                                                .format(inputfile, method_search, gpdtype, tresh, logfile))
+        
+        if _PRINT_CMDS:
+            print("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
+                                                                                            -gpd_type {} -method_insert {} -tresh {} &> {}"\
+                                                                                                .format(inputfile, method_search, gpdtype, method_insert, tresh, logfile))
         
         os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
-                                                                                                -gpd_type {} -tresh {} &> {}"\
-                                                                                                .format(inputfile, method_search, gpdtype, tresh, logfile))
+                                                                                            -gpd_type {} -method_insert {} -tresh {} &> {}"\
+                                                                                                .format(inputfile, method_search, gpdtype, method_insert, tresh, logfile))
     else:
-        os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search --method_search {} \
-                                                                                                -gpd_type {} &> {}"\
-                                                                                                .format(inputfile, method_search, gpdtype, logfile))
+        if _PRINT_CMDS:
+            print("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
+                                                                                             -gpd_type {} -method_insert {} &> {}"\
+                                                                                                .format(inputfile, method_search, gpdtype, method_insert, logfile))
+        os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
+                                                                                             -gpd_type {} -method_insert {} &> {}"\
+                                                                                                .format(inputfile, method_search, gpdtype, method_insert, logfile))
     print('\n\n')
 
     outrun_dir = latestdir('/home/althausc/master_thesis_impl/retrieval/out/humanposes')
@@ -185,6 +203,7 @@ def getImgs(rankingfile):
 
     imagedir = json_data['imagedir']
     del json_data['imagedir']
+    print(json_data)
 
     rankedlist = sorted(json_data.items(), key= lambda x: int(x[0])) 
     imgs = []

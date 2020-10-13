@@ -227,7 +227,7 @@ class DefaultPredictor:
            
             #predictions = self.model([inputs])[0]
             #predictions = self.model(input_list)[0]
-            print("--- %s seconds ---" % (time.time() - start_time))
+             print("Time for %d images: %s seconds" % (len(images), time.time() - start_time))
             return predictions
 
 

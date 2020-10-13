@@ -132,10 +132,12 @@ inputfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/08
 methodgpd = 'JcJLdLLa_reduced' #['JcJLdLLa_reduced', 'JLd_all']
 pca_on = True
 pca_dim = 64
+target = 'insert'
+
 if pca_on:
-    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -pca {}".format(inputfile, methodgpd, pca_dim)
+    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -pca {} -target {}".format(inputfile, methodgpd, pca_dim, target)
 else:
-    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {}".format(inputfile, methodgpd)
+    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -target {}".format(inputfile, methodgpd, target)
 
 if _PRINT_CMDS:
     print(cmd)

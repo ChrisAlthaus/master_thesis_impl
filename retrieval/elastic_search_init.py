@@ -19,20 +19,19 @@ import ast
 import csv
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-file',required=True,
+parser.add_argument('-file',type=str,
                     help='Json file with clustering centroids as keys and a list of image metadata as values.\
                     Or for search a dict of image descriptors')
 parser.add_argument('-insert_data','-insert', action="store_true",
                     help='Whether to build an index from the raw descriptors or the cluster mapped data descriptors.')
 parser.add_argument('-search_data','-search', action="store_true",
                     help='Whether to search the index for the input cluster data.')
-#parser.add_argument('-eval_tresh','-evaltresh', action="store_true",
-#                    help='Computing cos-sim between gpd clusters to approximate a cutoff threshold.')
-parser.add_argument('-method_ins', help='Select method for insert data.')
+parser.add_argument('-method_insert', help='Select method for insert data.')
 parser.add_argument('-imgdir', help='Image directory the descriptors refer to (insert or search).')
 parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
 parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
+parser.add_argument('-delindex', type=str, help='Delete an index by name.')
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
 
@@ -57,55 +56,39 @@ _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['COSSIM', 'DISTSUM']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
 
-_INDEX = 'imgid_gpd_%s_%s'%(args.method_ins, args.gpd_type)
-_INDEX = 'imgid_gpdcluster' #test index
+_INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
+_INDEX = _INDEX.lower()
+#_INDEX = 'imgid_gpdcluster' #test index
 print("Current index: ",_INDEX)
-
-_TEST_IS_STYLETRANSFER = True
 
 _ELEMNUM_COS = 100
 _ELEMNUM_DIST = 1000 #bigger because relative score computation
-_NUMRES_DIST = 10
+_NUMRES = 100 #adjust for only take topk 
 
 _CONFIGDIR = '/home/althausc/master_thesis_impl/retrieval/out/configs'
 
 if args.method_search is not None:
     if args.method_search not in _METHODS_SEARCH:
         raise ValueError("Please specify a valid search method.") 
-if args.method_ins is not None:
-    if args.method_ins not in _METHODS_INS:
+if args.method_insert is not None:
+    if args.method_insert not in _METHODS_INS:
         raise ValueError("Please specify a valid insert method.")
-assert args.gpd_type in _GPD_TYPES
+if args.gpd_type is not None:
+    assert args.gpd_type in _GPD_TYPES
 
 
 def main():
-    print("Reading from file: ",args.file)
-    with open (args.file, "r") as f:
-        data = f.read()
-    data = eval(data)
-    #print(data[:2])
-
-    if args.insert_data: # or args.eval_tresh:
-        """length = sum([len(buckets) for buckets in data.values()])
-        print("Items in input data: ",length)
-
-        for i in range(len(data)-4):
-            del data[list(data.keys())[0]]
+    
+    data = None
+    if args.insert_data or args.search_data:
+        print("Reading from file: ",args.file)
+        with open (args.file, "r") as f:
+            data = f.read()
+        data = eval(data)
         
-        for gpd, items in data.items():
-            for i in range(len(items)-4):
-                del items[0]
-        print(len(data))
-
-        length = sum([len(buckets) for buckets in data.values()])
-        print("Items in input data reduced: ",length)"""
-        #data = data[:1000]
-        
-    elif args.search_data:
-         print("Items in input data: ",len(data))
 
     output_dir = None
-    if args.search_data or args.eval_tresh:
+    if args.search_data:
         output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/humanposes', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -118,21 +101,21 @@ def main():
                        ca_certs=False,
                        verify_certs=False)
     _INDICES_ALL = es.indices.get_alias("*").keys()
+    print("Existing Indices: ", _INDICES_ALL)
 
-    _SRCIMG_DIR = getimgdir(args.imgdir)
-    #print(get_alldocs(es)[:10])
-    #exit(1)
+    _SRCIMG_DIR = getimgdir(_INDEX, imgdir=args.imgdir, es=es)
+    print("Source image folder: ",_SRCIMG_DIR)
 
     if args.insert_data:
         
-        if args.method_ins == _METHODS_INS[0]:
+        if args.method_insert == _METHODS_INS[0]:
             createIndex(es, len(list(data.keys())[0]), _METHODS_INS[0], _SRCIMG_DIR)
             insertdata_cluster(args, data, es)
-        elif args.method_ins == _METHODS_INS[1]:
+        elif args.method_insert == _METHODS_INS[1]:
             createIndex(es, len(data[0]['gpd']), _METHODS_INS[1], _SRCIMG_DIR)
             insertdata_raw(args, data, es)
 
-        saveconfig(_INDEX, len(data), _SRCIMG_DIR)
+        saveconfig(_INDEX, len(data), args.file, _SRCIMG_DIR)
 
     elif args.search_data:
         assert _INDEX in _INDICES_ALL, "Index %s not found."%_INDEX
@@ -151,7 +134,7 @@ def main():
         
             #Flattening list of indiv feature vector results
             results = [item for sublist in results for item in sublist]
-            imgids_final = bestmatching_cluster(results)
+            imgids_final = bestmatching_cluster(results, _NUMRES)
         
         elif args.method_search == _METHODS_SEARCH[1]:
             results = []
@@ -166,51 +149,47 @@ def main():
             
             #Flattening list of indiv feature vector results
             results = [item for sublist in results for item in sublist]
-            imgids_final = bestmatching_sumdist(results, _NUMRES_DIST)
+            imgids_final = bestmatching_sumdist(results, _NUMRES)
         print("Best matched images: ", imgids_final)
 
 
         if isinstance(imgids_final[0], tuple):
             [image_ids, rel_scores] = zip(*imgids_final)
-            saveResults(list(image_ids), list(rel_scores), output_dir, image_dir, isstyletransfer=_TEST_IS_STYLETRANSFER)
+            saveResults(list(image_ids), list(rel_scores), output_dir, _SRCIMG_DIR)
         elif isinstance(imgids_final[0], int):
-            saveResults(imgids_final, None, output_dir, image_dir, isstyletransfer=_TEST_IS_STYLETRANSFER)
+            saveResults(imgids_final, None, output_dir, _SRCIMG_DIR)
 
+    elif args.delindex is not None:
+        print("Deleting index with name: '%s' ..."%args.delindex)
+        res = es.indices.delete(index=args.delindex, ignore=[400, 404])
+        if 'error' in res:
+            print('Error: ',res)
+        else:
+            print("Deleting index with name: %s done."%args.delindex)
 
-    elif args.eval_tresh and args.method_search == _METHODS_SEARCH[0]:
-        #Compute cos-sim of each gpd cluster with each other gpd cluster and visualize
-        gpdclusters = []
-        for gpdcluster, _ in data.items():
-            gpdclusters.append(gpdcluster)
-        gpdclusters = np.array(gpdclusters)
-        sim = cosine_similarity(gpdclusters, gpdclusters)
-
-        x = []
-        y = []
-        for i,row in enumerate(sim):
-            for s in row:
-                x.append(i)
-                y.append(s)
-
-        df = pd.DataFrame({'Source GPD cluster':x , 'Cosine Similarities':y})
-        #ax = sns.regplot(x='Source GPD cluster', y='Cosine Similarities', fit_reg=False, data=df)
-        
-        ax = sns.boxplot(x='Source GPD cluster', y='Cosine Similarities', data=df)
-        ax = sns.swarmplot(x='Source GPD cluster', y='Cosine Similarities', data=df, size=2, color=".25")
-        ax.figure.savefig(os.path.join(output_dir,"eval_simtresh_c%d.png"%sim[0].size))
-        plt.clf()
-
-def saveconfig(indexname, numdocs, imgdir):
+def saveconfig(indexname, numdocs, descriptorfile, imgdir):
     if not os.path.exists(os.path.join(_CONFIGDIR, 'elastic_config.csv')):
         with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'w') as f:
             writer = csv.writer(f, delimiter='\t')
-            headers = ['Indexname', 'Number Documents', 'Src Image Folder']
+            headers = ['Indexname', 'Number Documents', 'Descriptor File', 'Src Image Folder']
             writer.writerow(headers)
+            print("Wrote to config file: %s"%os.path.join(_CONFIGDIR, 'elastic_config.csv'))
     
-    with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'w') as f:
+    with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'a') as f:
         writer = csv.writer(f, delimiter='\t')
-        writer.writerow([indexname, numdocs, imgdir])
-                
+        writer.writerow([indexname, numdocs, descriptorfile, imgdir])
+
+def get_indexconfigs(indexname):
+    with open(os.path.join(_CONFIGDIR, 'elastic_config.csv')) as f:
+        cf = csv.reader(f, delimiter='\t')
+        for row in reversed(list(cf)): #assumption: later entries are the newest/maybe replaced indices
+            if len(row) == 0:
+                return -1
+            if row[0] == indexname:
+                numdocs, descriptorfile, srcimg_dir = row[1], row[2], row[3]
+                return [numdocs, descriptorfile, srcimg_dir]
+        return -1
+
 def insertdata_raw(args, data ,es):           
     id = 0
     print("Inserting image descriptors from %s ..."%args.file)
@@ -337,6 +316,7 @@ def query(es, featurevector, size, method):
     docs = res['hits']['hits']
     imageids = [item['_source']['imageid'] for item in docs]
     scores = [item['_score'] for item in docs] 
+    #print('docs: ',docs)
      
     return imageids, scores
 
@@ -372,7 +352,7 @@ def bestmatching_sumdist(image_scoring, k):
     return list(bestk)
 
 
-def bestmatching_cluster(image_scoring):
+def bestmatching_cluster(image_scoring, k):
     grouped_by_imageid = [list(g) for k, g in itertools.groupby(sorted(image_scoring, key=lambda x:x[0]), lambda x: x[0])]
     
     #Format: [ [(img_id1,score1), (img_id1,score2)], ... [(img_idN,score1), .., (img_idN,scoreK)] ]
@@ -405,7 +385,7 @@ def bestmatching_cluster(image_scoring):
         scoring = map(lin_norm, scoring)
     
     bestk = list(zip(ranked_reduced, scoring))
-    bestk = sorted(bestk, key=lambda x: x[1], reverse=True)
+    bestk = sorted(bestk, key=lambda x: x[1], reverse=True)[:k] #k right?
     print("best k ranked: ",bestk)
     return bestk
 
@@ -441,31 +421,40 @@ def get_alldocs(es):
         scroll_size = len(res['hits']['hits'])
     """
 
-def getimgdir(imgdir):
+def getimgdir(indexname, imgdir=None, es=None):
+    #Options to specify/infer the image directory:
+    # 1. specify by arguments
+    # 2. if not, then get from local config
+    # 3. if no entry for the index, then search on es server                 
     if imgdir is not None:
         if os.path.isdir(imgdir):
+            print('Getting index configuration from arguments.')
             return imgdir
         else:
             raise ValueError("No valid src image directory.")
     else:
-        default = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'
-        return default
+        index_config = get_indexconfigs(indexname)
+        if index_config!= -1:
+            numdocs, descriptorfile, srcimg_dir = index_config
+            print('Getting index configuration from config file.')
+        else:
+            srcimg_dir = es.indices.get_mapping(_INDEX)[_INDEX]['mappings']['_meta']['imagedir']
+            print('Getting index configuration from server.')
+        return srcimg_dir
 
-def saveResults(image_ids, rel_scores, output_dir, image_dir, isstyletransfer=False):
+
+def saveResults(image_ids, rel_scores, output_dir, image_dir):
     imagemetadata = {'imagedir': image_dir}
     if rel_scores is None:
         rel_scores = ['unknown'] * len(image_ids)
 
     for rank, (imageid, relscore) in enumerate(zip(image_ids, rel_scores)):
-        imgid = str(imageid) 
-        if isstyletransfer:
-            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+        imgid = str(imageid)
+        root, ext = os.path.splitext(imgid)
+        if not ext:
+            imgname = "%s.jpg"%imgid
         else:
-            root, ext = os.path.splitext(imgid)
-            if not ext:
-                imgname = "%s.jpg"%imgid
-            else:
-                imgname = imgid
+            imgname = imgid
         imagemetadata[rank] = {'filepath': imgname, 'relscore': relscore}
     
     json_file = 'result-ranking'
