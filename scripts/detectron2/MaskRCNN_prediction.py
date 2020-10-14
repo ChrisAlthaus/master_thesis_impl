@@ -199,7 +199,6 @@ if args.target == 'train':
         f.write("Number of images: %d"%len(image_paths) + os.linesep)
 
 
-
 def visualize_and_save(img_path, output_dir, preds, args, mode, topk=None):
     if mode == 'all':
         #Draw unfiltered predictions

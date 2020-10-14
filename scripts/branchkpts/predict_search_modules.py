@@ -73,18 +73,20 @@ def predict(imgpath):
     model_dir = latestdir('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO')
     model_epoch = 140
     inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
+    image_dir = os.path.dirname(imgpath)
+    target = 'query'
     logfile = os.path.join(logpath, '2-posefix.txt')
 
     if _PRINT_CMDS: 
-        print("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} {} &> {}"\
-                                                                                    .format(gpu_cmd, model_epoch, model_dir, inputfile, transform_arg, logfile))                                                                                  
+        print("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} -imagefolder {} -target {} {} &> {}"\
+                                                                                    .format(gpu_cmd, model_epoch, model_dir, inputfile, image_dir, target, transform_arg, logfile))                                                                                  
     
     #-gpu argument not used
-    if os.system("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} {} &> {}"\
-                                                                                    .format(gpu_cmd, model_epoch, model_dir, inputfile, transform_arg, logfile)):
+    if os.system("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} -imagefolder {} -target {} {} &> {}"\
+                                                                                    .format(gpu_cmd, model_epoch, model_dir, inputfile, image_dir, target, transform_arg, logfile)):
         raise RuntimeError('PoseFix Prediction failed.')
 
-    out_dir = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/09'
+    out_dir = os.path.join('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/', target)
     outrun_dir = latestdir(out_dir)
     print("POSEFIX PREDICTION DONE.")
 
@@ -190,7 +192,6 @@ def search(gpdfile, method_search, gpdtype, method_insert, tresh=None):
     print('\n\n')
 
     outrun_dir = latestdir('/home/althausc/master_thesis_impl/retrieval/out/humanposes')
-    print(outrun_dir)
     rankingfile = os.path.join(outrun_dir, 'result-ranking.json')
 
     return rankingfile 

@@ -11,23 +11,28 @@ from detectron2.data import build_detection_train_loader
 class COCOTrainer(DefaultTrainer):
     def __init__(self,cfg, mode="singlegpu"):
         super().__init__(cfg)
-        if mode == "multigpu":
+        """if mode == "multigpu":
             self.losseval_hook = LossEvalHook(self.cfg.TEST.EVAL_PERIOD,self.model,
                 build_detection_test_loader(
                     self.cfg,
                     self.cfg.DATASETS.TEST[0],
                     DatasetMapper(self.cfg,True)
                 ),
-                self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR)
+                self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR)""" # deprecated?
      
     @classmethod
     def build_train_loader(cls, cfg):
+        augmentations = []
+
+        if cfg.INPUT.CROP.ENABLED:
+            augmentations.append(T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE))
+        if cfg.DATA_FLIP_ENABLED:
+            augmentations.append(T.RandomFlip(cfg.DATA_FLIP_PROBABILITY, horizontal=True))
+        if cfg.ROTATION_ENABLED:
+            augmentations.append(T.RandomRotation(cfg.ROTATION))
+
         DATA_FLIP_PROBABILITY = 0.25
-        return build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations=[
-                T.RandomRotation([-15,15]),
-                T.RandomFlip( DATA_FLIP_PROBABILITY, horizontal=True), 
-                T.RandomCrop( cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE)
-        ]) )
+        return build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations= augmentations))
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):

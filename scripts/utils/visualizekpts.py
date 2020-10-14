@@ -36,14 +36,14 @@ print("Visualize the predictions onto the original image(s) ...")
 for preds_imgs in grouped_by_imageid:
     imgid = str(preds_imgs[0]['image_id'])
     
-    if args.transformid: #style-transfered image
-        imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-        imgname_out = "%s_%s_overlay.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-        img_path = os.path.join(args.imagespath, imgname)
-    else:
-        imgname = "%s.jpg"%(imgid)
-        imgname_out = "%s_overlay.jpg"%(imgid)
-        img_path = os.path.join(args.imagespath, imgname)
+    #if args.transformid: #style-transfered image #deprecated ?!
+    #    imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+    #    imgname_out = "%s_%s_overlay.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+    #    img_path = os.path.join(args.imagespath, imgname)
+    #else:
+    imgname = "%s.jpg"%(imgid)
+    imgname_out = "%s_overlay.jpg"%(imgid)
+    img_path = os.path.join(args.imagespath, imgname)
 
     img = cv2.imread(img_path, 0)
     height, width = img.shape[:2]

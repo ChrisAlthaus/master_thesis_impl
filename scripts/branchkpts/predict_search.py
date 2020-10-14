@@ -47,24 +47,25 @@ if _EXEC_CMDS:
 outrun_dir = latestdir(out_dir)
 print("Output Directory: %s\n"%out_dir)
 
-
 # ----------------- POSEFIX PREDICTIONS ---------------------
 print("POSEFIX PREDICTION:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
 model_dir = latestdir('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO')
 model_epoch = 140
 inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
+image_dir = os.path.dirname(imgpath)
+target = 'query'
 
 #-gpu argument not used
 cmd = ("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 "+\
-        "--test_epoch {} -modelfolder {} -inputs {}")\
-            .format(gpu_cmd, model_epoch, model_dir, inputfile)
+        "--test_epoch {} -modelfolder {} -inputs {} -imagefolder {} -target {}")\
+            .format(gpu_cmd, model_epoch, model_dir, inputfile, image_dir, target)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
     os.system(cmd)
 
-out_dir = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO'
+out_dir = os.path.join('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/', target)
 outrun_dir = latestdir(out_dir)
 print("Output Directory: %s\n"%out_dir)
 
