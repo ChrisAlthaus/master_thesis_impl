@@ -14,6 +14,25 @@ import csv
 
 from plotTrainValLosses import saveTrainValPlot
 
+class LoggingHook(HookBase):
+    def __init__(self, cfg, period):
+        self._cfg = cfg
+        self._period = period
+    
+    def after_step(self):
+        next_iter = self.trainer.iter + 1
+        is_final = next_iter == self.trainer.max_iter
+        if is_final or (self._period > 0 and next_iter % self._period == 0):
+            print("---------------- CONFIGURATION FOR TRAINING MODEL & SOLVER -----------------")
+            print(self._cfg)
+            print("----------------------------------------------------------------------------")
+        if next_iter == 10:
+            self.trainer.storage.put_scalar('minKPTsFilter', self._cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
+            for i,lr_step in enumerate(self._cfg.SOLVER.STEPS):
+                self.trainer.storage.put_scalar('lrstep%d'%i, lr_step)
+
+
+
 class LossEvalHook(HookBase):
     def __init__(self, eval_period, model, data_loader, plot_period, plot_folder):
         self._model = model
@@ -78,26 +97,18 @@ class LossEvalHook(HookBase):
         if is_final or (self._period > 0 and next_iter % self._period == 0):
             validation_loss = self._do_loss_eval()
             
-            """
-            #Write validation losses additional to file, because metrics.json sometimes not updating
-            filepath = os.path.join(self._plot_folder, 'validation_losses.csv')
-                
-            if not os.path.exists(filepath):
-                columns = ["iter","validation_loss" ]
-                wtr = csv.writer(open (filepath, 'a'), delimiter=',', lineterminator=os.linesep)
-                wtr.writerow(columns)
-            
-            wtr = csv.writer(open (filepath, 'a'), delimiter=',', lineterminator=os.linesep)
-            wtr.writerow([self.trainer.iter,validation_loss])"""
-        """
-        #Save plot of train & validation loss and write to tensorboard    
-        if self._plot_period != -1 and (next_iter % self._plot_period == 0):
-            if comm.is_main_process():
-                img_path = saveTrainValPlot(self._plot_folder)
-                #img = cv2.imread(img_path)
-                #self.trainer.storage.put_image(os.path.basename(img_path),img)
-                #comm.synchronize()
-                #self.trainer.storage.clear_images()
-            comm.synchronize()
-        self.trainer.storage.put_scalars(timetest=12)
-        """
+
+class EarlyStoppingHook(HookBase):
+    def __init__(self, cfg):
+        self._cfg = cfg
+    
+    def after_step(self):
+        #need 2x cfg.SOLVER.EARLYSTOPPING_PERIOD to decide if stopping
+        if self.trainer.iter % self._cfg.SOLVER.EARLYSTOPPING_PERIOD and self.trainer.iter >= self._cfg.SOLVER.EARLYSTOPPING_PERIOD * 2:
+            losses = self.trainer.storage.history('total_loss').values()
+            l1 = np.median( list(zip(*losses[-self._cfg.SOLVER.EARLYSTOPPING_PERIOD:]))[0] )
+            l2 = np.median( list(zip(*losses[-2*self._cfg.SOLVER.EARLYSTOPPING_PERIOD: -self._cfg.SOLVER.EARLYSTOPPING_PERIOD]))[0] )
+            print("Check for early stopping: %f >= %f"%(l1, l2))
+            if l1 >= l2:
+                print(losses)
+                raise ValueError("Early stopping at iteration %d, because %f > %f."%(self.trainer.iter, l1, l2))

@@ -53,6 +53,12 @@ if args.mode == 'graph-prediction':
         print(elem[0],np.array(elem[1]).shape)
     exit(1)
 
+if args.mode == 'coco-annotations':
+    for ann in json_file['annotations']:
+        if ann['image_id'] == int(args.search):
+            print(ann)
+    exit(1)
+
 #List of dicts
 if isinstance(json_file,list):
     print("Number of elements: ",len(json_file))

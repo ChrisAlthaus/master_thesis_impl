@@ -41,27 +41,36 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-finetune','-fL',required=True, 
-                        help='Specify which layers should be trained. Either RESNET, HEADSALL or ALL.')
+    #parser.add_argument('-finetune','-fL',required=True, 
+    #                    help='Specify which layers should be trained. Either RESNET, HEADSALL or ALL.')
     parser.add_argument('-resume','-checkpoint', 
                         help='Train model from checkpoint given by path.')
-    parser.add_argument('-numepochs','-epochs', type=int, help='Number of epochs to train.')
+    #parser.add_argument('-numepochs','-epochs', type=int, help='Number of epochs to train.')
+    parser.add_argument('-paramsconfig', type=str, help='Path to config which contains specific hyper-parameters, with which the model should be trained.')
     parser.add_argument('-addconfig', help='Add selected configurations as an additional row to a csv file.', action="store_true")
+
     
     args = parser.parse_args()
     
-    if args.finetune not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS','SCRATCH']:
+    print("Reading config (hyper-)parameters from file: ",args.paramsconfig)
+    c_params = []
+    with open (args.paramsconfig, "r") as f:
+        c_params = json.load(f)
+    
+    trainmode = c_params['trainmode']
+    if trainmode not in ["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS','SCRATCH']:
         raise ValueError("Not specified a valid training mode for layers.")
     if args.resume is not None:
         if not os.path.isfile(args.resume):
             raise ValueError("Checkpoint does not exists.")
+
     
     cfg = get_cfg()
     # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) #"COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"
     
     # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
-    if args.finetune != 'SCRATCH':
+    if trainmode != 'SCRATCH':
         cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml") #"COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"
     else:
         cfg.MODEL.WEIGHTS = ""
@@ -69,7 +78,7 @@ def main():
     cfg.MODEL.DEVICE='cuda' #'cpu'   
 
 
-    output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m-%d_%H-%M-%S_baseline'))#+args.finetune.lower()))
+    output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints', datetime.datetime.now().strftime('%m-%d_%H-%M-%S_'+trainmode.lower()))#+))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print("Successfully created output directory: ", output_dir)
@@ -77,12 +86,19 @@ def main():
         raise ValueError("Output directory %s for checkpoints already exists. Please wait a few minutes."%output_dir)
     cfg.OUTPUT_DIR = output_dir
 
+
     # ---------------------------- DATASETS ------------------------------
     #Register to DatasetCatalog and MetadataCatalog
     train_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json"
     train_dir = "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer"
     val_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json"
     val_dir = "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer"
+
+    """train_ann = "/nfs/data/coco_17/annotations/person_keypoints_train2017.json"
+    train_dir = "/nfs/data/coco_17/train2017"
+    val_ann = "/nfs/data/coco_17/annotations/person_keypoints_val2017.json"
+    val_dir = "/nfs/data/coco_17/val2017"""
+
     
     register_coco_instances("my_dataset_train", {}, train_ann, train_dir)
     register_coco_instances("my_dataset_val", {}, val_ann, val_dir)
@@ -95,75 +111,79 @@ def main():
     cfg.DATASETS.TRAIN = ("my_dataset_train",)
     cfg.DATASETS.TEST = ("my_dataset_val",)     #actually flag is not test but validation set
     cfg.DATALOADER.NUM_WORKERS = 2 # Number of data loading threads
-    
+
+
     # ------------------------- DATA AUGMENTATION ----------------------------
     cfg.INPUT.CROP.TYPE = "relative_range"
     cfg.INPUT.CROP.SIZE = [0.9, 0.9]
-    cfg.INPUT.CROP.ENABLED = False #True
+    cfg.INPUT.CROP.ENABLED = c_params['dataaugm'] #False #True
     
     cfg.DATA_FLIP_PROBABILITY = 0.25 
-    cfg.DATA_FLIP_ENABLED = False #True
+    cfg.DATA_FLIP_ENABLED = c_params['dataaugm'] #False #True
     cfg.ROTATION = [-15,15]
-    cfg.ROTATION_ENABLED = False #True
+    cfg.ROTATION_ENABLED = c_params['dataaugm'] #False #True
     
-
-    #cfg.INPUT.MIN_SIZE_TRAIN = 512#(640, 672, 704, 736, 768, 800) #512  #Size of the smallest side of the image during training
-        	                     #Defaults: (640, 672, 704, 736, 768, 800)
+    cfg.INPUT.MIN_SIZE_TRAIN = tuple(c_params['minscales'])  #512  #Defaults: (640, 672, 704, 736, 768, 800) #Size of the smallest side of the image during training
+        	                    
     
-    """
     # ------------------------ SPECIFIC LAYER PARAMETERS -------------------------
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512 # 2 faster, and good enough for this toy dataset (default: 512)
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (ballon) ?
     cfg.MODEL.ROI_KEYPOINT_HEAD.NUM_KEYPOINTS = 17
-    cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = 1 #10 # Images with too few (or no) keypoints are excluded from training (default: 1)
+    cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE = c_params['minkpt'] #1 #10 # Images with too few (or no) keypoints are excluded from training (default: 1)
     #cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model, only for test?!
+    cfg.MODEL.RPN.POSITIVE_FRACTION = c_params['rpn_posratio'] #default: 0.5
+
 
     # ---------------------------- SOLVER PARAMETERS ---------------------------
-    """
-    cfg.SOLVER.IMS_PER_BATCH = 2 #4, original=2 # Number of images per batch across all machines.
-    """
-    cfg.SOLVER.BASE_LR = 0.001#0.0025, original=0.001  # pick a good LR   #TODO: different values
-    cfg.SOLVER.GAMMA = 0.95
-    """
-    if args.finetune != 'EVALBASELINE':
-        max_iter, epoch_iter = get_iterations_for_epochs(dataset, args.numepochs, cfg.SOLVER.IMS_PER_BATCH, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
-        #cfg.SOLVER.MAX_ITER = max_iter
-        cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
-        cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
+    
+    cfg.SOLVER.IMS_PER_BATCH = c_params['batchsize'] #2 #4, original=2 # Number of images per batch across all machines.
+    cfg.SOLVER.BASE_LR = c_params['lr'] #0.02/8#0.0025, original=0.001  # pick a good LR   #TODO: different values
+    cfg.SOLVER.GAMMA = c_params['gamma']
+    
+    
+    max_iter, epoch_iter = get_iterations_for_epochs(dataset, c_params['epochs'], cfg.SOLVER.IMS_PER_BATCH, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
+    cfg.SOLVER.MAX_ITER = max_iter
+    cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+    cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
                                                 # and save as image in checkpoint folder. Disable: -1
-    else:
-        max_iter = 100
-        cfg.SOLVER.MAX_ITER = max_iter
-        cfg.TEST.EVAL_PERIOD = 50
-        cfg.TEST.PLOT_PERIOD = 200
-    """
-    steps_exp = np.linspace(0,1,12)[1:-1] * max_iter
+    cfg.SOLVER.EARLYSTOPPING_PERIOD = epoch_iter * 1 #window size
+    cfg.TEST.PERIODICWRITER_PERIOD = 100# default:20
+    cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE = c_params['gradient_clipvalue']
+    
+    #steps_exp = np.linspace(0,1,12)[1:-1] * max_iter
     #For lr decay from a specific iteration number
     #iternum = 191893
     #steps_exp = np.linspace(iternum/max_iter,1,12)[0:-1] * max_iter
     #(int(5/10*max_iter),int(6/10*max_iter), int(7/10*max_iter),int(8/10*max_iter),int(9/10*max_iter),int(98/100*max_iter))
     #(int(7/9*max_iter), int(8/9*max_iter))#(int(55/90*max_iter),int(75/90*max_iter),int(85/90*max_iter))#(int(7/9*max_iter), int(8/9*max_iter)) # The iteration marks to decrease learning rate by GAMMA.  
-    steps_exp.astype(np.int)
-    cfg.SOLVER.STEPS = tuple(steps_exp)"""
+    #steps_exp.astype(np.int)
+    cfg.SOLVER.STEPS = tuple([x * max_iter for x in c_params['steps']])
     
+
     # ------------------------- APPLY CONFIG & GET MODEL ------------------------
     trainer = COCOTrainer(cfg)    
     model = trainer.model
     
+
     # -------------------------- BATCH NORMALIZATION SETUP ------------------------
-    #if args.finetune == 'ALL' or args.finetune == 'SCRATCH':                                            
-    #    cfg.MODEL.RESNETS.NORM = "BN" 
+    if trainmode == 'ALL' or trainmode == 'SCRATCH':                                            
+        cfg.MODEL.RESNETS.NORM = "BN" 
    
-    trainlayers = [] #setupLayersAndBN(model, args.finetune)
+    trainlayers = setupLayersAndBN(model, trainmode, batchnorm= c_params['bn'])
     
+
     # ----------------------------- SAVING CONFIGS -------------------------------
     if args.addconfig:
         print("Add reduced config to overview file: ")
         cfgdir = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints'
-        save_modelconfigs(cfgdir, cfg, BN_LAYERS, args) 
+        save_modelconfigs(cfgdir, cfg, c_params) 
         
+    print("Save additional hyper-parameter: ")
+    with open(os.path.join(cfg.OUTPUT_DIR, 'configparams.txt'), 'w') as f:
+        json.dump(c_params, f)
+
     print("Save model's state_dict:")
-    layer_to_params_str = ""
     with open(os.path.join(cfg.OUTPUT_DIR, 'layer_params_overview.txt'), 'w') as f:
         for param_tensor in model.state_dict():
             line = "{} \t {}".format(param_tensor, model.state_dict()[param_tensor].size())
@@ -177,6 +197,7 @@ def main():
     with open(os.path.join(cfg.OUTPUT_DIR, 'model_conf.txt'), 'w') as f:
         print(cfg,file=f)
 
+
     # -------------------- APPLY CFG & CHANGED MODEL ---------------------
   
     trainer.model = model #necessary?
@@ -185,6 +206,7 @@ def main():
         DetectionCheckpointer(trainer.model).load(args.resume)
     
     #trainer.resume_or_load(resume=False)
+
     # --------------------- TRAIN MODEL ----------------------------------
     checkparams = get_checkparams(model, trainlayers)
 
@@ -241,7 +263,7 @@ def BNFrozentoBN(model, layer_ids, inverse=False):
                     print("Debug: No valid layer: %s."%('model.backbone.bottom_up.res2.'+l_name))
     model.cuda()
 
-def setupLayersAndBN(model, trainmode):
+def setupLayersAndBN(model, trainmode, batchnorm=False):
     #Freeze specific layers which should not be trained according to trainmode
     #Additional unfreeze corresponding BN layers
 
@@ -256,13 +278,12 @@ def setupLayersAndBN(model, trainmode):
     PREFIXES_LAYERNAMES = {"ResNet":"backbone.bottom_up", "RPN_ANCHOR":"proposal_generator.anchor_generator", "RPN_HEAD":"proposal_generator.rpn_head",
                           "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head",
                           "FPN":"backbone.fpn"} 
+    
+    #Freeze layers according to trainmode
     #keep track of layers which will be trained (not for "ALL" and "SCRATCH")                      
     trainlayers = []
-
     if trainmode == "ALL" or trainmode == 'SCRATCH':
-        #Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
-        #because not implemented by cfg file
-        BNFrozentoBN(model, BN_LAYERS['ALL'])
+        print("Freeze layers: no")
 
     elif trainmode == "RESNETL":
         trainConvBlocks = BN_LAYERS['RESNETL'] #[start,end] with end inclusive
@@ -274,13 +295,11 @@ def setupLayersAndBN(model, trainmode):
         for name, param in list(model.named_parameters()):
             isTrainLayer = any([name.find(l_name) != -1 for l_name in layerNoFreeze])
             if not isTrainLayer:
-                param.requires_grad = False     #freeze layer
                 print("Freeze layer: ",name)
+                param.requires_grad = False     #freeze layer
             else:
                 print("Train layer: ",name)
                 trainlayers.append(name)
-        #Unfreeze batch normalization layers
-        BNFrozentoBN(model, trainConvBlocks)
 
     elif trainmode == "RESNETF":
         trainConvBlocks = BN_LAYERS['RESNETF'] #[start,end] with end inclusive
@@ -297,8 +316,6 @@ def setupLayersAndBN(model, trainmode):
             else:
                 print("Train layer: ",name)
                 trainlayers.append(name)
-        #Unfreeze batch normalization layers
-        BNFrozentoBN(model, trainConvBlocks)
 
     elif trainmode == 'HEADSALL':
         layersNoFreezePrefix = [PREFIXES_LAYERNAMES[x] for x in BN_LAYERS['HEADSALL']]
@@ -310,21 +327,13 @@ def setupLayersAndBN(model, trainmode):
             else:
                 print("Train layer: ",name)
                 trainlayers.append(name)
+    
+    #Unfreeze batch normalization layers
+    if batchnorm:
+        # trainmode ALL: Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
+        #                because not implemented by cfg file
+        BNFrozentoBN(model, BN_LAYERS[trainmode]) 
 
-    elif trainmode == 'EVALBASELINE':
-        for name, param in list(model.named_parameters()):
-            if name != 'roi_heads.keypoint_head.score_lowres.weight':
-                param.requires_grad = False     #freeze layer
-    """elif trainmode == 'FPN+HEADS':
-        layersNoFreezePrefix = [PREFIXES_LAYERNAMES[x] for x in ["FPN","ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]]
-        for name, param in list(model.named_parameters()):
-            isTrainLayer = any([name.find(l_name) != -1 for l_name in layersNoFreezePrefix])
-            if not isTrainLayer:
-                print("Not training layer: ",name)
-                param.requires_grad = False     #freeze layer
-            else:
-                print("Train layer: ",name)
-                trainlayers.append(name)"""  
     return trainlayers
 
 def get_checkparams(model, trainlayers):
@@ -349,7 +358,7 @@ def check_modelparams(model, checkParams):
                 if not torch.equal(param.data, checkParams[name].data):
                     print("Warning: Layer %s has been modified whereas it should actually been freezed."%name)
 
-def save_modelconfigs(outdir, cfg, LAYERSBN_map, args):
+def save_modelconfigs(outdir, cfg, params):
     filename = 'run_configs.csv'
     filepath = os.path.join(outdir, filename)
 
@@ -360,12 +369,12 @@ def save_modelconfigs(outdir, cfg, LAYERSBN_map, args):
                        'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Additional']
             writer.writerow(headers)
     folder = os.path.basename(cfg.OUTPUT_DIR)
-    bnlayers = LAYERSBN_map[args.finetune]
-    data_augm = [cfg.INPUT.CROP.SIZE, cfg.DATA_FLIP_PROBABILITY , cfg.ROTATION]  #TODO: add additional items to cfg object
+    bnlayers = 'True' if params['bn'] else 'False'
+    data_augm = [cfg.INPUT.CROP.SIZE, cfg.DATA_FLIP_PROBABILITY , cfg.ROTATION] if params['dataaugm'] else 'False'  #TODO: add additional items to cfg object
     lr = '%.2E'%Decimal(str(cfg.SOLVER.BASE_LR))
 
-    row = [folder, args.finetune, bnlayers, lr, str(cfg.SOLVER.GAMMA), cfg.SOLVER.STEPS,
-            args.numepochs, data_augm, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE, cfg.INPUT.MIN_SIZE_TRAIN, cfg.SOLVER.IMS_PER_BATCH ]
+    row = [folder, params['trainmode'], bnlayers, lr, str(cfg.SOLVER.GAMMA), cfg.SOLVER.STEPS,
+            params['epochs'], data_augm, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE, cfg.INPUT.MIN_SIZE_TRAIN, cfg.SOLVER.IMS_PER_BATCH ]
     with open(filepath, 'a') as f:
         writer = csv.writer(f, delimiter='\t')
         writer.writerow(row)

@@ -1,11 +1,10 @@
 from detectron2.engine import DefaultTrainer
 from detectron2.evaluation.coco_evaluation import COCOEvaluator
 import os
-from LossEvalHook import *
-from LoggingHook import *
+from Hooks import LossEvalHook, LoggingHook, EarlyStoppingHook
 from plotTrainValLosses import saveTrainValPlot
 import detectron2.data.transforms as T
-from detectron2.data import build_detection_train_loader
+from detectron2.data import DatasetMapper, build_detection_train_loader, build_detection_test_loader
 
 
 class COCOTrainer(DefaultTrainer):
@@ -52,6 +51,7 @@ class COCOTrainer(DefaultTrainer):
                 ),
                 self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR))
         hooks.insert(-1,LoggingHook(self.cfg, self.cfg.TEST.EVAL_PERIOD))
+        #hooks.insert(-1,EarlyStoppingHook(self.cfg))
         
         return hooks
 
