@@ -123,8 +123,8 @@ if _PRINT_CMDS:
 if _EXEC_CMDS:
     os.system(cmd)
 
-out_dir = os.path.join('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/', target)
 outrun_dir = latestdir(out_dir)
+out_dir = os.path.join('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/', target)
 print("Output Directory: %s\n"%out_dir)
 
 

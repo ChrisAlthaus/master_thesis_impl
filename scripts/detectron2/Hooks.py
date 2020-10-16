@@ -74,7 +74,10 @@ class LossEvalHook(HookBase):
            
         mean_loss = np.mean(losses)
         if comm.is_main_process():
-            self.trainer.storage.put_scalar('validation_loss', mean_loss)
+            print("Put validation loss into storage ...")
+            self.trainer.storage.put_scalar('validation_loss', mean_loss, smoothing_hint=False)
+            print("Put validation loss into storage done.")
+
         #comm.synchronize()
 
         return mean_loss

@@ -6,9 +6,9 @@ import os
 import time
 
 #Perform random search over the hyper-parameters
-_PARAM_MODES = ['originalpaper', 'detectrondefault', 'custom']
-_PARAM_MODE = _PARAM_MODES[2]
-_NUM_RANDOMRUNS = 8
+_PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom']
+_PARAM_MODE = _PARAM_MODES[3]
+_NUM_RUNS = 1
 
 _TRAINMODES = ["ALL", "RESNETF", "RESNETL", "HEADSALL", 'SCRATCH']
 _DATA_AUGM = [True, False]
@@ -16,14 +16,14 @@ _LRS = [0.01, 0.001, 0.0001, 0.00001]
 _BN = [True, False]
 _MINKPTS = [1,2]
 _NUMEPOCHS = 10
-_STEPS_GAMMA = [ [[0.76, 0.92], 0.1], [np.linspace(0.7, 1, 1).tolist(), 0.5] ]
+_STEPS_GAMMA = [ [[0.76, 0.92], 0.1], [np.linspace(0.7, 1, 10).tolist(), 0.5] ]
 _MINSCALES = [(640, 672, 704, 736, 768, 800), [512], [800]]
-_IMSPERBATCH = 2
+_IMSPERBATCH = [2, 4]
 _NUMGPUS = 1
 _RPN_POSITIVE_RATIOS = [0.33, 0.5]
 _GRADIENT_CLIP_VALUE = [1, 5]
 
-for i in range(0,_NUM_RANDOMRUNS):
+for i in range(0,_NUM_RUNS):
 
     if _PARAM_MODE == 'originalpaper': #see https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/config.py or https://arxiv.org/pdf/1703.06870.pdf
         trainmode = 'ALL'
@@ -40,6 +40,7 @@ for i in range(0,_NUM_RANDOMRUNS):
     elif _PARAM_MODE == 'detectrondefault':
         trainmode = 'ALL'
         dataaugm = False
+        batchsize = 4
         lr = 0.02/(16/_IMSPERBATCH) #original trained with batchsize=16
         bn = False
         minscales = (640, 672, 704, 736, 768, 800)
@@ -49,10 +50,11 @@ for i in range(0,_NUM_RANDOMRUNS):
         steps = [0.76, 0.92] 
         gamma = 0.1
 
-    else:
+    elif _PARAM_MODE == 'randomsearch':
         trainmode = 'ALL'
         dataaugm = random.choice(_DATA_AUGM)
-        lr = random.choice(_LRS)
+        batchsize = random.choice(_IMSPERBATCH)
+        lr = 0.001 #random.choice(_LRS)
         bn = random.choice(_BN)
         minkpts = 1 #choice?
         step_gam = random.choice(_STEPS_GAMMA)
@@ -62,9 +64,26 @@ for i in range(0,_NUM_RANDOMRUNS):
         rpn_posratio = 0.5
         gradient_clipvalue = 1 
 
+    elif _PARAM_MODE == 'custom':
+        trainmode = 'ALL'
+        dataaugm = True
+        batchsize = 4
+        lr = 0.001
+        bn = True
+        minkpts = 1 
+        steps = np.linspace(0.7, 1, 10).tolist()
+        gamma = 0.75  #0.75 ^ 10 = 0.05
+        minscales = (512,)
+        rpn_posratio = 0.5
+        gradient_clipvalue = 1
+
+    else:
+        raise ValueError()
+
+
 
     print(" --------------------------- RUN %d ------------------------------ "%i)
-    params = {'trainmode': trainmode, 'dataaugm': dataaugm, 'batchsize': _IMSPERBATCH, 'epochs': _NUMEPOCHS, 'lr': lr, 'bn': bn, 'minscales': minscales, 'rpn_posratio': rpn_posratio,
+    params = {'trainmode': trainmode, 'dataaugm': dataaugm, 'batchsize': batchsize, 'epochs': _NUMEPOCHS, 'lr': lr, 'bn': bn, 'minscales': minscales, 'rpn_posratio': rpn_posratio,
             'gradient_clipvalue': gradient_clipvalue, 'steps': steps, 'gamma': gamma, 'minkpt': minkpts}
     print("Parameters: ",params)
     logdir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints/trainconfigs_tmp', datetime.datetime.now().strftime('%m-%d_%H-%M-%S')+ '_%d'%i)
