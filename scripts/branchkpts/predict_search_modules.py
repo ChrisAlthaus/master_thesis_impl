@@ -97,7 +97,7 @@ def predict(imgpath):
     imagespath = os.path.dirname(imgpath) #'/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer'
     tresh = 0.1
     #Save visualization image in dir from which the script is started
-    outputdir = os.path.dirname(os.path.realpath(__file__))
+    outputdir = os.path.dirname(os.path.join(os.path.realpath(__file__), '.images'))
     logfile = os.path.join(logpath, '3-visualize.txt')
 
     if _PRINT_CMDS:

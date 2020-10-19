@@ -146,8 +146,8 @@ def main():
     
     
     max_iter, epoch_iter = get_iterations_for_epochs(dataset, c_params['epochs'], cfg.SOLVER.IMS_PER_BATCH, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
-    cfg.SOLVER.MAX_ITER = 1000#max_iter
-    cfg.TEST.EVAL_PERIOD = 500#int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+    cfg.SOLVER.MAX_ITER = max_iter
+    cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
     cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
                                                 # and save as image in checkpoint folder. Disable: -1
     cfg.SOLVER.EARLYSTOPPING_PERIOD = epoch_iter * 1 #window size
@@ -369,7 +369,7 @@ def save_modelconfigs(cfg, params):
         with open(filepath, 'w') as f:
             writer = csv.writer(f, delimiter='\t')
             headers = ['Folder', 'NET', 'BN', 'LR', 'Gamma', 'Steps', 'Epochs', 'Data Augmentation [CropSize, FlipProb, RotationAngle]',
-                       'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Train Loss', 'Val Loss', 'bboxAP', 'bboxAP50', 'bboxAP75']
+                       'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Train Loss', 'Val Loss', 'bboxAP', 'bboxAP50', 'bboxAP75', 'kptsAP', 'kptsAP50', 'kptsAP75']
             writer.writerow(headers)
     folder = os.path.basename(cfg.OUTPUT_DIR)
     bnlayers = 'True' if params['bn'] else 'False'
@@ -377,7 +377,8 @@ def save_modelconfigs(cfg, params):
     lr = '%.2E'%Decimal(str(cfg.SOLVER.BASE_LR))
 
     row = [folder, params['trainmode'], bnlayers, lr, str(cfg.SOLVER.GAMMA), cfg.SOLVER.STEPS,
-            params['epochs'], data_augm, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE, cfg.INPUT.MIN_SIZE_TRAIN, cfg.SOLVER.IMS_PER_BATCH ]
+            params['epochs'], data_augm, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE, cfg.INPUT.MIN_SIZE_TRAIN, cfg.SOLVER.IMS_PER_BATCH, 
+            ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
     with open(filepath, 'a') as f:
         writer = csv.writer(f, delimiter='\t')
         writer.writerow(row)
@@ -394,7 +395,7 @@ def addlosses_to_configs(modeldir):
             lines.append(json.loads(line))
     _LASTN = 100
     trainloss_lastn = [entry['total_loss'] for entry in lines[-_LASTN:]]
-    valloss_lastn = [entry['validation_loss'] for entry in lines[-_LASTN:]]
+    valloss_lastn = [entry['validation_loss'] for entry in lines[-_LASTN:] if 'validation_loss' in entry]
     trainloss = np.mean(trainloss_lastn)
     valloss = np.mean(valloss_lastn)
     print("Averaged last N losses:")
@@ -405,6 +406,10 @@ def addlosses_to_configs(modeldir):
     bbox_ap = lines[-1]["bbox/AP"] if "bbox/AP" in lines[-1] else 'not found'
     bbox_ap50 = lines[-1]["bbox/AP50"] if "bbox/AP50" in lines[-1] else 'not found'
     bbox_ap75 = lines[-1]["bbox/AP75"] if "bbox/AP75" in lines[-1] else 'not found'
+
+    kpts_ap = lines[-1]["keypoints/AP"] if "keypoints/AP" in lines[-1] else 'not found'
+    kpts_ap50 = lines[-1]["keypoints/AP50"] if "keypoints/AP50" in lines[-1] else 'not found'
+    kpts_ap75 = lines[-1]["keypoints/AP75"] if "keypoints/AP75" in lines[-1] else 'not found'
 
 
     #Update CSV config
@@ -423,12 +428,16 @@ def addlosses_to_configs(modeldir):
                 
             else:
                 #update losses in row of current model entry
-                if row[header.index('Folder')] == 'foldername':
+                if row[header.index('Folder')] == foldername:
                     row[header.index('Train Loss')] = trainloss
                     row[header.index('Val Loss')] = valloss
                     row[header.index('bboxAP')] = bbox_ap
                     row[header.index('bboxAP50')] = bbox_ap50
                     row[header.index('bboxAP75')] = bbox_ap75
+                    row[header.index('kptsAP')] = kpts_ap
+                    row[header.index('kptsAP50')] = kpts_ap50
+                    row[header.index('kptsAP75')] = kpts_ap75
+
                     break
         
         

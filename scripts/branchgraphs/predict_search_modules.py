@@ -42,7 +42,7 @@ def filewithname(dir, searchstr):
 
 def predict_scenegraph(imagepath):
     #Create a tmp image dir
-    img_dir = os.path.join('/home/althausc/master_thesis_impl/scripts/branchgraphs/images', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    img_dir = os.path.join('/home/althausc/master_thesis_impl/scripts/branchgraphs/.images/singledirs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
     if not os.path.exists(img_dir):
         os.makedirs(img_dir)
     else:
@@ -213,7 +213,7 @@ def treshIndex(tresh, rankedlist):
     return k
 
 def cropImage(imagepath, p1, p2, resize=True):
-    outfile = os.path.splitext(imagepath)[0] + "_transformed.jpg"
+    outfile = os.path.join('.images', os.path.splitext(imagepath)[0] + "_transformed.jpg")
     img = Image.open(imagepath)
     area = (p1[0], p1[1], p2[0], p2[1])
     cropped_img = img.crop(area)

@@ -4,10 +4,11 @@ import datetime
 import json
 import os
 import time
+import csv
 
 #Perform random search over the hyper-parameters
 _PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom']
-_PARAM_MODE = _PARAM_MODES[3]
+_PARAM_MODE = _PARAM_MODES[2]
 _NUM_RUNS = 1
 
 _TRAINMODES = ["ALL", "RESNETF", "RESNETL", "HEADSALL", 'SCRATCH']
@@ -22,6 +23,30 @@ _IMSPERBATCH = [2, 4]
 _NUMGPUS = 1
 _RPN_POSITIVE_RATIOS = [0.33, 0.5]
 _GRADIENT_CLIP_VALUE = [1, 5]
+
+def paramsexist(params):
+    #Look in the overview csv file containing all done training runs if random params exists
+    csvfile = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/run_configs.csv'
+    with open(csvfile, 'r', newline='') as csvFile:
+        reader = csv.reader(csvFile, delimiter='\t')
+        content = list(reader)
+        header = []
+        for i,row in enumerate(content):
+            if i==0:
+                header = row
+                header = [h.strip() for h in header]
+            else:
+                if row[header.index('NET')] == params['net'] and \
+                    eval(row[header.index('Data Augmentation [CropSize, FlipProb, RotationAngle]')]) ==  params['dataaugm'] and \
+                    int(row[header.index('ImPerBatch')]) ==  params['batchsize'] and \
+                    float(row[header.index('LR')]) ==  params['lr'] and \
+                    eval(row[header.index('BN')]) ==  params['bn'] and \
+                    int(row[header.index('Min Keypoints')]) ==  params['minkpts'] and \
+                    eval(row[header.index('Steps')]) ==  params['steps'] and \
+                    float(row[header.index('Gamma')]) ==  params['gamma'] and \
+                    eval(row[header.index('MinSize Train')]) ==  params['minscales']:
+                    return True
+    return False
 
 for i in range(0,_NUM_RUNS):
 
@@ -51,18 +76,24 @@ for i in range(0,_NUM_RUNS):
         gamma = 0.1
 
     elif _PARAM_MODE == 'randomsearch':
-        trainmode = 'ALL'
-        dataaugm = random.choice(_DATA_AUGM)
-        batchsize = random.choice(_IMSPERBATCH)
-        lr = 0.001 #random.choice(_LRS)
-        bn = random.choice(_BN)
-        minkpts = 1 #choice?
-        step_gam = random.choice(_STEPS_GAMMA)
-        steps = step_gam[0]
-        gamma = step_gam[1]
-        minscales = random.choice(_MINSCALES)
-        rpn_posratio = 0.5
-        gradient_clipvalue = 1 
+        while True:
+            trainmode = 'ALL'
+            dataaugm = random.choice(_DATA_AUGM)
+            batchsize = 2 #random.choice(_IMSPERBATCH)
+            lr = 0.001 #random.choice(_LRS)
+            bn = random.choice(_BN)
+            minkpts = 1 #choice?
+            step_gam = random.choice(_STEPS_GAMMA)
+            steps = step_gam[0]
+            gamma = step_gam[1]
+            minscales = random.choice(_MINSCALES)
+            rpn_posratio = 0.5
+            gradient_clipvalue = 1 
+            params = {'net':trainmode, 'dataaugm': dataaugm, 'batchsize': batchsize, 'lr':lr, 'bn':bn,
+                    'minkpts':minkpts, 'steps':steps, 'gamma': gamma, 'minscales': minscales}
+           
+            if not paramsexist(params):
+                break    
 
     elif _PARAM_MODE == 'custom':
         trainmode = 'ALL'
@@ -101,7 +132,7 @@ for i in range(0,_NUM_RUNS):
     #Additional params to setup in file: folder : BN[yes,no], LR, Weight Decay[steps& exp/no exp], Data Augmentation[Random Rotation, Flip & Crop],
     #                                             Min keypoints[for filter images], Additional[MinSizeTrain, ImgPerBatch]
 
-    cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_train_styletransfer.py -paramsconfig {} -addconfig"\
+    cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_train_styletransfer.py -paramsconfig {} -addconfig {}"\
                                                     .format(gpu_cmd, paramconfig, '-resume %s'%maskrcnn_cp if resume else ' ')
 
     print(cmd)
@@ -124,3 +155,34 @@ for i in range(0,_NUM_RUNS):
     os.system(cmd)
     time.sleep(10)
     print()
+
+
+
+    """
+ print(row[header.index('NET')] == params['net'], \
+                    eval(row[header.index('Data Augmentation [CropSize, FlipProb, RotationAngle]')]) ==  params['dataaugm'],\
+                    int(row[header.index('ImPerBatch')]) ==  params['batchsize'], \
+                    float(row[header.index('LR')]) ==  params['lr'], \
+                    eval(row[header.index('BN')]) ==  params['bn'], \
+                    int(row[header.index('Min Keypoints')]) ==  params['minkpts'], \
+                    eval(row[header.index('Steps')]) ==  params['steps'], \
+                    float(row[header.index('Gamma')]) ==  params['gamma'], \
+                    eval(row[header.index('MinSize Train')]) ==  params['minscales'] )
+
+                print( eval(row[header.index('Steps')]), params['steps'])
+                print( type(eval(row[header.index('Steps')])), type(params['steps']))
+
+
+                print(row[header.index('NET')] , params['net'], \
+                    row[header.index('Data Augmentation [CropSize, FlipProb, RotationAngle]')] , params['dataaugm'],\
+                    int(row[header.index('ImPerBatch')]), params['batchsize'], \
+                    float(row[header.index('LR')]),  params['lr'], \
+                    row[header.index('BN')] ,  params['bn'], \
+                    int(row[header.index('Min Keypoints')]), params['minkpts'], \
+                    eval(row[header.index('Steps')]), params['steps'], \
+                    float(row[header.index('Gamma')]) , params['gamma'], \
+                    eval(row[header.index('MinSize Train')]),  params['minscales'])
+
+                print("------------------------------")
+
+    """

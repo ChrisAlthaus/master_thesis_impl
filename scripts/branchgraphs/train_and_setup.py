@@ -82,8 +82,8 @@ print("Output Directory: %s\n"%out_dir)
 
 # ------------------- SCENE GRAPH GENERATION TRAINING -----------------------
 print("SCENE GRAPH FASTER-RCNN TRAINING:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G4d4-2.sh'
-pretrained_frcnn = out_dir #or /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G2d4-2.sh'
+pretrained_frcnn = 'master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn/model_final.pth' # os.path.join(out_dir, 'model_final.pth') #or /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn
 
 #notes: effect type only used for prediction/inference
 _PREDICTOR = ['MotifPredictor', 'IMPPredictor', 'VCTreePredictor', 'TransformerPredictor', 'CausalAnalysisPredictor']
@@ -93,17 +93,20 @@ _CONTEXTLAYER_TYPES = ['motifs', 'vctree', 'vtranse']
 predictor = _PREDICTOR[4]
 fusion_type = _FUSION_TYPES[0]
 contextlayer_type = _CONTEXTLAYER_TYPES[0]
-out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/%s_%s_%s_sgdet'%(predictor, contextlayer_type, fusion_type)
+#out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/%s_%s_%s_sgdet'%(predictor, contextlayer_type, fusion_type)
+out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints'
 
-cmd = ("{} python -m torch.distributed.launch --master_port 10026 --nproc_per_node=2 "+\
+#sgdet: parameter MODEL.ROI_RELATION_HEAD.REQUIRE_BOX_OVERLAP = True
+cmd = ("{} python3.6 -m torch.distributed.launch --master_port 10026 --nproc_per_node=2 "+\
 	"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_train_net.py \t"+\
-	"--config-file \"configs/e2e_relation_X_101_32_8_FPN_1x.yaml\" \t"+\
+	"--config-file \"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml\" \t"+\
 	"MODEL.ROI_RELATION_HEAD.USE_GT_BOX False \t"+\
 	"MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False \t"+\
 	"MODEL.ROI_RELATION_HEAD.PREDICTOR {} \t"+\
 	"MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE none \t"+\
 	"MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE {} \t"+\
 	"MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER {} \t"+\
+	"MODEL.ROI_RELATION_HEAD.REQUIRE_BOX_OVERLAP True \t"+\
 	"SOLVER.IMS_PER_BATCH 12 \t"+\
 	"TEST.IMS_PER_BATCH 2 \t"+\
 	"DTYPE \"float16\" \t"+\
