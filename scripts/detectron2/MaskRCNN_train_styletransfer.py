@@ -125,6 +125,7 @@ def main():
     cfg.DATA_FLIP_ENABLED = c_params['dataaugm'] #False #True
     cfg.ROTATION = [-15,15]
     cfg.ROTATION_ENABLED = c_params['dataaugm'] #False #True
+    cfg.COLOR_AUGM_ENABLED = c_params['dataaugm'] #False #True
     
     cfg.INPUT.MIN_SIZE_TRAIN = tuple(c_params['minscales'])  #512  #Defaults: (640, 672, 704, 736, 768, 800) #Size of the smallest side of the image during training
         	                    
@@ -146,11 +147,11 @@ def main():
     
     
     max_iter, epoch_iter = get_iterations_for_epochs(dataset, c_params['epochs'], cfg.SOLVER.IMS_PER_BATCH, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
-    cfg.SOLVER.MAX_ITER = max_iter
-    cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+    cfg.SOLVER.MAX_ITER = 200#max_iter
+    cfg.TEST.EVAL_PERIOD = 400#int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
     cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
                                                 # and save as image in checkpoint folder. Disable: -1
-    cfg.SOLVER.EARLYSTOPPING_PERIOD = epoch_iter * 1 #window size
+    cfg.SOLVER.EARLYSTOPPING_PERIOD = 1000#int(epoch_iter * 1) #window size
     cfg.TEST.PERIODICWRITER_PERIOD = 100# default:20
     cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE = c_params['gradient_clipvalue']
     
@@ -164,16 +165,13 @@ def main():
     cfg.SOLVER.STEPS = tuple([x * max_iter for x in c_params['steps']])
     
 
+    # -------------------------- BATCH NORMALIZATION SETUP ------------------------
+    setupLayersAndBN(cfg, trainmode, batchnorm= c_params['bn'])
+    cfg.freeze()
+
     # ------------------------- APPLY CONFIG & GET MODEL ------------------------
     trainer = COCOTrainer(cfg)    
     model = trainer.model
-    
-
-    # -------------------------- BATCH NORMALIZATION SETUP ------------------------
-    if trainmode == 'ALL' or trainmode == 'SCRATCH':                                            
-        cfg.MODEL.RESNETS.NORM = "BN" 
-   
-    trainlayers = setupLayersAndBN(model, trainmode, batchnorm= c_params['bn'])
     
 
     # ----------------------------- SAVING CONFIGS -------------------------------
@@ -187,9 +185,8 @@ def main():
 
     print("Save model's state_dict:")
     with open(os.path.join(cfg.OUTPUT_DIR, 'layer_params_overview.txt'), 'w') as f:
-        for param_tensor in model.state_dict():
-            line = "{} \t {}".format(param_tensor, model.state_dict()[param_tensor].size())
-            f.write(line + os.linesep)
+        for name, param in list(model.named_parameters()):
+            f.write('{} requires_gradient: {}'.format(name, param.requires_grad)+ os.linesep)
 
     print("Save model's architecture:")
     with open(os.path.join(cfg.OUTPUT_DIR, 'model_architectur.txt'), 'w') as f:
@@ -200,9 +197,8 @@ def main():
         print(cfg,file=f)
 
 
-    # -------------------- APPLY CFG & CHANGED MODEL ---------------------
+    # -------------------- RESUME MODEL ON/OFF ---------------------
   
-    trainer.model = model #necessary?
     if args.resume is not None:
         print("Resuming training from checkpoint %s."%args.resume)
         DetectionCheckpointer(trainer.model).load(args.resume)
@@ -210,7 +206,7 @@ def main():
     #trainer.resume_or_load(resume=False)
 
     # --------------------- TRAIN MODEL ----------------------------------
-    checkparams = get_checkparams(model, trainlayers)
+    checkparams = get_checkparams(model)
 
     print("START TRAINING")
     trainer.train()
@@ -239,120 +235,62 @@ def get_iterations_for_epochs(dataset, num_epochs, batch_size, min_kpts):
     #time.sleep(2)
     return max_iter,one_epoch
 
-def BNFrozentoBN(model, layer_ids, inverse=False):
 
-    for block_name,l_ids in layer_ids.items():
-        blocks = getattr(model.backbone.bottom_up, block_name)
-        if isinstance(l_ids,list):
-            blocks = blocks[l_ids[0]:l_ids[1]+1]
-        if block_name == 'stem':
-            blocks = [blocks]
-
-        for block in blocks:
-            for l_name in ['shortcut','conv1','conv2','conv3']:
-                try:
-                    layer = getattr(block, l_name)
-                    weights = layer.norm.weight
-                    num_features = layer.norm.num_features
-                    if not inverse:
-                        layer.norm = BatchNorm2d(num_features)
-                        layer.norm.weights = weights
-                        print("Changed layer %s to batched norm unfreezed."%('model.backbone.bottom_up.res2.'+l_name))
-                    else:
-                        if not isinstance(layer.norm, FrozenBatchNorm2d):
-                            layer.norm = FrozenBatchNorm2d(num_features)
-                            layer.norm.weights = weights
-
-                except AttributeError:
-                    print("Debug: No valid layer: %s."%('model.backbone.bottom_up.res2.'+l_name))
-    model.cuda()
-
-def setupLayersAndBN(model, trainmode, batchnorm=False):
+def setupLayersAndBN(cfg, trainmode, batchnorm=False):
     #Freeze specific layers which should not be trained according to trainmode
-    #Additional unfreeze corresponding BN layers
+    #Additional set BN of ResNet
 
-    #Mapping for layers to enable batch normalization
-    BN_LAYERS = { "ALL": {'stem':'', 'res2':''},
-                "SCRATCH": {'stem':'', 'res2':''},
-                "RESNETL": {'res4':[2,5], 'res5':[0,2]},
-                "RESNETF": {'res2':[0,2], 'res3':[0,3]},
-                "HEADSALL": ["ROI_KEYPOINT","ROI_PREDICTOR","ROI_HEAD","RPN_HEAD","RPN_ANCHOR"]}
-    RESNET_LAYERNAMES = ['res1','res2','res3','res4','res5']
+    #add custom entry to config
+    cfg.MODEL.BACKBONE.FREEZE_FROM = 0
+    cfg.MODEL.FPN.FREEZE = False
 
-    PREFIXES_LAYERNAMES = {"ResNet":"backbone.bottom_up", "RPN_ANCHOR":"proposal_generator.anchor_generator", "RPN_HEAD":"proposal_generator.rpn_head",
-                          "ROI_HEAD":"roi_heads.box_head", "ROI_PREDICTOR":"roi_heads.box_predictor", "ROI_KEYPOINT":"roi_heads.keypoint_head",
-                          "FPN":"backbone.fpn"} 
-    
-    #Freeze layers according to trainmode
-    #keep track of layers which will be trained (not for "ALL" and "SCRATCH")                      
-    trainlayers = []
+    #Freeze layers according to trainmode      
     if trainmode == "ALL" or trainmode == 'SCRATCH':
-        print("Freeze layers: no")
-
+        cfg.MODEL.BACKBONE.FREEZE_AT = 0 # `1` means freezing the stem. `2` means freezing the stem and one residual stage, etc.
+        cfg.MODEL.BACKBONE.FREEZE_AT_ENABLED = True
+        cfg.MODEL.BACKBONE.FREEZE_FROM_ENABLED = False
+        
+        
     elif trainmode == "RESNETL":
-        trainConvBlocks = BN_LAYERS['RESNETL'] #[start,end] with end inclusive
-        layerNoFreeze = []
-        #Adding resnet layers which should be trained/ not freezed
-        for l_name,indices in trainConvBlocks.items():
-            layerNoFreeze.extend(["backbone.bottom_up.{}.{}".format(l_name,i) for i in range(indices[0],indices[1]+1)])
-        print("Layers to train: ",layerNoFreeze)
-        for name, param in list(model.named_parameters()):
-            isTrainLayer = any([name.find(l_name) != -1 for l_name in layerNoFreeze])
-            if not isTrainLayer:
-                print("Freeze layer: ",name)
-                param.requires_grad = False     #freeze layer
-            else:
-                print("Train layer: ",name)
-                trainlayers.append(name)
+        cfg.MODEL.BACKBONE.FREEZE_AT = 3 #Freezing first 3 resnet layers (including stem)
+        cfg.MODEL.BACKBONE.FREEZE_AT_ENABLED = True
+        cfg.MODEL.BACKBONE.FREEZE_FROM_ENABLED = False
+        cfg.MODEL.FPN.FREEZE = True
 
     elif trainmode == "RESNETF":
-        trainConvBlocks = BN_LAYERS['RESNETF'] #[start,end] with end inclusive
-        layerNoFreeze = []
-        #Adding resnet layers which should be trained/ not freezed
-        for l_name,indices in trainConvBlocks.items():
-            layerNoFreeze.extend(["backbone.bottom_up.{}.{}".format(l_name,i) for i in range(indices[0],indices[1]+1)])
-        print("Layers to train: ",layerNoFreeze)
-        for name, param in list(model.named_parameters()):
-            isTrainLayer = any([name.find(l_name) != -1 for l_name in layerNoFreeze])
-            if not isTrainLayer:
-                param.requires_grad = False     #freeze layer
-                print("Freeze layer: ",name)
-            else:
-                print("Train layer: ",name)
-                trainlayers.append(name)
+       cfg.MODEL.BACKBONE.FREEZE_FROM = 4 #Train first 3 resnet layers (including stem)
+       cfg.MODEL.BACKBONE.FREEZE_AT_ENABLED = False
+       cfg.MODEL.BACKBONE.FREEZE_FROM_ENABLED = True
 
     elif trainmode == 'HEADSALL':
-        layersNoFreezePrefix = [PREFIXES_LAYERNAMES[x] for x in BN_LAYERS['HEADSALL']]
-        for name, param in list(model.named_parameters()):
-            isTrainLayer = any([name.find(l_name) != -1 for l_name in layersNoFreezePrefix])
-            if not isTrainLayer:
-                print("Freeze layer: ",name)
-                param.requires_grad = False     #freeze layer
-            else:
-                print("Train layer: ",name)
-                trainlayers.append(name)
+        cfg.MODEL.BACKBONE.FREEZE_AT = 5 #Freezing entire backbone
+        cfg.MODEL.BACKBONE.FREEZE_AT_ENABLED = True
+        cfg.MODEL.BACKBONE.FREEZE_FROM_ENABLED = False
+        cfg.MODEL.FPN.FREEZE = True
     
-    #Unfreeze batch normalization layers
+    #Unfreeze batch normalization layers of ResNet
     if batchnorm:
-        # trainmode ALL: Replace FronzenBatchedNorm2D with BatchedNorm2D in the first two blocks
-        #                because not implemented by cfg file
-        BNFrozentoBN(model, BN_LAYERS[trainmode]) 
+        cfg.MODEL.RESNETS.NORM = "BN"
 
-    return trainlayers
 
-def get_checkparams(model, trainlayers):
+def get_checkparams(model):
     checkParams = dict()    #Dict to save intial parameters for some random freezed layers
                             #for later checking if really not trained            
     numLayersForCheck = 20
-    numAdded = 0
-    while(numAdded < 20):
-        name, param = random.choice(list(model.named_parameters()))
-        #print(name,param)
-        if name in trainlayers or name in checkParams.keys():
-            continue
-        else:
-            checkParams.update({name:param})
-            numAdded = numAdded + 1
+   
+    freezedlayers = [ [name,param] for name,param in model.named_parameters() if param.requires_grad == False ]
+    if len(freezedlayers) > numLayersForCheck: 
+        numAdded = 0
+        while(numAdded < numLayersForCheck):
+            name, param = random.choice(list(model.named_parameters()))
+            if param.requires_grad == True or name in checkParams.keys():
+                continue
+            else:
+                checkParams.update({name:param})
+                numAdded = numAdded + 1
+    else:
+        checkParams = {name:param for name,param in freezedlayers}
+        
     return checkParams
 
 def check_modelparams(model, checkParams):
@@ -369,16 +307,17 @@ def save_modelconfigs(cfg, params):
         with open(filepath, 'w') as f:
             writer = csv.writer(f, delimiter='\t')
             headers = ['Folder', 'NET', 'BN', 'LR', 'Gamma', 'Steps', 'Epochs', 'Data Augmentation [CropSize, FlipProb, RotationAngle]',
-                       'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Train Loss', 'Val Loss', 'bboxAP', 'bboxAP50', 'bboxAP75', 'kptsAP', 'kptsAP50', 'kptsAP75']
+                       'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Train Loss', 'Val Loss', 'bboxAP', 'bboxAP50', 'bboxAP75', 'kptsAP', 'kptsAP50', 'kptsAP75', 'Add.Notes']
             writer.writerow(headers)
     folder = os.path.basename(cfg.OUTPUT_DIR)
     bnlayers = 'True' if params['bn'] else 'False'
-    data_augm = [cfg.INPUT.CROP.SIZE, cfg.DATA_FLIP_PROBABILITY , cfg.ROTATION] if params['dataaugm'] else 'False'  #TODO: add additional items to cfg object
+    data_augm = 'True' if params['dataaugm'] else 'False'  #[cfg.INPUT.CROP.SIZE, cfg.DATA_FLIP_PROBABILITY , cfg.ROTATION]
     lr = '%.2E'%Decimal(str(cfg.SOLVER.BASE_LR))
+    runnotes = params['addnotes']
 
     row = [folder, params['trainmode'], bnlayers, lr, str(cfg.SOLVER.GAMMA), cfg.SOLVER.STEPS,
             params['epochs'], data_augm, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE, cfg.INPUT.MIN_SIZE_TRAIN, cfg.SOLVER.IMS_PER_BATCH, 
-            ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
+            ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', runnotes]
     with open(filepath, 'a') as f:
         writer = csv.writer(f, delimiter='\t')
         writer.writerow(row)
@@ -416,7 +355,7 @@ def addlosses_to_configs(modeldir):
     csvfile = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/run_configs.csv'
     tempfile = NamedTemporaryFile('w+t', newline='', delete=False, dir='/home/althausc/master_thesis_impl/detectron2/out/checkpoints/tmp')
     shutil.copyfile(csvfile, tempfile.name)
-    foldername = os.path.basename(modeldir)
+    foldername = os.path.dirname(modeldir)
 
     content = None
     with open(csvfile, 'r', newline='') as csvFile:

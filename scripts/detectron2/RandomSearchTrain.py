@@ -5,11 +5,12 @@ import json
 import os
 import time
 import csv
+import argparse
 
 #Perform random search over the hyper-parameters
-_PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom']
+_PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom', 'loadparams']
 _PARAM_MODE = _PARAM_MODES[2]
-_NUM_RUNS = 1
+_NUM_RUNS = 4
 
 _TRAINMODES = ["ALL", "RESNETF", "RESNETL", "HEADSALL", 'SCRATCH']
 _DATA_AUGM = [True, False]
@@ -23,6 +24,8 @@ _IMSPERBATCH = [2, 4]
 _NUMGPUS = 1
 _RPN_POSITIVE_RATIOS = [0.33, 0.5]
 _GRADIENT_CLIP_VALUE = [1, 5]
+
+_ADD_NOTES = ' '
 
 def paramsexist(params):
     #Look in the overview csv file containing all done training runs if random params exists
@@ -82,7 +85,7 @@ for i in range(0,_NUM_RUNS):
             batchsize = 2 #random.choice(_IMSPERBATCH)
             lr = 0.001 #random.choice(_LRS)
             bn = random.choice(_BN)
-            minkpts = 1 #choice?
+            minkpts = random.choice(_MINKPTS) #choice?
             step_gam = random.choice(_STEPS_GAMMA)
             steps = step_gam[0]
             gamma = step_gam[1]
@@ -108,14 +111,27 @@ for i in range(0,_NUM_RUNS):
         rpn_posratio = 0.5
         gradient_clipvalue = 1
 
+    elif _PARAM_MODE == 'loadparams':
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-paramsconfig', required=True, help='Load params from file.')
+        args = parser.parse_args()
+
+        params = None
+        with open(args.paramsconfig, 'r') as f:
+            params = json.load(f)
+
+        _ADD_NOTES = 'Rerun of 10-15_19-31-30_all'
+        params.update({'addnotes': _ADD_NOTES})
+
     else:
         raise ValueError()
 
 
 
     print(" --------------------------- RUN %d ------------------------------ "%i)
-    params = {'trainmode': trainmode, 'dataaugm': dataaugm, 'batchsize': batchsize, 'epochs': _NUMEPOCHS, 'lr': lr, 'bn': bn, 'minscales': minscales, 'rpn_posratio': rpn_posratio,
-            'gradient_clipvalue': gradient_clipvalue, 'steps': steps, 'gamma': gamma, 'minkpt': minkpts}
+    if _PARAM_MODE != _PARAM_MODES[4]:
+        params = {'trainmode': trainmode, 'dataaugm': dataaugm, 'batchsize': batchsize, 'epochs': _NUMEPOCHS, 'lr': lr, 'bn': bn, 'minscales': minscales, 'rpn_posratio': rpn_posratio,
+                'gradient_clipvalue': gradient_clipvalue, 'steps': steps, 'gamma': gamma, 'minkpt': minkpts, 'addnotes': _ADD_NOTES}
     print("Parameters: ",params)
     logdir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints/trainconfigs_tmp', datetime.datetime.now().strftime('%m-%d_%H-%M-%S')+ '_%d'%i)
     os.makedirs(logdir)

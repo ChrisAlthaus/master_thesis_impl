@@ -8,8 +8,8 @@ import csv
 
 #Perform random search over the hyper-parameters
 _PARAM_MODES = ['randomsearch', 'custom']
-_PARAM_MODE = _PARAM_MODES[0]
-_NUM_RUNS = 2
+_PARAM_MODE = _PARAM_MODES[1]
+_NUM_RUNS = 1
 
 _PREDICTOR = ['MotifPredictor', 'IMPPredictor', 'VCTreePredictor', 'TransformerPredictor', 'CausalAnalysisPredictor']
 _FUSION_TYPES = ['sum', 'gate']
@@ -48,7 +48,6 @@ for i in range(0, _NUM_RUNS):
             if not paramsexist(predictor, fusiontype, contextlayer, lr):
                 break
             print("----------------------------------")
-        exit(1)
             
     elif _PARAM_MODE == 'custom':
         predictor = _PREDICTOR[4]
@@ -60,7 +59,7 @@ for i in range(0, _NUM_RUNS):
 
     out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints'
     #Using pre-trained Faster-RCNN
-    pretrained_frcnn = 'master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn/model_final.pth'
+    pretrained_frcnn = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn/model_final.pth'
     glovedir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/glove'
 
     #sgdet: parameter MODEL.ROI_RELATION_HEAD.REQUIRE_BOX_OVERLAP = True
@@ -90,6 +89,7 @@ for i in range(0, _NUM_RUNS):
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun2-2.sh'
     jobname = 'scenegraph-train%d'%i
     logdir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/logs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S')+ '_%d'%i)
+    logfile = os.path.join(logdir, 'train.log')
     os.makedirs(logdir)
 
     cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
@@ -112,7 +112,7 @@ for i in range(0, _NUM_RUNS):
     	"GLOVE_DIR {} \t"+\
     	"MODEL.PRETRAINED_DETECTOR_CKPT {} \t"+\
     	"OUTPUT_DIR {}")\
-    		.format(jobname, logdir, gpu_cmd, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, glovedir, pretrained_frcnn, out_dir)
+    		.format(jobname, logfile, gpu_cmd, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, glovedir, pretrained_frcnn, out_dir)
     print(cmd)
-    #os.system(cmd)
+    os.system(cmd)
     time.sleep(10)

@@ -31,7 +31,12 @@ class COCOTrainer(DefaultTrainer):
         if cfg.DATA_FLIP_ENABLED:
             augmentations.append(T.RandomFlip(cfg.DATA_FLIP_PROBABILITY, horizontal=True))
         if cfg.ROTATION_ENABLED:
-            augmentations.append(T.RandomRotation(cfg.ROTATION))
+            augmentations.append(T.RandomApply(T.RandomRotation(cfg.ROTATION),prob=0.20))
+        if cfg.COLOR_AUGM_ENABLED:
+            augmentations.append(T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25),prob=0.20))
+            augmentations.append(T.RandomApply(transform=T.RandomContrast(intensity_min=0.76, intensity_max=1.25),prob=0.20)) 
+            augmentations.append(T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25),prob=0.5))
+
 
         def mapper(dataset_dict):
             # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
@@ -45,11 +50,11 @@ class COCOTrainer(DefaultTrainer):
             augmentations.append(T.RandomRotation([-15,15]))
 
 
-            """augmentations.append(T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25),
+            augmentations.append(T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25),
                             prob=0.20))
             augmentations.append(T.RandomApply(transform=T.RandomContrast(intensity_min=0.76, intensity_max=1.25),
                             prob=0.20)) 
-            augmentations.append(T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25)))"""
+            augmentations.append(T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25)))
 
             image, transforms = T.apply_transform_gens([augmentations], image)
 

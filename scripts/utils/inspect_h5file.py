@@ -22,6 +22,23 @@ for item in list(f):
     print(item + ": " + str(f[item].shape))
     print(f[item][:10])
     print()
+
+print(type(f['split']))
+splitinds=[]
+for i in f['split']:
+    if i not in splitinds:
+        splitinds.append(i)
+print(splitinds)
+traincount = 0
+testcount = 0
+for i in f['split']:
+    if i == 0:
+        traincount = traincount + 1
+    elif i == 2:
+        testcount = testcount + 1
+print(traincount, testcount)
+
+
 exit(1)
 
 

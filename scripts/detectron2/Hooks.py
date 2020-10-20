@@ -107,7 +107,7 @@ class EarlyStoppingHook(HookBase):
     
     def after_step(self):
         #need 2x cfg.SOLVER.EARLYSTOPPING_PERIOD to decide if stopping
-        if self.trainer.iter % self._cfg.SOLVER.EARLYSTOPPING_PERIOD and self.trainer.iter >= self._cfg.SOLVER.EARLYSTOPPING_PERIOD * 2:
+        if self.trainer.iter % self._cfg.SOLVER.EARLYSTOPPING_PERIOD == 0 and self.trainer.iter >= self._cfg.SOLVER.EARLYSTOPPING_PERIOD * 2:
             losses = self.trainer.storage.history('total_loss').values()
             l1 = np.median( list(zip(*losses[-self._cfg.SOLVER.EARLYSTOPPING_PERIOD:]))[0] )
             l2 = np.median( list(zip(*losses[-2*self._cfg.SOLVER.EARLYSTOPPING_PERIOD: -self._cfg.SOLVER.EARLYSTOPPING_PERIOD]))[0] )
