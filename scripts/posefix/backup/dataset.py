@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # coding=utf-8
 
+#Path: /home/althausc/master_thesis_impl/PoseFix_RELEASE/data/COCO/dataset.py
 import os
 import os.path as osp
 import numpy as np

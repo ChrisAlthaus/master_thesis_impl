@@ -1,3 +1,4 @@
+#Path: /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py
 import os
 import os.path as osp
 import numpy as np

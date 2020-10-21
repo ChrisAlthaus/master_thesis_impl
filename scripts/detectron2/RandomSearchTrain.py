@@ -10,7 +10,7 @@ import argparse
 #Perform random search over the hyper-parameters
 _PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom', 'loadparams']
 _PARAM_MODE = _PARAM_MODES[2]
-_NUM_RUNS = 4
+_NUM_RUNS = 2
 
 _TRAINMODES = ["ALL", "RESNETF", "RESNETL", "HEADSALL", 'SCRATCH']
 _DATA_AUGM = [True, False]
@@ -82,7 +82,7 @@ for i in range(0,_NUM_RUNS):
         while True:
             trainmode = 'ALL'
             dataaugm = random.choice(_DATA_AUGM)
-            batchsize = 2 #random.choice(_IMSPERBATCH)
+            batchsize = random.choice(_IMSPERBATCH)
             lr = 0.001 #random.choice(_LRS)
             bn = random.choice(_BN)
             minkpts = random.choice(_MINKPTS) #choice?
@@ -90,7 +90,7 @@ for i in range(0,_NUM_RUNS):
             steps = step_gam[0]
             gamma = step_gam[1]
             minscales = random.choice(_MINSCALES)
-            rpn_posratio = 0.5
+            rpn_posratio = random.choice(_RPN_POSITIVE_RATIOS)
             gradient_clipvalue = 1 
             params = {'net':trainmode, 'dataaugm': dataaugm, 'batchsize': batchsize, 'lr':lr, 'bn':bn,
                     'minkpts':minkpts, 'steps':steps, 'gamma': gamma, 'minscales': minscales}
@@ -104,7 +104,7 @@ for i in range(0,_NUM_RUNS):
         batchsize = 4
         lr = 0.001
         bn = True
-        minkpts = 1 
+        minkpts = 4 
         steps = np.linspace(0.7, 1, 10).tolist()
         gamma = 0.75  #0.75 ^ 10 = 0.05
         minscales = (512,)

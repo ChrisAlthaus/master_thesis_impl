@@ -147,11 +147,11 @@ def main():
     
     
     max_iter, epoch_iter = get_iterations_for_epochs(dataset, c_params['epochs'], cfg.SOLVER.IMS_PER_BATCH, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
-    cfg.SOLVER.MAX_ITER = 200#max_iter
-    cfg.TEST.EVAL_PERIOD = 400#int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+    cfg.SOLVER.MAX_ITER = max_iter
+    cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
     cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
                                                 # and save as image in checkpoint folder. Disable: -1
-    cfg.SOLVER.EARLYSTOPPING_PERIOD = 1000#int(epoch_iter * 1) #window size
+    cfg.SOLVER.EARLYSTOPPING_PERIOD = int(epoch_iter * 1) #window size
     cfg.TEST.PERIODICWRITER_PERIOD = 100# default:20
     cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE = c_params['gradient_clipvalue']
     
@@ -168,6 +168,7 @@ def main():
     # -------------------------- BATCH NORMALIZATION SETUP ------------------------
     setupLayersAndBN(cfg, trainmode, batchnorm= c_params['bn'])
     cfg.freeze()
+    
 
     # ------------------------- APPLY CONFIG & GET MODEL ------------------------
     trainer = COCOTrainer(cfg)    
@@ -195,7 +196,7 @@ def main():
     print("Save model's configuration:")
     with open(os.path.join(cfg.OUTPUT_DIR, 'model_conf.txt'), 'w') as f:
         print(cfg,file=f)
-
+        
 
     # -------------------- RESUME MODEL ON/OFF ---------------------
   
@@ -307,7 +308,7 @@ def save_modelconfigs(cfg, params):
         with open(filepath, 'w') as f:
             writer = csv.writer(f, delimiter='\t')
             headers = ['Folder', 'NET', 'BN', 'LR', 'Gamma', 'Steps', 'Epochs', 'Data Augmentation [CropSize, FlipProb, RotationAngle]',
-                       'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Train Loss', 'Val Loss', 'bboxAP', 'bboxAP50', 'bboxAP75', 'kptsAP', 'kptsAP50', 'kptsAP75', 'Add.Notes']
+                       'Min Keypoints', 'MinSize Train', 'ImPerBatch', 'Train Loss', 'Val Loss', 'bbox/AP', 'bbox/AP50', 'bbox/AP75', 'keypoints/AP', 'keypoints/AP50', 'keypoints/AP75', 'Add.Notes']
             writer.writerow(headers)
     folder = os.path.basename(cfg.OUTPUT_DIR)
     bnlayers = 'True' if params['bn'] else 'False'
@@ -349,13 +350,12 @@ def addlosses_to_configs(modeldir):
     kpts_ap = lines[-1]["keypoints/AP"] if "keypoints/AP" in lines[-1] else 'not found'
     kpts_ap50 = lines[-1]["keypoints/AP50"] if "keypoints/AP50" in lines[-1] else 'not found'
     kpts_ap75 = lines[-1]["keypoints/AP75"] if "keypoints/AP75" in lines[-1] else 'not found'
-
-
+    
     #Update CSV config
     csvfile = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/run_configs.csv'
     tempfile = NamedTemporaryFile('w+t', newline='', delete=False, dir='/home/althausc/master_thesis_impl/detectron2/out/checkpoints/tmp')
     shutil.copyfile(csvfile, tempfile.name)
-    foldername = os.path.dirname(modeldir)
+    foldername = os.path.basename(modeldir)
 
     content = None
     with open(csvfile, 'r', newline='') as csvFile:
@@ -364,18 +364,19 @@ def addlosses_to_configs(modeldir):
         for i,row in enumerate(content):
             if i==0:
                 header = row
-                
+                header = [h.strip() for h in header]
             else:
                 #update losses in row of current model entry
+                print(row[header.index('Folder')], foldername, row[header.index('Folder')] == foldername)
                 if row[header.index('Folder')] == foldername:
                     row[header.index('Train Loss')] = trainloss
                     row[header.index('Val Loss')] = valloss
-                    row[header.index('bboxAP')] = bbox_ap
-                    row[header.index('bboxAP50')] = bbox_ap50
-                    row[header.index('bboxAP75')] = bbox_ap75
-                    row[header.index('kptsAP')] = kpts_ap
-                    row[header.index('kptsAP50')] = kpts_ap50
-                    row[header.index('kptsAP75')] = kpts_ap75
+                    row[header.index('bbox/AP')] = bbox_ap
+                    row[header.index('bbox/AP50')] = bbox_ap50
+                    row[header.index('bbox/AP75')] = bbox_ap75
+                    row[header.index('keypoints/AP')] = kpts_ap
+                    row[header.index('keypoints/AP50')] = kpts_ap50
+                    row[header.index('keypoints/AP75')] = kpts_ap75
 
                     break
         

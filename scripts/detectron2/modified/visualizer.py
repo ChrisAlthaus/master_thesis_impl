@@ -1,3 +1,4 @@
+#Path: /home/althausc/.local/lib/python3.6/site-packages/detectron2/utils/visualizer.py
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import colorsys
 import logging
@@ -759,7 +760,7 @@ class Visualizer:
             # draw keypoint
             x, y, prob = keypoint
             if prob > _KEYPOINT_THRESHOLD:
-                self.draw_circle((x, y), color=_RED)
+                self.draw_circle((x, y), color=_RED, radius=np.log(prob+1)*20)
                 if keypoint_names:
                     keypoint_name = keypoint_names[idx]
                     visible[keypoint_name] = (x, y)

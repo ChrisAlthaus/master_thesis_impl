@@ -1,3 +1,4 @@
+#Path: /home/althausc/master_thesis_impl/PoseFix_RELEASE/lib/tfflat/base.py
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import numpy as np
@@ -10,6 +11,10 @@ import json
 import math
 import abc
 import copy
+
+import csv
+from tempfile import NamedTemporaryFile
+import shutil
 
 from .net_utils import average_gradients, aggregate_batch, get_optimizer, get_tower_summary_dict
 from .saver import load_model, Saver
@@ -149,7 +154,10 @@ class Base(object):
 
         load_ImageNet = True
         if model == 'last_epoch':
-            sfiles = os.path.join(self.cfg.model_dump_dir, 'snapshot_*.ckpt.meta')
+            #modified 
+            sfiles = os.path.join(self.cfg.model_pretrained_dir, 'snapshot_*.ckpt.meta')
+            #sfiles = os.path.join(self.cfg.model_dump_dir, 'snapshot_*.ckpt.meta')
+            #modified end
             sfiles = glob.glob(sfiles)
             if len(sfiles) > 0:
                 sfiles.sort(key=os.path.getmtime)
@@ -165,7 +173,10 @@ class Base(object):
             load_ImageNet = False
 
         if isinstance(model, int):
-            model = os.path.join(self.cfg.model_dump_dir, 'snapshot_%d.ckpt' % model)
+            #modified
+            model = os.path.join(self.cfg.model_pretrained_dir, 'snapshot_%d.ckpt' % model)
+            #model = os.path.join(self.cfg.model_dump_dir, 'snapshot_%d.ckpt' % model)
+            #modified end
             load_ImageNet = False
 
         if isinstance(model, str) and (osp.exists(model + '.meta') or osp.exists(model)):
@@ -228,7 +239,7 @@ class Trainer(Base):
         train_data = d.load_train_data()
         
         ## modify train_data to the result of the decoupled initial model
-        with open(d.test_on_trainset_path, 'r') as f:
+        with open(self.cfg.predict_inputmodel_file, 'r') as f:
             test_on_trainset = json.load(f)
         
         # sort list by img_id
@@ -353,6 +364,9 @@ class Trainer(Base):
         # flatten data_gt
         train_data = [y for x in data_gt for y in x]
 
+        #modified
+        print("Number of images for training: ",len(train_data))
+        #modified end
 
         from tfflat.data_provider import DataFromList, MultiProcessMapDataZMQ, BatchData, MapData
         data_load_thread = DataFromList(train_data)
@@ -434,6 +448,10 @@ class Trainer(Base):
         self.sess.run(tf.variables_initializer(tf.global_variables(), name='init'))
         self.load_weights('last_epoch' if self.cfg.continue_train else self.cfg.init_model)
 
+        #modified
+        train_summary_writer = tf.summary.create_file_writer(self.cfg.model_dump_dir)
+        #modified end
+
         self.logger.info('Start training ...')
         start_itr = self.cur_epoch * self.itr_per_epoch + 1
         end_itr = self.itr_per_epoch * self.cfg.end_epoch + 1
@@ -477,10 +495,46 @@ class Trainer(Base):
             #TODO(display stall?)
             if itr % self.cfg.display == 0:
                 self.logger.info(' '.join(screen))
+                #modified
+                with train_summary_writer.as_default():
+                    tf.summary.scalar('lr', self.lr, step=itr)
+                    tf.summary.scalar('lr_eval', self.lr_eval, step=itr)
+                    for k,v in itr_summary.items():
+                        tf.summary.scalar(k, v, step=itr)
+                #modified end
 
             if itr % self.itr_per_epoch == 0:
                 train_saver.save_model(self.cur_epoch)
+                #modified
+                with train_summary_writer.as_default():
+                    tf.summary.scalar('epoch', int(itr/self.itr_per_epoch), step=itr)
+                #modified end
+            
+            #modified
+            if self.cur_epoch % self.cfg.loss_to_config_period == 0 or itr % (end_itr-1) == 0:
+                #Update CSV config
+                csvfile = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/run_configs.csv'
+                tempfile = NamedTemporaryFile('w+t', newline='', delete=False, dir='/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/tmp')
+                shutil.copyfile(csvfile, tempfile.name)
+                foldername = os.path.basename(cfg.model_dump_dir)
 
+                content = None
+                with open(csvfile, 'r', newline='') as csvFile:
+                    reader = csv.reader(csvFile, delimiter='\t')
+                    content = list(reader)
+                    for i,row in enumerate(content):
+                        if i==0:
+                            header = row
+                            header = [h.strip() for h in header]
+                        else:
+                            #update losses in row of current model entry
+                            print(row[header.index('Folder')], foldername, row[header.index('Folder')] == foldername)
+                            if row[header.index('Folder')] == foldername:
+                                print("Summary items: ", itr_summary.items())
+                                row[header.index('Loss_h')] = itr_summary.items()['loss_h']
+                                row[header.index('Loss_c')] = itr_summary.items()['loss_c'] 
+                                break
+            #modified end
             self.tot_timer.toc()
 
 class Tester(Base):

@@ -1,5 +1,4 @@
 #Path: /home/althausc/.local/lib/python3.6/site-packages/detectron2/utils/events.py
-#NOTUSED ?!
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import datetime
 import json
@@ -94,7 +93,6 @@ class JSONWriter(EventWriter):
         self._window_size = window_size
 
     def write(self):
-        #print("Write to JSON file.")
         storage = get_event_storage()
         to_save = {"iteration": storage.iter}
         to_save.update(storage.latest_with_smoothing_hint(self._window_size))
@@ -104,8 +102,6 @@ class JSONWriter(EventWriter):
             os.fsync(self._file_handle.fileno())
         except AttributeError:
             pass
-        
-        #print("Write to JSON file end.")
 
     def close(self):
         self._file_handle.close()
@@ -166,7 +162,7 @@ class CommonMetricPrinter(EventWriter):
     To print something in more customized ways, please implement a similar printer by yourself.
     """
 
-    def __init__(self, max_iter):
+    def __init__(self, max_iter, cfg):
         """
         Args:
             max_iter (int): the maximum number of iterations to train.
@@ -175,6 +171,7 @@ class CommonMetricPrinter(EventWriter):
         self.logger = logging.getLogger(__name__)
         self._max_iter = max_iter
         self._last_write = None
+        self.cfg = cfg #modified
 
     def write(self):
         storage = get_event_storage()
@@ -221,7 +218,7 @@ class CommonMetricPrinter(EventWriter):
                 iter=iteration,
                 losses="  ".join(
                     [
-                        "{}: {:.3f}".format(k, v.median(20))
+                        "{}: {:.3f}".format(k, v.median(self.cfg.TEST.PERIODICWRITER_PERIOD)) #modified
                         for k, v in storage.histories().items()
                         if "loss" in k
                     ]
@@ -371,19 +368,8 @@ class EventStorage:
         This provides a default behavior that other writers can use.
         """
         result = {}
-
-        #for k, v in self._latest_scalars.items():
-        #    result[k] = self._history[k].median(window_size) if self._smoothing_hints[k] else v
-        #modified
-        no_window_size = [  "bbox/AP", "bbox/AP50", "bbox/AP75", "bbox/APl", "bbox/APm", "bbox/APs",
-                            "keypoints/AP", "keypoints/AP50", "keypoints/AP75", "keypoints/APl", "keypoints/APm", "validation_loss"]
-        for k, hb in self._history.items():
-            if k in no_window_size:
-                result[k] = self._history[k].median(1) if self._smoothing_hints[k] else hb.latest()
-            else:
-                result[k] = self._history[k].median(window_size) if self._smoothing_hints[k] else hb.latest()
-        #modified end
-
+        for k, v in self._latest_scalars.items():
+            result[k] = self._history[k].median(window_size) if self._smoothing_hints[k] else v
         return result
 
     def smoothing_hints(self):

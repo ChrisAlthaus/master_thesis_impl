@@ -1,7 +1,10 @@
+#Path: /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/config.py
 import os
 import os.path as osp
 import sys
 import numpy as np
+import datetime
+import inspect
 
 class Config:
     
@@ -15,6 +18,13 @@ class Config:
     data_dir = osp.join(root_dir, 'data')
     output_dir = osp.join(root_dir, 'output')
     model_dump_dir = osp.join(output_dir, 'model_dump', dataset)
+    #modified
+    model_pretrained_dir = osp.join(output_dir, 'model_dump', dataset)
+    #modified end
+    predict_inputmodel_file = None 
+
+    
+
     vis_dir = osp.join(output_dir, 'vis', dataset)
     log_dir = osp.join(output_dir, 'log', dataset)
     result_dir = osp.join(output_dir, 'result', dataset)
@@ -56,6 +66,9 @@ class Config:
     num_gpus = 1
     continue_train = False
     display = 1
+    #modified
+    loss_to_config_period = 2#50
+    #modified end
     
     ## helper functions
     def get_lr(self, epoch):
@@ -75,12 +88,41 @@ class Config:
         return img + self.pixel_means
 
     #modified: CUDA_VISIBLE_DEVICES not supported
-    def set_args(self, gpu_ids, continue_train=False):
+    def set_args(self, gpu_ids, predictPath, continue_train=False):
         #self.gpu_ids = gpu_ids
         #self.num_gpus = len(self.gpu_ids.split(','))
         self.continue_train = continue_train
+        self.predict_inputmodel_file = predictPath
         #os.environ["CUDA_VISIBLE_DEVICES"] = self.gpu_ids
         #print('>>> Using /gpu:{}'.format(self.gpu_ids))
+    #modified end
+
+    def set_modeldir_for_test(self, model_dir):
+        self.model_dump_dir = model_dir
+         # Save the config to file
+    
+    #modified
+    def saveconfig(self, outputdir, args=None, params_train=None):
+        print("Saving configs to folder: ",outputdir)
+        attributes = inspect.getmembers(self, lambda a:not(inspect.isroutine(a)))
+        attr = [a for a in attributes if not(a[0].startswith('__') and a[0].endswith('__'))]
+        
+        with open(os.path.join(outputdir, 'model_config.txt'), 'w') as f:
+            f.write(' '.join(["%s = %s \n" % (k,v) for (k,v) in attr])) 
+            #f.write(' '.join(["%s = %s \n" % (k,v) for k,v in vars(self).items()])) 
+
+        with open(os.path.join(outputdir, 'config.txt'), 'w') as f:
+            if args is not None: #prediction
+                f.write("Model folder: %s"%args.modelfolder + os.linesep)
+                f.write("Model epoch: %s"%args.test_epoch + os.linesep)
+                f.write("Input file: %s"%args.inputs + os.linesep)
+                f.write("Corresponding image folder: %s"%args.imagefolder + os.linesep)
+            else: #training
+                f.write("Input file: %s"%params_train[0] + os.linesep)
+                f.write("Continue train: %s"%params_train[1] + os.linesep)
+
+
+        print("Saving configs done.")
     #modified end
 
 cfg = Config()
@@ -89,7 +131,7 @@ sys.path.insert(0, osp.join(cfg.root_dir, 'lib'))
 from tfflat.utils import add_pypath, make_dir
 add_pypath(osp.join(cfg.data_dir))
 add_pypath(osp.join(cfg.data_dir, cfg.dataset))
-make_dir(cfg.model_dump_dir)
+#make_dir(cfg.model_dump_dir)
 make_dir(cfg.vis_dir)
 make_dir(cfg.log_dir)
 make_dir(cfg.result_dir)
@@ -101,6 +143,8 @@ cfg.kps_lines = dbcfg.kps_lines
 cfg.kps_symmetry = dbcfg.kps_symmetry
 cfg.kps_sigmas = dbcfg.kps_sigmas
 cfg.ignore_kps = dbcfg.ignore_kps
-cfg.img_path = dbcfg.img_path
+cfg.train_img_path = dbcfg.train_img_path
 cfg.vis_keypoints = dbcfg.vis_keypoints
+
+
 

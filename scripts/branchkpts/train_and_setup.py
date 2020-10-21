@@ -90,13 +90,14 @@ print("Output Directory: %s\n"%out_dir)
 print("POSEFIX TRAINING:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
 continue_train = True #False
+pretrained_dir = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/MSCOCO-pretrained'
 inputfile = os.path.join(outrun_dir,"predictions_bbox_gt.json.json")
 # Annotationfile called person_keypoints_train2017_stAPI.json placed in: PoseFix_RELEASE/data/COCO/annotations
 # Images for training in train2017 placed in: PoseFix_RELEASE/data/COCO/images
 
 #-gpu argument not used
-cmd = "{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/train.py --gpu 1 -inputpreds {} {}"\
-                                        .format(gpu_cmd, inputfile, '--continue' if continue_train else ' ')
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/train.py --gpu 1 -inputpreds {} {} {}"\
+                                        .format(gpu_cmd, inputfile, '--continue --pretrained %s'%pretrained_dir if continue_train else ' ')
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
