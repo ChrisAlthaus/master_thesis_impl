@@ -10,22 +10,22 @@ import argparse
 #Perform random search over the hyper-parameters
 _PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom', 'loadparams']
 _PARAM_MODE = _PARAM_MODES[2]
-_NUM_RUNS = 2
+_NUM_RUNS = 1
 
 _TRAINMODES = ["ALL", "RESNETF", "RESNETL", "HEADSALL", 'SCRATCH']
 _DATA_AUGM = [True, False]
 _LRS = [0.01, 0.001, 0.0001, 0.00001]
 _BN = [True, False]
-_MINKPTS = [1,2]
+_MINKPTS = [1,2,4]
 _NUMEPOCHS = 10
-_STEPS_GAMMA = [ [[0.76, 0.92], 0.1], [np.linspace(0.7, 1, 10).tolist(), 0.5] ]
+_STEPS_GAMMA = [ [[0.76, 0.92], 0.1], [np.linspace(0.7, 0.92, 6).tolist(), 0.5] ]#[np.linspace(0.7, 1, 4).tolist(), 0.5]  ]
 _MINSCALES = [(640, 672, 704, 736, 768, 800), [512], [800]]
 _IMSPERBATCH = [2, 4]
 _NUMGPUS = 1
 _RPN_POSITIVE_RATIOS = [0.33, 0.5]
 _GRADIENT_CLIP_VALUE = [1, 5]
 
-_ADD_NOTES = ' '
+_ADD_NOTES = ''
 
 def paramsexist(params):
     #Look in the overview csv file containing all done training runs if random params exists
@@ -69,7 +69,7 @@ for i in range(0,_NUM_RUNS):
         trainmode = 'ALL'
         dataaugm = False
         batchsize = 4
-        lr = 0.02/(16/_IMSPERBATCH) #original trained with batchsize=16
+        lr = 0.02/(16/batchsize) #original trained with batchsize=16
         bn = False
         minscales = (640, 672, 704, 736, 768, 800)
         rpn_posratio = 0.5
@@ -99,7 +99,7 @@ for i in range(0,_NUM_RUNS):
                 break    
 
     elif _PARAM_MODE == 'custom':
-        trainmode = 'ALL'
+        trainmode = 'SCRATCH' #'ALL'
         dataaugm = True
         batchsize = 4
         lr = 0.001

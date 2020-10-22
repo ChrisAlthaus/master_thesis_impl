@@ -53,12 +53,13 @@ print("MASK-RCNN PREDICTION:")
 maskrcnn_cp = "/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth" #debug, uncomment for usage os.path.join(outrun_dir, 'model_0214999.pth')  #Specify model checkpoint here
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
 img_dir = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'  #Predictions used for later PoseFix training
-topk = 20
-score_tresh = 0.7
+topk = 100 #20
+score_tresh = 0.8 #0.7
 
 target = 'train'
-cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target {} -visrandom  "\
-                                                                                        .format(gpu_cmd, maskrcnn_cp, img_dir, topk, score_tresh, target)
+styletransfered = True
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target {} {} -visrandom  "\
+                                                                             .format(gpu_cmd, maskrcnn_cp, img_dir, topk, score_tresh, target, '-styletransfered' if styletransfered else ' ')
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
@@ -96,7 +97,7 @@ inputfile = os.path.join(outrun_dir,"predictions_bbox_gt.json.json")
 # Images for training in train2017 placed in: PoseFix_RELEASE/data/COCO/images
 
 #-gpu argument not used
-cmd = "{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/train.py --gpu 1 -inputpreds {} {} {}"\
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/train.py --gpu 1 -inputpreds {} {}"\
                                         .format(gpu_cmd, inputfile, '--continue --pretrained %s'%pretrained_dir if continue_train else ' ')
 if _PRINT_CMDS:
     print(cmd)

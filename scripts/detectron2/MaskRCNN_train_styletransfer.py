@@ -148,7 +148,7 @@ def main():
     
     max_iter, epoch_iter = get_iterations_for_epochs(dataset, c_params['epochs'], cfg.SOLVER.IMS_PER_BATCH, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
     cfg.SOLVER.MAX_ITER = max_iter
-    cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+    cfg.TEST.EVAL_PERIOD = 100#int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
     cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
                                                 # and save as image in checkpoint folder. Disable: -1
     cfg.SOLVER.EARLYSTOPPING_PERIOD = int(epoch_iter * 1) #window size

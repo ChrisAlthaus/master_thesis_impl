@@ -11,6 +11,7 @@ import time
 
 import itertools
 import numpy as np
+from shapely.geometry import Polygon
 
 
 
@@ -76,7 +77,34 @@ def getbboxes(list_of_dicts):
         bbox_list.append(bbox)
     return bbox_list
 
+
+def calculate_iou(box_1, box_2):
+    poly_1 = Polygon(box_1)
+    poly_2 = Polygon(box_2)
+    iou = poly_1.intersection(poly_2).area / poly_1.union(poly_2).area
+    return iou
+
 print("Replacing bbox of predictions with groundtruth annotation...")
+result = []
+for image_id, ann_group in annotations_group.items():
+    if image_id in preds_group:
+        pred_group = preds_group[image_id]
+
+        for i,ann_gt in enumerate(ann_group):
+            b_ann = ann['bbox']
+            if len(pred_group) == 0:
+                result.append(ann_gt)
+                continue
+            b_pred = [pred['bbox'] for pred in pred_group]
+            
+            sim = [calculate_iou(b_ann, b) for b in b_pred]
+            min_index = np.argmin(sim)
+            pred = pred_group[min_index]
+            entry = {'image_id': pred['image_id'], 'image_size':  pred['image_size'], 'category_id': pred['category_id'], 
+                    'bbox': b_ann, 'keypoints': pred['keypoints'], 'score': pred['score'] }
+            result.append(entry)
+            del pred_group[min_index]
+
 
 preds_with_gtbbox = []
 for img_id, pred_group in preds_group.items():
@@ -104,6 +132,6 @@ print("Length gt annotations: ",len(annotations))
 print("Length of filtered & combined predictions: ",len(preds_with_gtbbox))
 print("Length of previous predictions: ",len(preds))
 
-
+print("Output folder: ", output_dir)
 with open(os.path.join(output_dir,'predictions_bbox_gt.json'), 'w') as f:
     json.dump(preds_with_gtbbox, f, separators=(', ', ': '))    

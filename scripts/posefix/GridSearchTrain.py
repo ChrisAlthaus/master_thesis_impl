@@ -22,7 +22,7 @@ _LRDECAY_EPOCHS = [[90, 120]] #original: [90, 120]
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
 resume = False #True
 pretrained_dir = 'test'
-inputpreds = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/10-13_12-49-15/predictions_bbox_gt.json.json'
+inputpreds = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/10-22_13-25-10/maskrcnn_predictions.json'
 
 cmd = ("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/train.py --gpu 1 --inputpreds {} {}")\
                                                 .format(gpu_cmd, inputpreds, '--continue --pretrained %s'%pretrained_dir if resume else ' ')

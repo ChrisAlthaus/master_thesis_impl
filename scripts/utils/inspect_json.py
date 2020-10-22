@@ -53,6 +53,16 @@ if args.mode == 'graph-prediction':
         print(elem[0],np.array(elem[1]).shape)
     exit(1)
 
+if args.mode == 'coco-annotations-firstn':
+    print(str(json_file['annotations'])[:10000])
+    exit(1)
+
+if args.mode == 'raw':
+    for ann in json_file:
+        if ann['image_id'] == int(args.search):
+            print(ann)
+    exit(1)
+
 if args.mode == 'coco-annotations':
     for ann in json_file['annotations']:
         if ann['image_id'] == int(args.search):
