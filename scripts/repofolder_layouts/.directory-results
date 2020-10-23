@@ -1,0 +1,45 @@
+
+/home/althausc/master_thesis_impl/results
+   .
+   |-09
+   |---01_18-55-43
+   |-----AP_improvement
+   |-------all_plots
+   |-coco-analyze
+   |---AP_improvement
+   |-----all_plots
+   |---background_errors
+   |-----false_negatives
+   |-----false_positives
+   |---benchmarks_sensitivity
+   |-----occlusion_crowding
+   |-----size
+   |-------all_plots
+   |---keypoints_breakdown
+   |---localization_errors
+   |---scoring_errors
+   |-graphdetection
+   |-logs
+   |---jupyter-notebook
+   |-----graphbranch
+   |-----kptbranch
+   |-posedetection
+   |---maskrcnn
+   |-----10-13_11-41-17
+   |-------10
+   |---------21_12-56-30
+   |---------21_12-58-48
+   |-----10-13_12-49-15
+   |-------10
+   |---------21_12-41-41
+   |---------21_12-44-03
+   |---------21_12-44-53
+   |---------21_12-45-28
+   |---------21_12-48-45
+   |---------21_12-49-42
+   |---------21_12-59-06
+   |---------21_13-00-03
+   |---------21_13-00-41
+   |-----maskrcnn_predictions.json
+   |---posefix
+

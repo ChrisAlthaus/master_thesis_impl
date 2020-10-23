@@ -57,9 +57,9 @@ if args.mode == 'coco-annotations-firstn':
     print(str(json_file['annotations'])[:10000])
     exit(1)
 
-if args.mode == 'raw':
-    for ann in json_file:
-        if ann['image_id'] == int(args.search):
+if args.mode == 'coco-metadata':
+    for ann in json_file['images']:
+        if ann['id'] == int(args.search):
             print(ann)
     exit(1)
 

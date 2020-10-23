@@ -9,7 +9,7 @@ import argparse
 
 #Perform random search over the hyper-parameters
 _PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom', 'loadparams']
-_PARAM_MODE = _PARAM_MODES[2]
+_PARAM_MODE = _PARAM_MODES[3]
 _NUM_RUNS = 1
 
 _TRAINMODES = ["ALL", "RESNETF", "RESNETL", "HEADSALL", 'SCRATCH']

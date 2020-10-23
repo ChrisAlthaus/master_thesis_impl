@@ -72,11 +72,12 @@ print("Output Directory: %s\n"%out_dir)
 
 # ---------- PREPROCESS PREDICTIONS ------------
 print("PREPROCESS MASK-RCNN PREDICTIONS FOR POSEFIX TRAINING:")
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
 predictionpath = os.path.join(outrun_dir, 'maskrcnn_predictions.json')
 annpath = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
 
-cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/posefix/preproc_predictions.py -predictions {} -annotations {}"\
-                                                                                            .format(predictionpath, annpath)
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/posefix/preproc_predictions.py -predictions {} -annotations {} -visfirstn -drawbmapping"\
+                                                                                    .format(gpu_cmd, predictionpath, annpath)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
@@ -92,7 +93,7 @@ print("POSEFIX TRAINING:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
 continue_train = True #False
 pretrained_dir = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/MSCOCO-pretrained'
-inputfile = os.path.join(outrun_dir,"predictions_bbox_gt.json.json")
+inputfile = os.path.join(outrun_dir,"predictions_bbox_gt.json")
 # Annotationfile called person_keypoints_train2017_stAPI.json placed in: PoseFix_RELEASE/data/COCO/annotations
 # Images for training in train2017 placed in: PoseFix_RELEASE/data/COCO/images
 
