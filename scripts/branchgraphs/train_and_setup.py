@@ -128,7 +128,7 @@ print("Output Directory: %s\n"%out_dir)
 # ----------------- SCENE GRAPH PREDICTION ---------------------
 print("SCENE GRAPH PREDICTION:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-2.sh'
-model_dir = out_dir  #default: '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/causal_motif_sgdet'
+model_dir = latestdir(out_dir)  #default: '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/causal_motif_sgdet'
 img_dir = '/home/althausc/nfs/data/vg_styletransfer/VG_100K'
 out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs'
 

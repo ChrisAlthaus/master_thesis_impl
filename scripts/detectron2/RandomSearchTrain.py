@@ -99,10 +99,10 @@ for i in range(0,_NUM_RUNS):
                 break    
 
     elif _PARAM_MODE == 'custom':
-        trainmode = 'SCRATCH' #'ALL'
+        trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
         dataaugm = True
         batchsize = 4
-        lr = 0.001
+        lr = 0.001 #0.01
         bn = True
         minkpts = 4 
         steps = np.linspace(0.7, 1, 10).tolist()
@@ -143,7 +143,7 @@ for i in range(0,_NUM_RUNS):
     #Normal run command, Print for eventually debugging
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
     resume = False #True
-    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth' #
+    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth'
 
     #Additional params to setup in file: folder : BN[yes,no], LR, Weight Decay[steps& exp/no exp], Data Augmentation[Random Rotation, Flip & Crop],
     #                                             Min keypoints[for filter images], Additional[MinSizeTrain, ImgPerBatch]
@@ -155,8 +155,6 @@ for i in range(0,_NUM_RUNS):
 
     #Start sbatch training
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh'
-    resume = False #True
-    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth'
     jobname = "maskrcnn-train-%s"%datetime.datetime.now().strftime('%d_%H-%M-%S')
     logfile = os.path.join(logdir, 'train.log')
 
@@ -164,7 +162,7 @@ for i in range(0,_NUM_RUNS):
     #                                             Min keypoints[for filter images], Additional[MinSizeTrain, ImgPerBatch]
 
     cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
-        "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_train_styletransfer.py -paramsconfig {} -addconfig")\
+        "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_train_styletransfer.py -paramsconfig {} {} -addconfig")\
                                                     .format(jobname, logfile, gpu_cmd, paramconfig, '-resume %s'%maskrcnn_cp if resume else ' ')
 
     print(cmd)

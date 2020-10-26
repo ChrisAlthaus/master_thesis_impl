@@ -3,6 +3,7 @@ from detectron2.evaluation import inference_context
 from detectron2.utils.logger import log_every_n_seconds
 from detectron2.data import DatasetMapper, build_detection_test_loader
 import detectron2.utils.comm as comm
+from detectron2.utils.events import get_event_storage
 import torch
 import time
 import datetime
@@ -27,9 +28,9 @@ class LoggingHook(HookBase):
             print(self._cfg)
             print("----------------------------------------------------------------------------")
         if next_iter == 10:
+            storage = get_event_storage()
+            storage.put_scalar('minKPTsFilter', self._cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
             self.trainer.storage.put_scalar('minKPTsFilter', self._cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
-            for i,lr_step in enumerate(self._cfg.SOLVER.STEPS):
-                self.trainer.storage.put_scalar('lrstep%d'%i, lr_step)
 
 
 
@@ -75,6 +76,8 @@ class LossEvalHook(HookBase):
         mean_loss = np.mean(losses)
         if comm.is_main_process():
             print("Put validation loss into storage ...")
+            storage = get_event_storage()
+            storage.put_scalar('validation_loss', mean_loss, smoothing_hint=False)
             self.trainer.storage.put_scalar('validation_loss', mean_loss, smoothing_hint=False)
             print("Put validation loss into storage done.")
 

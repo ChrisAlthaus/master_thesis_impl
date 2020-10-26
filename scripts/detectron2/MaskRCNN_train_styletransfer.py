@@ -47,7 +47,7 @@ def main():
     #parser.add_argument('-finetune','-fL',required=True, 
     #                    help='Specify which layers should be trained. Either RESNET, HEADSALL or ALL.')
     parser.add_argument('-resume','-checkpoint', 
-                        help='Train model from checkpoint given by path.')
+                        help='Path to previous trained model weights (.pth).')
     #parser.add_argument('-numepochs','-epochs', type=int, help='Number of epochs to train.')
     parser.add_argument('-paramsconfig', type=str, help='Path to config which contains specific hyper-parameters, with which the model should be trained.')
     parser.add_argument('-addconfig', help='Add selected configurations as an additional row to a csv file.', action="store_true")
@@ -74,7 +74,10 @@ def main():
     
     # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
     if trainmode != 'SCRATCH':
-        cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml") #"COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"
+        if args.resume is None:
+            cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml") #"COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"
+        else:
+            cfg.MODEL.WEIGHTS = args.resume
     else:
         cfg.MODEL.WEIGHTS = ""
 

@@ -41,6 +41,7 @@ for i in range(0, _NUM_RUNS):
     if _PARAM_MODE == 'randomsearch':
         while True:
             predictor = _PREDICTOR[4]
+            #Fusiontype and contextlayer only used for 'CausalAnalysisPredictor'
             fusiontype = random.choice(_FUSION_TYPES)
             contextlayer = random.choice(_CONTEXTLAYER_TYPES)
             lr = random.choice(_LR)
@@ -56,6 +57,7 @@ for i in range(0, _NUM_RUNS):
         lr = 0.01
 
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G2d4-2.sh'
+    masterport = random.randint(10020, 10100)
 
     out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints'
     #Using pre-trained Faster-RCNN
@@ -64,7 +66,7 @@ for i in range(0, _NUM_RUNS):
 
     #sgdet: parameter MODEL.ROI_RELATION_HEAD.REQUIRE_BOX_OVERLAP = True
     #Print console cmd for better debugging
-    cmd = ("{} python3.6 -m torch.distributed.launch --master_port 10026 --nproc_per_node=2 "+\
+    cmd = ("{} python3.6 -m torch.distributed.launch --master_port {} --nproc_per_node=2 "+\
     	"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_train_net.py \t"+\
     	"--config-file \"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml\" \t"+\
     	"MODEL.ROI_RELATION_HEAD.USE_GT_BOX False \t"+\
@@ -83,7 +85,7 @@ for i in range(0, _NUM_RUNS):
     	"GLOVE_DIR {} \t"+\
     	"MODEL.PRETRAINED_DETECTOR_CKPT {} \t"+\
     	"OUTPUT_DIR {}")\
-    		.format(gpu_cmd, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, glovedir, pretrained_frcnn, out_dir)
+    		.format(gpu_cmd, masterport, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, glovedir, pretrained_frcnn, out_dir)
     print(cmd)
 
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun2-2.sh'
@@ -93,7 +95,7 @@ for i in range(0, _NUM_RUNS):
     os.makedirs(logdir)
 
     cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
-        "{} python3.6 -m torch.distributed.launch --master_port 10026 --nproc_per_node=2 "+\
+        "{} python3.6 -m torch.distributed.launch --master_port {} --nproc_per_node=2 "+\
     	"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_train_net.py \t"+\
     	"--config-file \"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml\" \t"+\
     	"MODEL.ROI_RELATION_HEAD.USE_GT_BOX False \t"+\
@@ -112,7 +114,7 @@ for i in range(0, _NUM_RUNS):
     	"GLOVE_DIR {} \t"+\
     	"MODEL.PRETRAINED_DETECTOR_CKPT {} \t"+\
     	"OUTPUT_DIR {}")\
-    		.format(jobname, logfile, gpu_cmd, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, glovedir, pretrained_frcnn, out_dir)
+    		.format(jobname, logfile, gpu_cmd, masterport, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, glovedir, pretrained_frcnn, out_dir)
     print(cmd)
     os.system(cmd)
     time.sleep(10)

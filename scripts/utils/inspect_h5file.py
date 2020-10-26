@@ -8,6 +8,9 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument('-file', help='Path to a json file.')
 parser.add_argument('-firstn',type=int)
+parser.add_argument('-searchindex',type=int)
+
+3981
 
 args = parser.parse_args()
 
@@ -22,6 +25,41 @@ for item in list(f):
     print(item + ": " + str(f[item].shape))
     print(f[item][:10])
     print()
+
+if args.searchindex is not None:
+    for i in reversed(range(2,10)):
+        print('img_to_first_box: ', f['img_to_first_box'][args.searchindex-i])
+        print('img_to_last_box: ', f['img_to_last_box'][args.searchindex-i])
+        print('img_to_first_rel: ', f['img_to_first_rel'][args.searchindex-i])
+        print('img_to_last_rel: ', f['img_to_last_rel'][args.searchindex-i])
+        print("--------------------------------")
+    print('img_to_first_box: ', f['img_to_first_box'][args.searchindex-1])
+    print('img_to_last_box: ', f['img_to_last_box'][args.searchindex-1])
+    print('img_to_first_rel: ', f['img_to_first_rel'][args.searchindex-1])
+    print('img_to_last_rel: ', f['img_to_last_rel'][args.searchindex-1])
+    print("--------------------------------")
+    print('img_to_first_box: ', f['img_to_first_box'][args.searchindex])
+    print('img_to_last_box: ', f['img_to_last_box'][args.searchindex])
+    print('img_to_first_rel: ', f['img_to_first_rel'][args.searchindex])
+    print('img_to_last_rel: ', f['img_to_last_rel'][args.searchindex])
+    print("--------------------------------")
+    print('img_to_first_box: ', f['img_to_first_box'][args.searchindex+1])
+    print('img_to_last_box: ', f['img_to_last_box'][args.searchindex+1])
+    print('img_to_first_rel: ', f['img_to_first_rel'][args.searchindex+1])
+    print('img_to_last_rel: ', f['img_to_last_rel'][args.searchindex+1])
+    exit(1)
+
+for i in range(len(f['img_to_first_box'])):
+   # if f['img_to_first_box'][i] == -1:
+   #     print('box index: ',i)
+
+    if f['img_to_first_box'][i] == -1 and f['img_to_first_rel'][i] == -1:
+        print('img_to_first_box: ', f['img_to_first_box'][i])
+        print('img_to_last_box: ', f['img_to_last_box'][i])
+        print('img_to_first_rel: ', f['img_to_first_rel'][i])
+        print('img_to_last_rel: ', f['img_to_last_rel'][i])
+        print("--------------------------------")
+
 
 print(type(f['split']))
 splitinds=[]

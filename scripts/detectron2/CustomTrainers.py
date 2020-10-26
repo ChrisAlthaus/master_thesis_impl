@@ -13,14 +13,6 @@ import copy
 class COCOTrainer(DefaultTrainer):
     def __init__(self,cfg, mode="singlegpu"):
         super().__init__(cfg)
-        """if mode == "multigpu":
-            self.losseval_hook = LossEvalHook(self.cfg.TEST.EVAL_PERIOD,self.model,
-                build_detection_test_loader(
-                    self.cfg,
-                    self.cfg.DATASETS.TEST[0],
-                    DatasetMapper(self.cfg,True)
-                ),
-                self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR)""" # deprecated?
      
     @classmethod
     def build_train_loader(cls, cfg):
