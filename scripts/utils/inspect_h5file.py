@@ -25,6 +25,7 @@ for item in list(f):
     print(item + ": " + str(f[item].shape))
     print(f[item][:10])
     print()
+exit(1)
 
 if args.searchindex is not None:
     for i in reversed(range(2,10)):

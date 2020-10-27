@@ -83,7 +83,7 @@ for i in range(0,_NUM_RUNS):
             trainmode = 'ALL'
             dataaugm = random.choice(_DATA_AUGM)
             batchsize = random.choice(_IMSPERBATCH)
-            lr = 0.001 #random.choice(_LRS)
+            lr = 0.0025 #random.choice(_LRS)
             bn = random.choice(_BN)
             minkpts = random.choice(_MINKPTS) #choice?
             step_gam = random.choice(_STEPS_GAMMA)

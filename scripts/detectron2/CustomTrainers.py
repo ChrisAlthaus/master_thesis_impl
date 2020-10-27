@@ -6,6 +6,7 @@ from plotTrainValLosses import saveTrainValPlot
 import detectron2.data.transforms as T
 from detectron2.data import DatasetMapper, build_detection_train_loader, build_detection_test_loader
 import detectron2.data.detection_utils as utils
+from detectron2.engine.hooks import PeriodicWriter
 import torch
 import copy
 
@@ -74,6 +75,7 @@ class COCOTrainer(DefaultTrainer):
     #For Single-GPU loss computation, uncomment if not used
     def build_hooks(self):
         hooks = super().build_hooks()
+        #Insert hooks before PeriodicWriter at last position
         hooks.insert(-1,LossEvalHook(self.cfg.TEST.EVAL_PERIOD,self.model,
                 build_detection_test_loader(
                     self.cfg,
@@ -83,7 +85,8 @@ class COCOTrainer(DefaultTrainer):
                 self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR))
         hooks.insert(-1,LoggingHook(self.cfg, self.cfg.TEST.EVAL_PERIOD))
         hooks.insert(-1,EarlyStoppingHook(self.cfg))
-        
+
+        print("Registered hooks: ",hooks)
         return hooks
 
     

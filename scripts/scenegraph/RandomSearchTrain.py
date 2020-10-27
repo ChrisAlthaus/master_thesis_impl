@@ -20,6 +20,9 @@ _MAX_ITER = 50000
 _VAL_PERIOD = 2000
 _CPKT_PERIOD = 2000
 
+_DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default']
+_DATASET_SELECT = _DATASET_SELECTS[1]
+
 
 def paramsexist(predictor, fusiontype, contextlayer, lr):
     #Look in the overview csv file containing all done training runs if random params exists
@@ -82,14 +85,15 @@ for i in range(0, _NUM_RUNS):
     	"SOLVER.MAX_ITER {} \t"+\
     	"SOLVER.VAL_PERIOD {} \t"+\
     	"SOLVER.CHECKPOINT_PERIOD {} \t"+\
+    	"DATASETS.SELECT {} \t"+\
     	"GLOVE_DIR {} \t"+\
     	"MODEL.PRETRAINED_DETECTOR_CKPT {} \t"+\
     	"OUTPUT_DIR {}")\
-    		.format(gpu_cmd, masterport, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, glovedir, pretrained_frcnn, out_dir)
+    		.format(gpu_cmd, masterport, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, _DATASET_SELECT ,glovedir, pretrained_frcnn, out_dir)
     print(cmd)
 
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun2-2.sh'
-    jobname = 'scenegraph-train%d'%i
+    jobname = 'scenegraph-train%s'%datetime.datetime.now().strftime('%d_%H-%M-%S')
     logdir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/logs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S')+ '_%d'%i)
     logfile = os.path.join(logdir, 'train.log')
     os.makedirs(logdir)
@@ -111,10 +115,11 @@ for i in range(0, _NUM_RUNS):
     	"SOLVER.MAX_ITER {} \t"+\
     	"SOLVER.VAL_PERIOD {} \t"+\
     	"SOLVER.CHECKPOINT_PERIOD {} \t"+\
+    	"DATASETS.SELECT {} \t"+\
     	"GLOVE_DIR {} \t"+\
     	"MODEL.PRETRAINED_DETECTOR_CKPT {} \t"+\
     	"OUTPUT_DIR {}")\
-    		.format(jobname, logfile, gpu_cmd, masterport, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, glovedir, pretrained_frcnn, out_dir)
+    		.format(jobname, logfile, gpu_cmd, masterport, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, _DATASET_SELECT, glovedir, pretrained_frcnn, out_dir)
     print(cmd)
     os.system(cmd)
     time.sleep(10)

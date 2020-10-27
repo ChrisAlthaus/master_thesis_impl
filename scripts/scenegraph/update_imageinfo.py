@@ -15,7 +15,6 @@ parser.add_argument('-outputdir', required=True)
 
 args = parser.parse_args()
 
-
 json_data = None
 with open(args.file, "r") as f:
     json_data = json.load(f)
@@ -29,42 +28,38 @@ print(img_files[len(img_files)-10:])
 print("Number of images in directory: ",len(img_files))
 print("Number of images in image info file: ",len(json_data))
 corrupted = []
+notfound = []
 
 for i,img_name in enumerate(img_files):
     try:
         im = Image.open(os.path.join(args.imagedir,img_name))
         width, height = im.size
         img_id = int(os.path.splitext(img_name)[0])
-        """if img_id ==  2408703:
-            print(width,height)
-            print(elem)
-            exit(1)"""
-
         num_before = len(json_out)
+        found = False
         for elem in json_data:
             if elem['image_id'] == img_id:
                 elem['width'] = width
                 elem['height'] = height
-                json_out.append(elem)
-        if num_before == len(json_out):
+                found = True
+                break
+        if not found:
             print("Image id not found: ",img_id)
-            #json_out.append(None)
-            corrupted.append(img_name)
+            notfound.append(img_name)
     except:
         print("Failed to open image: ",img_name)
-        #json_out.append(None)
         corrupted.append(img_name)
 
     if i%1000 == 0:
         print("Processed %d images."%i)
 
-#Sort result to have the same ordering as input array
-imgids = [x['image_id'] for x in json_data]
-json_out.sort(key=lambda x: imgids.index(x['image_id']))
-
-print("Number of images in image info output file: ",len(json_out))
+#Corrupted Images:  []
+#Not found images in input info file: ['1592.jpg', '1722.jpg', '4616.jpg', '4617.jpg', '2316942.jpg', '2417331.jpg']
+#Number of corrupted & not found images: 6
 print("Corrupted Images: ",corrupted)
+print("Not found images in input info file:", notfound)
+print("Number of corrupted & not found images:", len(corrupted) + len(notfound))
 with open(os.path.join(args.outputdir, 'image_data_updated.json'), 'w') as f:
-    print("Writing to file: ",os.path.join(args.outputdir, 'image_data.json'))
-    json.dump(json_out, f)
+    print("Writing to file: ",os.path.join(args.outputdir, 'image_data_updated.json'))
+    json.dump(json_data, f)
 

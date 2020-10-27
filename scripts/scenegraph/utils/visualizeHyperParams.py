@@ -28,6 +28,7 @@ for i,row in enumerate(content):
         fusiontype = row[header.index('Fusion')]
         contextlayer = row[header.index('ContextLayer')]
         minsize = eval(row[header.index('MinSize')])
+        dataset = row[header.index('Dataset')]
         
         try:
             trainloss = eval(row[header.index('Train Loss')])
@@ -42,20 +43,20 @@ for i,row in enumerate(content):
 
         if row[header.index('Predictor')] == _PREDICTORS[0]:
             entry = {'x': lr , 'y': contextlayer , 'z': fusiontype, 'size': recall, 'color': trainloss}
-            text = 'MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>TrainLoss: {}<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}'\
-                            .format(minsize, lr, batchsize, folder, backbone, trainloss, loss_refined, loss_rel, recall)
+            text = 'MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>Dataset: {}<br>TrainLoss: {}<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}'\
+                            .format(minsize, lr, batchsize, folder, backbone, dataset, trainloss, loss_refined, loss_rel, recall)
             entry['text'] = text
             dataout.append(entry)
         else:
             entry = {'x': lr , 'y': batchsize , 'z': predictor, 'size': recall, 'color': trainloss}
-            text = 'MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>TrainLoss: {}<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}'\
-                            .format(minsize, lr, batchsize, folder, backbone, trainloss, loss_refined, loss_rel, recall)
+            text = 'MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>Dataset: {}<br>TrainLoss: {}<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}'\
+                            .format(minsize, lr, batchsize, folder, backbone, dataset, trainloss, loss_refined, loss_rel, recall)
             entry['text'] = text
             dataout.append(entry) 
         print("--------------------------")
 
 
-csvfile = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/plots/hyperparams_plotly_{}.csv'.format(predictor)
+csvfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/plot/hyperparams_plotly_{}.csv'.format(predictor)
 header = dataout[0].keys()
 with open(csvfile, 'w', newline='') as csvFile:  
     writer = csv.writer(csvFile, delimiter='\t')
