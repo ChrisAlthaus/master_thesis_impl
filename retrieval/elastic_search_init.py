@@ -18,6 +18,25 @@ import logging
 import ast
 import csv
 
+#Setup of elasticsearch server and performing read/write on database indices.
+#Different input data types are supported:
+#   -GPD type: geometric pose descriptor type
+#   -Inserting: either raw features or clusters
+#   -Search method: either cossim based for cluster db or distance measure for raw features
+
+#Similarity measures used by ranking procedure:
+#   --> general idea: group retrieved results for all input descriptors by imageid 
+#   1. Cluster database: > idea: suppress noise of individual feature vectors by cluster centers
+#                        > chunk wise retrieval and then flatteing for all imgids
+#                        > Number of result pairs (imgid, cos-score) = #input descriptors * _ELEMNUM_COS
+#                        > ranking of imgids by: count(imgid)*meanscore(cossim-value-imgid)
+#                        > linear norm to [0,1] for better differentiation, since often very similar ranking score
+#   2. Raw feature database: > idea: for each input descriptor get _ELEMNUM_DIST closest imgid entries, then take sum over all retrieval scores
+#                            > ranking of imgids by: sum(L2-distance-imgid) 
+#                            > Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_DIST #TODO: Implement cossim
+#                            > linear norm to [0,1] and then exponential norm
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-file',type=str,
                     help='Json file with clustering centroids as keys and a list of image metadata as values.\
@@ -77,15 +96,13 @@ if args.gpd_type is not None:
     assert args.gpd_type in _GPD_TYPES
 
 
-def main():
-    
+def main(): 
     data = None
     if args.insert_data or args.search_data:
         print("Reading from file: ",args.file)
         with open (args.file, "r") as f:
             data = f.read()
-        data = eval(data)
-        
+        data = eval(data)  
 
     output_dir = None
     if args.search_data:
@@ -96,8 +113,7 @@ def main():
             raise ValueError("Output directory %s already exists."%output_dir)
 
     
-
-    es = Elasticsearch("http://localhost:9200", #30000
+    es = Elasticsearch("http://localhost:9200", 
                        ca_certs=False,
                        verify_certs=False)
     _INDICES_ALL = es.indices.get_alias("*").keys()
@@ -125,6 +141,7 @@ def main():
         if args.method_search == _METHODS_SEARCH[0]:
             results = []
             print("Searching image descriptors from %s ..."%args.file)
+            #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_COS
             for img_descriptor in data:
                 print(img_descriptor)
                 image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_COS, args.method_search)
@@ -141,7 +158,8 @@ def main():
             numElemAll = es.cat.count(_INDEX, params={"format": "json"})[0]['count']
             print("Total documents in the index: %d."%int(numElemAll))
             print("Searching image descriptors from %s ..."%args.file)
-            #_ELEMNUM_DIST = int(numElemAll)
+
+            #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_DIST
             for img_descriptor in data:
                 image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_DIST, args.method_search)
                 results.append(list(zip(image_ids,scores)))
@@ -190,7 +208,13 @@ def get_indexconfigs(indexname):
                 return [numdocs, descriptorfile, srcimg_dir]
         return -1
 
-def insertdata_raw(args, data ,es):           
+
+def insertdata_raw(args, data ,es):
+    #Database layout:
+    # 1.Raw features
+    #   id | imagid | score |feature(gpd) 
+    # 2.Cluster features
+    #   id | imagid | score |feature(gpd cluster)            
     id = 0
     print("Inserting image descriptors from %s ..."%args.file)
     for item in data:
@@ -263,7 +287,6 @@ def insertdoc(es, feature, metadata, id, featurelabel):
     }
 
     res = es.index(index=_INDEX, id=id, body=doc) 
-    #print("inserting ",doc)
     if res['result'] != 'created':
         raise ValueError("Document not created.")
 
@@ -444,6 +467,9 @@ def getimgdir(indexname, imgdir=None, es=None):
 
 
 def saveResults(image_ids, rel_scores, output_dir, image_dir):
+    #Output file format:
+    #   - imagdir: base image directory
+    #   - dict-entries rank : {filepath, relscore}
     imagemetadata = {'imagedir': image_dir}
     if rel_scores is None:
         rel_scores = ['unknown'] * len(image_ids)

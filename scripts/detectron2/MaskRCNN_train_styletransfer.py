@@ -33,7 +33,7 @@ from tempfile import NamedTemporaryFile
 import shutil
 import json
 
-from plotAveragePrecisions import plotAPS
+from utils.plotAveragePrecisions import plotAPS
 
 from torchsummary import summary
 from torch.utils.tensorboard import SummaryWriter

@@ -18,11 +18,27 @@ def parameter_parser():
     parser.add_argument('-outputdir')
     parser.add_argument('-boxestresh', type=float, default=0.01)
     parser.add_argument('-relstresh', type=float, default=0.01)
+    parser.add_argument('-boxestopk', type=int, default=20)
+    parser.add_argument('-relstopk', type=int, default=20)
     parser.add_argument('-build_labelvectors', action='store_true')
     parser.add_argument('-relsasnodes', action='store_true')
 
     args = parser.parse_args()
     return args
+
+#Transform the input graph prediction file (bbox, bbox_labels,...) to the necessary 
+#Graph2Vec file format (edgeindices, boxlabels, ...). 
+#Previously filter the graph predictions by:
+#   1.bbox score treshold
+#   2.valid bbox label
+#   3.take topk of these filtered
+#Previously filter the relationship predictions by:
+#   1.rel score treshold
+#   2.valid rel label
+#   3.take topk of these filtered
+#Additional: Save distribution of bbox and relationship labels of filtered results
+#(labelsvectors-topk.json, used for weight reranking of search results later)
+
 
 def main(args):
     if not os.path.isfile(args.file) or not os.path.isfile(args.imginfo):
@@ -44,7 +60,8 @@ def main(args):
     with open(args.imginfo, "r") as f:
         imginfo = json.load(f)
 
-    #Graph file format:
+    #File formats:
+    #Graph file format (input):
     #   every dict item represents one image prediction
     #       ->fields are:   bbox (80, 4)    (sizes may differ)
     #                       bbox_labels (80,)
@@ -53,6 +70,14 @@ def main(args):
     #                       rel_labels (6320,)
     #                       rel_scores (6320,)
     #                       rel_all_scores (6320, 51)
+    #
+    #Graph2Vec file format (output):
+    #   dict with entries:
+    #           -imgpath
+    #           -edges (indices pairs, refering to feature field)
+    #           -features: dict mapping ind->bbox/rel label
+    #           -box_scores: dict mapping ind->bbox score
+    #           -rel_scores: dict mapping ind->rel score
 
     idx_to_files = imginfo["idx_to_files"]
     ind_to_classes = imginfo["ind_to_classes"]
@@ -61,8 +86,8 @@ def main(args):
     _SCORE_THRESH_RELS = args.relstresh
     _RELS_AS_NODES = args.relsasnodes
 
-    _BOXES_TOPK = 20
-    _RELS_TOPK = 20
+    _BOXES_TOPK = args.boxestopk
+    _RELS_TOPK = args.relstopk
     graphs = dict()
     ann = ''
 

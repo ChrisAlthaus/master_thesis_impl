@@ -3,6 +3,8 @@ import os
 
 from PIL import Image
 
+#Script gets images from directory which cannot be opened
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-imagedir', help='Directory with the new images.')
 args = parser.parse_args()

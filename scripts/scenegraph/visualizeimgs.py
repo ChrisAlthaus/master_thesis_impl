@@ -8,12 +8,22 @@ import datetime
 import os
 
 import argparse
+
+from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS
+
+#Used for visualizing all graph predictions given by inputfiles (custom_prediction.json, custom_data_info.json).
+#Save image overlayed by graphs (labeled bboxes and relationship). Additional save bbox and relationship annotations
+#as easy-readable text to file.
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-predictdir')
     parser.add_argument('-filter', action='store_true', 
                         help='Specify if boxes should be filtered by predefined labels. Filtered out boxes will be shown in green.\
                               Not necessary when filtered previously.')
+    parser.add_argument('-boxestopk', default=20, help='Only draw best scored first k boxes')
+    parser.add_argument('-relstopk', default=20, help='Only draw best scored first k relationships')
+
 
     args = parser.parse_args()
 
@@ -23,48 +33,9 @@ if __name__ == "__main__":
     custom_prediction = json.load(open(pred_dir))
     custom_data_info = json.load(open(info_dir))
 
-def get_filterinds():
-    ind_to_classes = ["__background__", "airplane", "animal", "arm", "bag", "banana", "basket",
-                        "beach", "bear", "bed", "bench", "bike", "bird", "board", "boat", "book",
-                        "boot", "bottle", "bowl", "box", "boy", "branch", "building", "bus", "cabinet",
-                        "cap", "car", "cat", "chair", "child", "clock", "coat", "counter", "cow",
-                        "cup", "curtain", "desk", "dog", "door", "drawer", "ear", "elephant",
-                        "engine", "eye", "face", "fence", "finger", "flag", "flower", "food",
-                        "fork", "fruit", "giraffe", "girl", "glass", "glove", "guy", "hair",
-                        "hand", "handle", "hat", "head", "helmet", "hill", "horse", "house",
-                        "jacket", "jean", "kid", "kite", "lady", "lamp", "laptop", "leaf",
-                        "leg", "letter", "light", "logo", "man", "men", "motorcycle", "mountain",
-                        "mouth", "neck", "nose", "number", "orange", "pant", "paper", "paw", "people",
-                        "person", "phone", "pillow", "pizza", "plane", "plant", "plate", "player", "pole", "post",
-                        "pot", "racket", "railing", "rock", "roof", "room", "screen", "seat", "sheep", "shelf",
-                        "shirt", "shoe", "short", "sidewalk", "sign", "sink", "skateboard", "ski", "skier", "sneaker",
-                        "snow", "sock", "stand", "street", "surfboard", "table", "tail", "tie", "tile", "tire", "toilet", "towel",
-                        "tower", "track", "train", "tree", "truck", "trunk", "umbrella", "vase", "vegetable", "vehicle", "wave", "wheel",
-                        "window", "windshield", "wing", "wire", "woman", "zebra"]
-    ind_to_predicates = ["__background__", "above", "across", "against", "along", "and", "at", "attached to",
-                        "behind", "belonging to", "between", "carrying", "covered in", "covering", "eating", "flying in",
-                        "for", "from", "growing on", "hanging from", "has", "holding", "in", "in front of", "laying on",
-                        "looking at", "lying on", "made of", "mounted on", "near", "of", "on", "on back of", "over",
-                        "painted on", "parked on", "part of", "playing", "riding", "says", "sitting on",
-                        "standing on", "to", "under", "using", "walking in", "walking on", "watching", "wearing", "wears", "with"]
 
-    filter_classes = ["__background__", "animal", "bag", "basket",
-                        "beach", "bed", "bench", "bird", "boat", "boy", "building","cabinet",
-                         "cat", "chair", "child", "cow",
-                        "cup", "curtain", "desk", "dog", "door", "elephant",
-                        "flower", "food",
-                        "fruit", "giraffe", "girl", "guy",
-                        "hill", "horse", "house",
-                        "kid", "lady", "lamp","hat","cap",
-                        "light", "man", "men", "mountain",
-                        "people",
-                        "person", "plant", "plate",
-                        "rock", "roof", "room", "sheep", "shelf",
-                        "sidewalk",
-                        "snow", "stand", "street", "table",
-                        "tower", "track", "train", "tree", "vase", "vegetable", "vehicle", "wave",
-                        "window","woman", "zebra"]
-    filter_inds = [ind_to_classes.index(elem) for elem in filter_classes]
+def get_filterinds():
+    filter_inds = [ind_to_classes.index(elem) for elem in VALID_BBOXLABELS]
     return filter_inds
 
 
@@ -90,21 +61,19 @@ def drawline(pic, box1, box2, color='blue'):
     m2x, m2y = (x21+x22)/2, (y21+y22)/2
     #draw.line([(m1x,m1y), (m2x,m2y)], fill=color)
     draw.line([(x11,y11), (x21,y21)], fill=color)
-
-
-
-        
+   
 def print_list(name, input_list, scores=None):
     for i, item in enumerate(input_list):
         if scores == None:
             print(name + ' ' + str(i) + ': ' + str(item))
         else:
             print(name + ' ' + str(i) + ': ' + str(item) + '; score: ' + str(scores[i]))
+
     
 def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel_topk,
                ind_to_classes, ind_to_predicates, box_scores=None, rel_scores=None, filter=False, box_indstart = None):
 
-    size = get_size(Image.open(img_path).size)
+    size = get_size(Image.open(img_path).size) #necessary?
     print("resize: ",size)
     pic = Image.open(img_path).resize(size)
     ann_str = ''
@@ -119,9 +88,7 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
     ann_str = ann_str + 'Box labels: \n'
     c = 0
     num_obj = len(boxes)
-    #print("boxes: ",boxes)
-    #print("rel_pairs: ",rel_pairs)
-    #print("box_labels: ",box_labels)
+
     for i in range(num_obj):
         if c == box_topk:
             break
@@ -142,25 +109,16 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
     ann_str = ann_str + 'Rel labels: \n'
     c = 0        
     num_rel = len(rel_pairs)
-    #print("rel_pairs: ",rel_pairs)
+
     #relationship values not starting from 0, e.g. for visualizing scene graph data
     #for predictions rel values starting from 0 relative to box array length
     if box_indstart is not None:
         rel_pairs = np.array(rel_pairs) - box_indstart
-    #print(box_indstart, rel_pairs)
-   #print(rel_pairs)
-    #print("rel_pairs: ",rel_pairs)
-    #print(len(rel_pairs))
-    #print("rel_labels: ",rel_labels)
-    #print("addedlabels: ",addedlabels)
+   
     for i in range(len(rel_pairs)):
-        #print(i ,c ,rel_topk)
         if c == rel_topk:
             break
         id1, id2 = rel_pairs[i]
-        #print(rel_pairs[i])
-        #if id1 in [13,1] and id2 in [13,1]:
-        #    print("found: ",id1,id2)
 
         if filter:
             if id1 not in addedlabels or id2 not in addedlabels:
@@ -194,12 +152,6 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
                 relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
             
             ann_str = ann_str + relstr + '\n'
-
-    """print("img path: ",img_path)
-    print('*' * 50)
-    print_list('box_labels', box_labels, box_scores)
-    print('*' * 50)
-    print_list('rel_labels', rel_labels, rel_scores)"""
     
     return pic, ann_str
 
@@ -231,10 +183,8 @@ if __name__ == "__main__":
     else:
         raise ValueError("Output directory %s already exists."%output_dir)
 
-    # parameters
-    #image_idx = 11
-    box_topk = 20 # select top k bounding boxes
-    rel_topk = 20 # select top k relationships
+    box_topk = args.boxestopk # select top k bounding boxes
+    rel_topk = args.relstopk # select top k relationships
     ind_to_classes = custom_data_info['ind_to_classes']
     ind_to_predicates = custom_data_info['ind_to_predicates']
 

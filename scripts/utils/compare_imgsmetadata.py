@@ -3,7 +3,7 @@ import os
 
 from PIL import Image
 
-
+#Compares the sizes of equal named images from two directories
 parser = argparse.ArgumentParser()
 parser.add_argument('-imgdir1')
 parser.add_argument('-imgdir2')

@@ -1,5 +1,9 @@
 import os
 
+#Script gets the detailed coco evaluation for files specified below.
+#Used for detailed evaluation summary. 
+#Output folder equals to naming of input prediction folder,
+
 _MODES = ['Mask-RCNN', 'PoseFix']
 _MODE = _MODES[0]
 

@@ -1,4 +1,4 @@
-
+#Valid bbox labels used by multiple files, subset of all bbox labels
 VALID_BBOXLABELS = ["__background__", "animal", "bag", "basket", "beach", "bed", "bench", "bird", "boat", "boy", "building","cabinet",
                 "cat", "chair", "child", "cow", "cup", "curtain", "desk", "dog", "door", "elephant", "flower", "food",
                 "fruit", "giraffe", "girl", "guy", "hill", "horse", "house", "kid", "lady", "lamp","hat","cap",
@@ -6,6 +6,7 @@ VALID_BBOXLABELS = ["__background__", "animal", "bag", "basket", "beach", "bed",
                 "sidewalk", "snow", "stand", "street", "table", "tower", "track", "train", "tree", "vase", "vegetable", "vehicle", "wave",
                 "window","woman", "zebra"]
 
+#Valid relationship/predicate labels used by multiple files, use all rel labels
 VALID_RELLABELS = ["__background__", "above", "across", "against", "along", "and", "at", "attached to",
                     "behind", "belonging to", "between", "carrying", "covered in", "covering", "eating", "flying in",
                     "for", "from", "growing on", "hanging from", "has", "holding", "in", "in front of", "laying on",
@@ -13,7 +14,7 @@ VALID_RELLABELS = ["__background__", "above", "across", "against", "along", "and
                     "painted on", "parked on", "part of", "playing", "riding", "says", "sitting on",
                     "standing on", "to", "under", "using", "walking in", "walking on", "watching", "wearing", "wears", "with"]
 
-#ground truth labels
+#groundtruth bbox labels
 ind_to_classes = ["__background__", "airplane", "animal", "arm", "bag", "banana", "basket",
                     "beach", "bear", "bed", "bench", "bike", "bird", "board", "boat", "book",
                     "boot", "bottle", "bowl", "box", "boy", "branch", "building", "bus", "cabinet",
@@ -31,6 +32,8 @@ ind_to_classes = ["__background__", "airplane", "animal", "arm", "bag", "banana"
                     "snow", "sock", "stand", "street", "surfboard", "table", "tail", "tie", "tile", "tire", "toilet", "towel",
                     "tower", "track", "train", "tree", "truck", "trunk", "umbrella", "vase", "vegetable", "vehicle", "wave", "wheel",
                     "window", "windshield", "wing", "wire", "woman", "zebra"]
+
+#groundtruth relationship/predicate labels
 ind_to_predicates = ["__background__", "above", "across", "against", "along", "and", "at", "attached to",
                     "behind", "belonging to", "between", "carrying", "covered in", "covering", "eating", "flying in",
                     "for", "from", "growing on", "hanging from", "has", "holding", "in", "in front of", "laying on",

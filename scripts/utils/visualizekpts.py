@@ -12,6 +12,9 @@ import cv2
 import torch
 import itertools
 
+#Visualizes human pose keypoints given by input file.
+#Treshold for score possible.
+#Image folder corresponding to input file annotations needed.
 
 def main():
     parser = argparse.ArgumentParser()

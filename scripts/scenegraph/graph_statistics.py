@@ -22,9 +22,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-graphfile', help='Path to the filtered graph file.')
 args = parser.parse_args()
 
-outdir = os.path.dirname(args.graphfile)
+outdir = os.path.dirname(args.graphfile, '.stats')
+if not os.path.exists(outdir):
+        os.makedirs(outdir)
 
-
+#Plot statistics of graph file created from scene graph prediction.
+#Statistics calculated:
+# - Box label quantity distribution
+# - Relationship label quantity distribution
+# - Box label score distribution
+# - Relationship label score distribution
+#Output folder: .stats in graph file directory
 
 data = None
 with open(args.graphfile, "r") as f:

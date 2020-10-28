@@ -2,7 +2,6 @@ from detectron2.engine import DefaultTrainer
 from detectron2.evaluation.coco_evaluation import COCOEvaluator
 import os
 from Hooks import LossEvalHook, LoggingHook, EarlyStoppingHook
-from plotTrainValLosses import saveTrainValPlot
 import detectron2.data.transforms as T
 from detectron2.data import DatasetMapper, build_detection_train_loader, build_detection_test_loader
 import detectron2.data.detection_utils as utils
@@ -10,6 +9,9 @@ from detectron2.engine.hooks import PeriodicWriter
 import torch
 import copy
 
+#Custom trainer used for additional data augmentations 
+#and logging of different metrics (vallidation loss, parameters).
+#Additional: Early Stopping
 
 class COCOTrainer(DefaultTrainer):
     def __init__(self,cfg, mode="singlegpu"):

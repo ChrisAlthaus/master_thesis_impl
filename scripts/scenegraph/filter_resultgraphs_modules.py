@@ -12,6 +12,16 @@ import numpy as np
 from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VALID_RELLABELS
 #Can be used for scene graph prediction topk filtering before saving
 #Otherwise much too large (~7MB/prediction)
+#Used in: Scene-Graph-Benchmark.pytorch/maskrcnn_benchmark/engine/inference.py
+
+#Filter the graph predictions by:
+#   1.bbox score treshold
+#   2.valid bbox label
+#   3.take topk of these filtered
+#Filter the relationship predictions by:
+#   1.rel score treshold
+#   2.valid rel label
+#   3.take topk of these filtered
 
 def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtertresh_rels):   
     #  Example pred format:

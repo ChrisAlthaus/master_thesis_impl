@@ -5,6 +5,7 @@ from scipy.signal import savgol_filter
 
 import argparse
 
+#deprecated: not used
 
 def saveTrainValPlot(experiment_folder, onlySmoothed = True):
     def load_json_arr(json_path):

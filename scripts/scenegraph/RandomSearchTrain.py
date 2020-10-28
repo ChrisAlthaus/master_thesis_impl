@@ -17,11 +17,13 @@ _CONTEXTLAYER_TYPES = ['motifs', 'vctree', 'vtranse']
 _LR = [0.01, 0.001, 0.005] #original: 0.01
 _IMS_PER_BATCH = 12
 _MAX_ITER = 50000
-_VAL_PERIOD = 2000
-_CPKT_PERIOD = 2000
+_VAL_PERIOD = 2000 #2000
+_CPKT_PERIOD = 2050 #2000
 
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default']
-_DATASET_SELECT = _DATASET_SELECTS[1]
+_DATASET_SELECT = _DATASET_SELECTS[0]
+
+_ATTRIBUTE_ON = False
 
 
 def paramsexist(predictor, fusiontype, contextlayer, lr):
@@ -79,6 +81,7 @@ for i in range(0, _NUM_RUNS):
     	"MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE {} \t"+\
     	"MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER {} \t"+\
     	"MODEL.ROI_RELATION_HEAD.REQUIRE_BOX_OVERLAP True \t"+\
+    	"MODEL.ATTRIBUTE_ON {} \t"+\
     	"SOLVER.IMS_PER_BATCH {} \t"+\
     	"TEST.IMS_PER_BATCH 2 \t"+\
     	"DTYPE \"float16\" \t"+\
@@ -89,8 +92,9 @@ for i in range(0, _NUM_RUNS):
     	"GLOVE_DIR {} \t"+\
     	"MODEL.PRETRAINED_DETECTOR_CKPT {} \t"+\
     	"OUTPUT_DIR {}")\
-    		.format(gpu_cmd, masterport, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, _DATASET_SELECT ,glovedir, pretrained_frcnn, out_dir)
+    		.format(gpu_cmd, masterport, predictor, fusiontype, contextlayer, _ATTRIBUTE_ON, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, _DATASET_SELECT ,glovedir, pretrained_frcnn, out_dir)
     print(cmd)
+
 
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun2-2.sh'
     jobname = 'scenegraph-train%s'%datetime.datetime.now().strftime('%d_%H-%M-%S')
@@ -109,6 +113,7 @@ for i in range(0, _NUM_RUNS):
     	"MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE {} \t"+\
     	"MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER {} \t"+\
     	"MODEL.ROI_RELATION_HEAD.REQUIRE_BOX_OVERLAP True \t"+\
+        "MODEL.ATTRIBUTE_ON {} \t"+\
     	"SOLVER.IMS_PER_BATCH {} \t"+\
     	"TEST.IMS_PER_BATCH 2 \t"+\
     	"DTYPE \"float16\" \t"+\
@@ -119,7 +124,7 @@ for i in range(0, _NUM_RUNS):
     	"GLOVE_DIR {} \t"+\
     	"MODEL.PRETRAINED_DETECTOR_CKPT {} \t"+\
     	"OUTPUT_DIR {}")\
-    		.format(jobname, logfile, gpu_cmd, masterport, predictor, fusiontype, contextlayer, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, _DATASET_SELECT, glovedir, pretrained_frcnn, out_dir)
+    		.format(jobname, logfile, gpu_cmd, masterport, predictor, fusiontype, contextlayer, _ATTRIBUTE_ON, _IMS_PER_BATCH, _MAX_ITER, _VAL_PERIOD, _CPKT_PERIOD, _DATASET_SELECT, glovedir, pretrained_frcnn, out_dir)
     print(cmd)
     os.system(cmd)
     time.sleep(10)

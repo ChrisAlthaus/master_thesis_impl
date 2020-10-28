@@ -51,6 +51,14 @@ def paramsexist(params):
                     return True
     return False
 
+def getgammas(lrstart, lrsteps):
+        #For multiple gammas to support precise lr decay levels
+        gammas = []
+        for lr in lrsteps:
+            gammas.append(lr/lrstart)
+        return gammas
+
+
 for i in range(0,_NUM_RUNS):
 
     if _PARAM_MODE == 'originalpaper': #see https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/config.py or https://arxiv.org/pdf/1703.06870.pdf
@@ -96,17 +104,20 @@ for i in range(0,_NUM_RUNS):
                     'minkpts':minkpts, 'steps':steps, 'gamma': gamma, 'minscales': minscales}
            
             if not paramsexist(params):
-                break    
+                break  
 
     elif _PARAM_MODE == 'custom':
         trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
         dataaugm = True
         batchsize = 4
-        lr = 0.001 #0.01
+        lr = 0.004 #0.01
         bn = True
         minkpts = 4 
-        steps = np.linspace(0.7, 1, 10).tolist()
-        gamma = 0.75  #0.75 ^ 10 = 0.05
+        #steps = np.linspace(0.7, 1, 10).tolist()
+        #gamma = 0.75  #0.75 ^ 10 = 0.05
+        steps = [0.76, 0.92]
+        gamma = getgammas(lr, [0.0025, 0.001])
+
         minscales = (512,)
         rpn_posratio = 0.5
         gradient_clipvalue = 1

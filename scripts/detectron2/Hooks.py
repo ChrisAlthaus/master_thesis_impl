@@ -13,7 +13,6 @@ import os
 import cv2
 import csv
 
-from plotTrainValLosses import saveTrainValPlot
 
 class LoggingHook(HookBase):
     def __init__(self, cfg, period):

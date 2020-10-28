@@ -4,6 +4,8 @@ import os
 
 import pandas as pd
 
+#Used for plotting coco evaluation results
+#Not used now
 
 def plotAPS(output_path):
     bbox_path = os.path.join(output_path,'bbox.csv')
