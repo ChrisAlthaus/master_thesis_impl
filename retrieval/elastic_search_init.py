@@ -72,7 +72,7 @@ else:
 #Method 2 uses a Distance-Measure to compute the sum of L2-distances between input features 
 #       and raw features stored in the db (each similarity counts). The image with smallest distance is selected
 _METHODS_INS = ['CLUSTER', 'RAW']
-_METHODS_SEARCH = ['COSSIM', 'DISTSUM']
+_METHODS_SEARCH = ['CLUSTER-COSSIM', 'RAW-COSSIM']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
 
 _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
@@ -293,37 +293,39 @@ def insertdoc(es, feature, metadata, id, featurelabel):
 def query(es, featurevector, size, method):
     if method == _METHODS_SEARCH[0]:
         request = { "size": size,
-                               "min_score": _SIMILARITY_TRESH + 1, 
-                               "query": {
-                                "script_score": {
-                                "query": {
-                                    "match_all": {}
-                                },
-                                "script": {
-                                    "source": "cosineSimilarity(params.queryVector, doc['gpdcluster'])+1.0",
-                                    "params": {
-                                    "queryVector": list(featurevector)  
-                                    }
-                                }
+                    "min_score": _SIMILARITY_TRESH + 1, 
+                    "query": {
+                        "script_score": {
+                            "query": {
+                                "match_all": {}
+                            },
+                            "script": {
+                                "source": "cosineSimilarity(params.queryVector, doc['gpdcluster']) + 1.0", #add *score?!
+                                "params": {
+                                "queryVector": list(featurevector)  
                                 }
                             }
                         }
-    else: # method == _METHODS[1], L2-Distance
-        request = { "size": size,
-                      "query": {
-                       "script_score": {
-                       "query": {
-                           "match_all": {}
-                       },
-                       "script": {
-                           "source": "l2norm(params.queryVector, doc['gpd'])",
-                           "params": {
-                           "queryVector": list(featurevector)  
-                           }
-                        }
-                       }
-                      }
+                    }
                   }
+    elif method == _METHODS_SEARCH[1]:
+        request = { "size": size,
+                    "query": {
+                        "script_score": {
+                            "query": {
+                                "match_all": {}
+                            },
+                            "script": {
+                                "source": "cosineSimilarity(params.queryVector, doc['gpd']) + 1.0",
+                                "params": {
+                                    "queryVector": list(featurevector)  
+                                }
+                            }
+                        }
+                    }
+                  }
+    else:
+        raise ValueError()
     try :
         res= es.search(index=_INDEX, 
                         body=request)
@@ -343,6 +345,26 @@ def query(es, featurevector, size, method):
      
     return imageids, scores
 
+def logscorestats(scores):
+    #Computes the box-plot whiskers values.
+    #Computed values: min, low_whiskers, Q1, median, Q3, high_whiskers, max
+    #Ordering differs from whiskers plot ordering.
+    Q1, median, Q3 = np.percentile(np.asarray(scores), [25, 50, 75])
+    IQR = Q3 - Q1
+
+    loval = Q1 - 1.5 * IQR
+    hival = Q3 + 1.5 * IQR
+
+    wiskhi = np.compress(scores <= hival, scores)
+    wisklo = np.compress(scores >= loval, scores)
+    actual_hival = np.max(wiskhi)
+    actual_loval = np.min(wisklo)
+
+    Qs = [Q1, median, Q3, loval, hival, actual_loval, actual_hival]
+    Qname = ["Q1", "median", "Q3", "Q1-1.5xIQR", "Q3+1.5xIQR", 
+            "Actual LO", "Actual HI"]
+    logstr = ''.join(["{}:{} ".format(a,b) for a,b in zip(Qname,Qs)])
+    return logstr
 
 def bestmatching_sumdist(image_scoring, k):
     #Scoring should contain for each imageid the accumulated scores between query features and db entries  
@@ -358,75 +380,61 @@ def bestmatching_sumdist(image_scoring, k):
         else:
             score_sums[imageid] = score_sums[imageid] + score
     print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
-    print(score_sums)
-    print("Max: ", max(score_sums.values()))
-    print("Min: ", min(score_sums.values()))
-
-
+    print("Number of unreduced (without topk) unique imagids: ",len(score_sums))
+    print("Raw sumdistances statistics:", logscorestats(score_sums.values()))
+    
     bestk = sorted(score_sums.items(), key=lambda x: x[1])[:k]
     #Apply normalization to intervall [0,1] & then apply exponential function, used for later comparison score in search results display
-    exp_norm = lambda x: (x[0], np.exp( -10*(x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())) ))
+    if max(score_sums.values()) != min(score_sums.values()):
+        lin_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())))
+        bestk = map(lin_norm, bestk)
+        print("Linear Normalization statistics:", logscorestats(bestk))
+    exp_norm = lambda x: (x[0], np.exp(-10* x[1]))
     bestk = map(exp_norm, bestk)
-    #print(list(bestk))
-    #exp_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values()))) 
-    #bestk = map(exp_norm, bestk)
-    #print(list(bestk))
-    #imageids = [x[0] for x in bestk]
+    print("Exponential Normalization statistics:", logscorestats(bestk))
+
     return list(bestk)
 
 
 def bestmatching_cluster(image_scoring, k):
     grouped_by_imageid = [list(g) for k, g in itertools.groupby(sorted(image_scoring, key=lambda x:x[0]), lambda x: x[0])]
-    
+    print("Raw group meanscore statistics:", logscorestats([np.mean([s[1] for s in e]) for e in grouped_by_imageid]))
+    print("Raw group size statistics:", logscorestats([len(e) for e in grouped_by_imageid]))
+
     #Format: [ [(img_id1,score1), (img_id1,score2)], ... [(img_idN,score1), .., (img_idN,scoreK)] ]
-    #Rank by #occurances * mean of scores 
-    start_time = time.time()
+    #Rank by (#occurances above Q3 treshold) * mean of scores 
+    #Use Q3 treshold above all groups to allow for boost of very certain matches.
+    #Otherwise entries with low score value will falsify boost factor.
     print("Ranking query results with custom heuristic ...")
-    ranked = sorted(grouped_by_imageid, key=lambda e: len(e) * np.mean([s[1] for s in e]), reverse=True)
+    q3_tresh = np.mean([np.percentile(np.asarray(e[1]), [75]) for e in grouped_by_imageid])
+    ranked = sorted(grouped_by_imageid, key=lambda e: max(1, len([s[1] for s in e if s[1] > q3_tresh])) * np.mean([s[1] for s in e]), reverse=True)
     print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
     
-    #Only image ids as result
-    ranked_reduced = []
+    #Only image ids & updated scores as result
+    #Resulting scores (=mean) may not be in decreasing order since ordering rule: (#occurances above Q3 treshold) * mean of scores #deprectaed
+    imageids = []
     scoring = []
-    for occurances in ranked:
-        scores = [item[1] for item in occurances]
-        score = sum(scores)/len(scores)
-        ranked_reduced.append(occurances[0][0])
-      
-        scoring.append(score)
-    
-    #linear norm because already previous filtered with threshold
-    print(scoring)
-    minscore, maxscore = min(scoring), max(scoring)
-    #all scores have the same value, normalize to all 1's
-    if minscore == maxscore:
-        print("Applying no norm.")
-        scoring = [1 for i,x in enumerate(scoring)]
-    else:
+    for chunkid in ranked:
+        imageids.append(chunkid[0][0])
+        scoring.append( max(1, len([s[1] for s in chunkid if s[1] > q3_tresh])) * np.mean([s[1] for s in chunkid]) )
+        
+    print("Ranked score statistics (by ordering rule):", logscorestats(scoring))
+
+    #linear norm for better differentiation & search browsing
+    if max(scoring) != min(scoring):
         print("Applying linear norm.")
-        lin_norm = lambda x: ( (x - minscore)/(maxscore - minscore) )
+        lin_norm = lambda x: ( (x - min(scoring))/(max(scoring) - min(scoring)) )
         scoring = map(lin_norm, scoring)
     
-    bestk = list(zip(ranked_reduced, scoring))
-    bestk = sorted(bestk, key=lambda x: x[1], reverse=True)[:k] #k right?
-    print("best k ranked: ",bestk)
+    bestk = list(zip(imageids, scoring))[:k]
     return bestk
 
 
 def get_alldocs(es):
     es.indices.refresh(index=_INDEX)
     response = scan(es, index=_INDEX, query={"query": { "match_all" : {}}})
-    #for item in response:
-    #    print(item)
-    #print("------------------------")
-    #print(list(response))
-    #print("Number of documents in the database: ",len(list(response)))
-    #exit(1)
+
     return list(response)
-   
-    #res = es.search(index=_INDEX, body={"query": {"match": { "match_all" : {}}} })
-    #res = es.search(index=_INDEX, body={"query": {"match_all": {}}})
-    
     """
     # Init scroll by search
     res = es.search(index=_INDEX, scroll='2m', size=100, body={})

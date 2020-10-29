@@ -14,6 +14,17 @@ import time
 import logging
 import itertools
 
+#Transform the input pose predictions to descriptors based on multiple measures.
+#Provided measures:
+#   - joint coordinates
+#   - joint-joint distances (subset possible)
+#   - joint-joint orientations (subset possible)
+#   - joint-line distances (subset possible)
+#   - joint-plane distances
+#   - line-line angles
+#Additional: To get a wanted descriptor dimension PCA can be used either 
+#with a pre-trained 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-inputFile',required=True,
                     help='File with keypoint annotations/ predictions.')
@@ -27,13 +38,21 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity",
 args = parser.parse_args()
 
 #test_entry = {'image_id': 23899057496, 'category_id': 1, 'bbox': [211.99081420898438, 139.43743896484375, 425.96087646484375, 355.24871826171875], 'keypoints': [334.2212219238281, 201.67015075683594, 1.079627275466919, 331.54656982421875, 189.38385009765625, 1.7378227710723877, 312.2892761230469, 192.58897399902344, 1.028214931488037, 334.7561340332031, 202.20433044433594, 0.08344336599111557, 269.4952697753906, 213.9564208984375, 0.38487914204597473, 346.5245056152344, 262.033203125, 0.13131119310855865, 288.2176513671875, 285.5373840332031, 0.10808556526899338, 425.1584777832031, 354.4474182128906, 0.020250316709280014, 383.434326171875, 328.8064880371094, 0.012223891913890839, 276.44927978515625, 354.4474182128906, 0.01989334262907505, 425.1584777832031, 354.4474182128906, 0.020259613171219826, 425.1584777832031, 354.4474182128906, 0.02405051700770855, 403.761474609375, 354.4474182128906, 0.02277219668030739, 425.1584777832031, 354.4474182128906, 0.03073735162615776, 425.1584777832031, 354.4474182128906, 0.03939764201641083, 425.1584777832031, 354.4474182128906, 0.02348250150680542, 425.1584777832031, 354.4474182128906, 0.03718782961368561], 'score': 0.9582511186599731}
+
+#Input file format:
+#List of dict elements with fields:
+#   - image_id
+#   - category_id: not used
+#   - bbox: not used
+#   - keypoints
+#   - score
+
 _VISIBILITY_TRESH = 0.1 #refering to visibility probability of keypoints , TODO:check if valid, range [0,1]? 
 _REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
 _MINKPTs = 10
 _NUMKPTS = 17
 _MODES = ['JcJLdLLa_reduced', 'JLd_all']
-_FILTER = 1
-_FILTERMODE = 1 #['strict' vs 'nostrict'] 
+_FILTER = True
 
 if not os.path.isfile(args.inputFile):
     raise ValueError("No valid input file.")
@@ -74,7 +93,9 @@ def main():
     for i,person in enumerate(json_data):
         if "keypoints" in person:
             #logging.debug("PREV:",person['keypoints'])
-            isvalid = filterKeypoints(person['keypoints'], _FILTERMODE)
+            if _FILTER:
+                #Decide based on visibility score weather to process this prediction
+                isvalid = filterKeypoints(person['keypoints'])
             #if person['score'] >= 0.9:
             #    print(person['keypoints'][2::3], isvalid, person['score'])
             #logging.debug("LATER:",person['keypoints'])
@@ -93,6 +114,8 @@ def main():
     print("Original number of json predictions: ",len(json_data))
     print("Number of calculated descriptors: ",c)
 
+    #Apply Principal Component Analysis either from scratch or trained model for 
+    #dimension reduction of computed GPDs.
     if args.pca is not None:
         model = applyPCA(json_out, dim=args.pca)
         pickle.dump(model, open(os.path.join(output_dir,'modelpca%d'%args.pca + '.pkl'), "wb"))
@@ -133,7 +156,7 @@ def applyPCA(json_data, dim=None, pca=None):
     return pca
        
 
-def filterKeypoints(pose_keypoints, strict=False):
+def filterKeypoints(pose_keypoints):
     #Filter out keypoints above a treshold
     #Skip pose if too few keypoints or reference point is not contained
     
@@ -141,23 +164,6 @@ def filterKeypoints(pose_keypoints, strict=False):
     #                 v=1: labeled but not visible
     #                 v=2: labeled and visible 
 
-    if not strict:
-    #Write None to keypoints for each vis under the threshold
-    #For later descriptors None values will be replaced by default value (=0) #deprecated?
-        for idx in range(0,_NUMKPTS):
-            x, y, prob = pose_keypoints[idx:idx+3]
-            if prob <= _VISIBILITY_TRESH:
-                #Set visible value to indicate invalid keypoint
-                pose_keypoints[idx+2] = None
-                if idx/3 in _REFs.keys():
-                    #if reference point is unstable, skip this pose
-                    #logging.debug("no ref key")
-                    return False
-        if sum(x is not None for x in pose_keypoints) >= _MINKPTs:
-            return True
-        else:
-            return False
-    else:   #same as above?
     #Keypoints are sorted out or given back fully/not reduced
         c = 0
         for idx in range(0,_NUMKPTS):
@@ -174,6 +180,9 @@ def filterKeypoints(pose_keypoints, strict=False):
       
      
 def calculateGPD(keypoints, mode):
+    #Get the geometric pose descriptor based on:
+    #   -selected mode
+    #   -slected reference point(s)
     xs = keypoints[::3]
     ys = keypoints[1::3]
     vs = keypoints[2::3]
@@ -206,6 +215,7 @@ def calculateGPD(keypoints, mode):
         if 'Background' in inv_body_part_mapping:
             del xs[inv_body_part_mapping['Background']]
             del ys[inv_body_part_mapping['Background']]
+            print("Info: Deleted background label.")
    
     # Make all keypoints relative to a selected reference point
     if len(_REFs) == 2:
@@ -227,11 +237,13 @@ def calculateGPD(keypoints, mode):
 
     pose_descriptor = []
     
+    
     if mode == 'JcJLdLLa_reduced':
-        #Dimensions: 18 keypoints (with or without visibility flag)
-        joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist())
+        #Descriptor contains all joint coordinates, selected joint-line distances and selected line-line angles 
+        #Result dimension: 64
+        #Dimensions: 17 keypoints, 17x2 values (with or without visibility flag)
+        joint_coordinates = joint_coordinates_rel(keypoints)
         #joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist(), visiblities = vs , vclipping = True)
-
         pose_descriptor.append(joint_coordinates)
 
         indices_pairs = []
@@ -267,7 +279,7 @@ def calculateGPD(keypoints, mode):
         JL_d = joint_line_distances(keypoints, l_adjacent, kpts_valid, kpt_line_mapping)
         pose_descriptor.append(JL_d)
 
-        #Dimensions: 10 angles
+        #Dimensions: 12 angles
         line_line_mapping = {(10,9):[(9,15),'hands_lfoot'], (9,10):[(9,16),'hands_rfoot'],
                             (10,16):[(9,10),'hands_lfoot'], (16,10):[(10,15),'hands_rfoot'],
                             (5,11):[(5,9),'hand_shoulder_hip_l'], (6,12):[(6,10),'hand_shoulder_hip_r'],
@@ -278,6 +290,7 @@ def calculateGPD(keypoints, mode):
         pose_descriptor.append(LL_a)
 
     elif mode == 'JLd_all':
+        #Descriptor contains all joint-line distances
         l_adjacent = lines_direct_adjacent(keypoints, kpts_lines)
         JL_d = joint_line_distances(keypoints, l_adjacent, kpts_valid)
         pose_descriptor.append(JL_d)
@@ -339,17 +352,20 @@ def get_endjoints_depth2(end_joints, kpts_lines):
                 end_joints_depth2.update({end: begin})
     return end_joints_depth2
 
-def joint_coordinates_rel(keypoints, reference_point, visiblities = None, vclipping = False):
+def normalizevec(featurevector, rangemin=0, rangemax=1):
+    #Normalize aka rescale input vector to new range
+    return [ (x-min(featurevector)) * (rangemax - rangemin)/(max(featurevector) - min(featurevector)) + rangemin for x in featurevector]
+
+def joint_coordinates_rel(keypoints, visiblities = None, vclipping = False, normalize=True):
     #Joint Coordinate: all keypoints in relative coordinate system + reference point in world coordinate system
     joint_coordinates = []
     
     if visiblities is None:
         #Dimension 17 x 2 + 1 x 2 = 36 
         #joint_coordinates = np.delete(keypoints,inv_body_part_mapping['MidHip'])
-        joint_coordinates = itertools.chain([reference_point], keypoints)
-        joint_coordinates = [item for sublist in list(joint_coordinates) for item in sublist]
+        #joint_coordinates = itertools.chain([reference_point], keypoints)
+        joint_coordinates = [item for sublist in list(keypoints) for item in sublist]
         logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
-        return joint_coordinates
 
     else:
         #Adding the visibility flag
@@ -357,14 +373,17 @@ def joint_coordinates_rel(keypoints, reference_point, visiblities = None, vclipp
         #           visibility == 1 that keypoint is in the image BUT not visible, 
         #           visibility == 2 that keypoint is visible
         #Dimension 17 x 3 + 1 x 3 = 54 
-        joint_coordinates = itertools.chain([reference_point], keypoints)
+        #joint_coordinates = itertools.chain([reference_point], keypoints)
         if vclipping:
             #Clip values bcose sometime very large
             visiblities = map(lambda y: max(0,min(2,y)), visiblities)
-        joint_coordinates = [(xy[0],xy[1],v) for [xy, v] in zip(joint_coordinates, visiblities)]
+        joint_coordinates = [(xy[0],xy[1],v) for [xy, v] in zip(keypoints, visiblities)]
         joint_coordinates = [item for sublist in joint_coordinates for item in sublist]
         logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
-        return joint_coordinates
+
+    #Normalization allows for scale invariance
+    return normalizevec(joint_coordinates)
+
     
 
 def joint_joint_distances(keypoints,indices_pairs=None):
@@ -384,8 +403,7 @@ def joint_joint_distances(keypoints,indices_pairs=None):
             joint_distances.append(np.linalg.norm(keypoints[start]-keypoints[end]))
     
     logging.debug("Dimension joint distances: {}".format(len(joint_distances))) 
- 
-    return joint_distances  
+    return normalizevec(joint_distances)
 
 def joint_joint_orientations(keypoints, indices_pairs=None):
     #Joint-Joint Orientation (vector orientation of unit vector from j1 to j2)
@@ -416,7 +434,7 @@ def joint_joint_orientations(keypoints, indices_pairs=None):
             else:
                 joint_orientations.append((0,0))
     logging.debug("Dimension of joint orientations: {}".format(len(joint_orientations)))
-    return joint_orientations
+    return joint_orientations #TODO:check for normalization
 
 def lines_direct_adjacent(keypoints, kpts_lines):
     lines = {}
@@ -511,8 +529,8 @@ def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
                 else:
                     logging.debug("Not found line: {}{}".format(k1,k2))
    
-    logging.debug("Dimension joint line distances: {}".format(len(joint_line_distances))) 
-    return joint_line_distances
+    logging.debug("Dimension joint line distances: {}".format(len(joint_line_distances)))
+    return normalizevec(joint_line_distances)
 
 def line_line_angles(lines, kpts_valid, line_line_mapping = None):
     #Line-Line Angle
@@ -566,7 +584,7 @@ def line_line_angles(lines, kpts_valid, line_line_mapping = None):
                 line_line_angles.append(0)
 
     logging.debug("Dimension line line angles: {}".format(len(line_line_angles)) )
-    return line_line_angles
+    return normalizevec(line_line_angles)
 
 def get_planes(plane_points):
     planes = []
@@ -587,7 +605,7 @@ def joint_plane_distances(keypoints,planes):
             else:
                 joint_plane_distances.append(0)
     logging.debug("Dimension joint plane distances: {}".format(len(joint_plane_distances))) 
-    return joint_plane_distances
+    return normalizevec(joint_plane_distances)
 
 if __name__=="__main__":
    main()

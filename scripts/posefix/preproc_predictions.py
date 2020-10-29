@@ -20,6 +20,10 @@ sys.path.insert(0,visualize_dir)
 
 import visualizekpts as vkpts
 
+#Preprocessing: search for every prediction the most probable corresponding gt bounding box
+#               in the annotation file
+#   -> Keypoints of the predictions should be retained, whereas bboxes should be replaced by ground truth
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-prediction_path','-predictions', 
                     help='Path to the prediction json file.')
@@ -42,10 +46,6 @@ _VIS_NUM = 20
 _IOU_TRESH = 0.5
 
 def main():   
-    #Preprocessing: search for every prediction the most probable corresponding gt bounding box
-    #               in the annotation file
-    #   -> Keypoints of the predictions should be retained, whereas bboxes should be replaced by ground truth
-
     with open(args.prediction_path, "r") as f:
         preds = json.load(f)
     with open(args.gt_annotations, "r") as f:

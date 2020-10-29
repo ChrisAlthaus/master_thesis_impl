@@ -17,7 +17,7 @@ _DATA_AUGM = [True, False]
 _LRS = [0.01, 0.001, 0.0001, 0.00001]
 _BN = [True, False]
 _MINKPTS = [1,2,4]
-_NUMEPOCHS = 10
+_NUMEPOCHS = 20 #10
 _STEPS_GAMMA = [ [[0.76, 0.92], 0.1], [np.linspace(0.7, 0.92, 6).tolist(), 0.5] ]#[np.linspace(0.7, 1, 4).tolist(), 0.5]  ]
 _MINSCALES = [(640, 672, 704, 736, 768, 800), [512], [800]]
 _IMSPERBATCH = [2, 4]
@@ -110,16 +110,16 @@ for i in range(0,_NUM_RUNS):
         trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
         dataaugm = True
         batchsize = 4
-        lr = 0.004 #0.01
+        lr = 0.005 #0.01
         bn = True
         minkpts = 4 
         #steps = np.linspace(0.7, 1, 10).tolist()
         #gamma = 0.75  #0.75 ^ 10 = 0.05
-        steps = [0.76, 0.92]
-        gamma = getgammas(lr, [0.0025, 0.001])
+        steps = [0.4, 0.6, 0.8, 0.9] #[0.76, 0.92]
+        gamma = getgammas(lr, [0.0025, 0.001, 0.0005, 0.0001]) #getgammas(lr, [0.0025, 0.001])
 
-        minscales = (512,)
-        rpn_posratio = 0.5
+        minscales = (512,) #(512, 640)
+        rpn_posratio = 0.5 #0.33
         gradient_clipvalue = 1
 
     elif _PARAM_MODE == 'loadparams':
