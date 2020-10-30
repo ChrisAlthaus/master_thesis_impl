@@ -41,9 +41,10 @@ if _EXEC_CMDS:
 #Update scene graph respectively filter out not wanted bbox & rel classes
 sgraphfile = '/home/althausc/nfs/data/vg/VG-SGG-with-attri.h5'
 out_dir = '/home/althausc/nfs/data/vg_styletransfer'
+trainandtest = True #whether to transform both train & validation split or just validation split
 
-cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/update_scenegraphs.py -file {} -outputdir {}"\
-																				.format(sgraphfile, out_dir)
+cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/update_scenegraphs.py -file {} -outputdir {} {}"\
+																.format(sgraphfile, out_dir, '-trainandtest' if trainandtest else '')
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
@@ -81,6 +82,7 @@ print("Output Directory: %s\n"%out_dir)
 
 
 # ------------------- SCENE GRAPH GENERATION TRAINING -----------------------
+#Also see for an updated version: master_thesis_impl/scripts/scenegraph/RandomSearchTrain.py 
 print("SCENE GRAPH FASTER-RCNN TRAINING:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G2d4-2.sh'
 pretrained_frcnn = 'master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn/model_final.pth' # os.path.join(out_dir, 'model_final.pth') #or /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn

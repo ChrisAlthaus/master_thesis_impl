@@ -29,6 +29,7 @@ for i,row in enumerate(content):
         contextlayer = row[header.index('ContextLayer')]
         minsize = eval(row[header.index('MinSize')])
         dataset = row[header.index('Dataset')]
+        attributes = row[header.index('Attributes')]
         
         try:
             trainloss = eval(row[header.index('Train Loss')])
@@ -43,14 +44,16 @@ for i,row in enumerate(content):
 
         if row[header.index('Predictor')] == _PREDICTORS[0]:
             entry = {'x': lr , 'y': contextlayer , 'z': fusiontype, 'size': recall, 'color': trainloss}
-            text = 'MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>Dataset: {}<br>TrainLoss: {}<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}'\
-                            .format(minsize, lr, batchsize, folder, backbone, dataset, trainloss, loss_refined, loss_rel, recall)
+            text = ('MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>Dataset: {}<br>Attributes: {}<br>TrainLoss: {}'+\
+                    '<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}')\
+                            .format(minsize, lr, batchsize, folder, backbone, dataset, attributes, trainloss, loss_refined, loss_rel, recall)
             entry['text'] = text
             dataout.append(entry)
         else:
             entry = {'x': lr , 'y': batchsize , 'z': predictor, 'size': recall, 'color': trainloss}
-            text = 'MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>Dataset: {}<br>TrainLoss: {}<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}'\
-                            .format(minsize, lr, batchsize, folder, backbone, dataset, trainloss, loss_refined, loss_rel, recall)
+            text = 'MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>Dataset: {}<br>Attributes: {}<br>TrainLoss: {}'+\
+                   '<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}'\
+                            .format(minsize, lr, batchsize, folder, backbone, dataset, attributes, trainloss, loss_refined, loss_rel, recall)
             entry['text'] = text
             dataout.append(entry) 
         print("--------------------------")

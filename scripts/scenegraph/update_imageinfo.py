@@ -29,6 +29,8 @@ print("Number of images in directory: ",len(img_files))
 print("Number of images in image info file: ",len(json_data))
 corrupted = []
 notfound = []
+width_diffs = []
+height_diffs = []
 
 for i,img_name in enumerate(img_files):
     try:
@@ -39,6 +41,9 @@ for i,img_name in enumerate(img_files):
         found = False
         for elem in json_data:
             if elem['image_id'] == img_id:
+                width_diffs.append(abs(int(elem['width']) - width))
+                height_diffs.append(abs(int(elem['height']) - height))
+
                 elem['width'] = width
                 elem['height'] = height
                 found = True
@@ -52,6 +57,12 @@ for i,img_name in enumerate(img_files):
 
     if i%1000 == 0:
         print("Processed %d images."%i)
+    if i%10000 == 0:
+        print("Max width diff: ",max(width_diffs))
+        print("Max height diff: ",max(height_diffs))
+
+print("Max width diff: ",max(width_diffs))
+print("Max height diff: ",max(height_diffs))
 
 #Corrupted Images:  []
 #Not found images in input info file: ['1592.jpg', '1722.jpg', '4616.jpg', '4617.jpg', '2316942.jpg', '2417331.jpg']

@@ -88,7 +88,18 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
 
         if out == None:
             print("img is none")
-    
+
+def getvisualized(image, instances):
+    #Shape of image= (H,W,C)
+    MetadataCatalog.get("my_dataset_val").set(keypoint_names=COCO_PERSON_KEYPOINT_NAMES,
+                                              keypoint_flip_map=COCO_PERSON_KEYPOINT_FLIP_MAP,
+                                              keypoint_connection_rules=KEYPOINT_CONNECTION_RULES)
+    print(type(image))
+    print(list(image.size()))
+    v = Visualizer(image[:, :, ::-1], MetadataCatalog.get("my_dataset_val"), scale=1.2)
+    out = v.draw_instance_predictions(instances)
+    outimg = out.get_image()[:, :, ::-1]
+    return outimg
 
 if __name__=="__main__":
     main()

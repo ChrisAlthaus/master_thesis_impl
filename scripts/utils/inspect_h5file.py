@@ -10,7 +10,6 @@ parser.add_argument('-file', help='Path to a json file.')
 parser.add_argument('-firstn',type=int)
 parser.add_argument('-searchindex',type=int)
 
-3981
 
 args = parser.parse_args()
 

@@ -27,6 +27,7 @@ _PRINT_CMDS = True
 _EXEC_CMDS = False
 
 # ----------------- MASK-RCNN TRAIN ---------------------
+#Also see for an updated version: master_thesis_impl/scripts/detectron2/RandomSearchTrain.py 
 print("MASK-RCNN TRAINING:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
 finetune = 'ALL'    #["RESNETF", "RESNETL", "HEADSALL", "ALL",'EVALBASELINE','FPN+HEADS','SCRATCH']
@@ -89,6 +90,7 @@ print("Output Directory: %s\n"%out_dir)
 
 
 # ----------------- POSEFIX TRAIN ---------------------
+#Also see: master_thesis_impl/scripts/posefix/GridSearchTrain.py
 print("POSEFIX TRAINING:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
 continue_train = True #False
