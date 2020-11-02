@@ -2,9 +2,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 import re
 
+outputdir = '/home/althausc/master_thesis_impl/scripts/statistics_datasets/.stats/painterbynumbers'
+if not os.path.exists(outputdir):
+        os.makedirs(outputdir)
 
 pbn = pd.read_csv('datasetCSVs/painterbynumbers/all_data_info.csv')
 
@@ -31,7 +35,7 @@ ax.set_xticklabels(ax.get_xticklabels(),rotation=90)
 #ax.set_xticklabels(fontsize=7)
 #ax.figure.autofmt_xdate()
 plt.xticks(fontsize=7)
-ax.figure.savefig('style_distr.png',bbox_inches='tight')
+ax.figure.savefig(os.path.join(outputdir, 'style_distr.png'),bbox_inches='tight')
 
 #Count number of different labels
 print(pbn["style"].value_counts().index.tolist())
@@ -69,14 +73,14 @@ df_year = pd.DataFrame({'Year':xs, 'Number of Artworks':ys})
 df_year.sort_values(by=['Year'], ascending=False)
 
 ax2 = sns.lineplot(x='Year',y='Number of Artworks', data=df_year, ci=None)
-ax2.figure.savefig('year_distr.png',bbox_inches='tight')
+ax2.figure.savefig(os.path.join(outputdir, 'year_distr.png'),bbox_inches='tight')
 
 #ORGIN HISTOGRAM
 fig3, ax3 = plt.subplots()
 
 ax3 = sns.countplot(x='source', data=pbn)
 ax3.set(xlabel='Source Dataset', ylabel='Number of Artworks Used')
-ax3.figure.savefig('origin_distr.png',bbox_inches='tight')
+ax3.figure.savefig(os.path.join(outputdir, 'origin_distr.png'),bbox_inches='tight')
 
 #GENRE STATISTICS
 

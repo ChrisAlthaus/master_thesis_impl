@@ -1,4 +1,3 @@
-
 import argparse
 import os
 
@@ -15,6 +14,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import sys
+sys.path.append('/home/althausc/master_thesis_impl/scripts/scenegraph')
 from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VALID_RELLABELS
 
 
@@ -22,7 +23,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-graphfile', help='Path to the filtered graph file.')
 args = parser.parse_args()
 
-outdir = os.path.dirname(args.graphfile, '.stats')
+outdir = os.path.join(os.path.dirname(args.graphfile), '.stats')
 if not os.path.exists(outdir):
         os.makedirs(outdir)
 

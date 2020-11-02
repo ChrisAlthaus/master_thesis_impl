@@ -15,9 +15,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-#tips = sns.load_dataset("tips")
-#print(tips)
-#exit(1)
+#Creates statistical visualizations of prediction output from Mask-RCNN model.
+#1. Distribution of visbilities per keypoint category
+#2. Number of single predictions vs number of single gt annotations
 parser = argparse.ArgumentParser()
 parser.add_argument('-file', help='Path to a json file.')
 parser.add_argument('-gtanno', help='Path to the groundtruth annotations.')
@@ -26,6 +26,10 @@ args = parser.parse_args()
 
 if not os.path.isfile(args.file):
     raise ValueError("Json file does not exists.")
+
+outputdir = os.path.join(os.path.dirname(args.graphfile), '.stats')
+if not os.path.exists(outputdir):
+        os.makedirs(outputdir)
 
 json_file = None
 with open(args.file, "r") as f:
@@ -61,7 +65,7 @@ ax.set_title("Probability distribution",fontsize=16)
 ax.set_xlabel("Keypoint category")
 ax.set_ylabel("Confidences")
 
-ax.figure.savefig("kpts_visibility_stats.png")
+ax.figure.savefig(os.path.join(outputdir, "kpts_visibility_stats.png"))
 
 #Create bar plot with number of predictions vs gt annoations
 annotation = ann_file['annotations']
@@ -70,4 +74,4 @@ num_preds = len(json_file)
 
 df_numelems = pd.DataFrame({'gt annotations': [num_anns], 'predictions':[num_preds]})
 ax = sns.barplot(data=df_numelems)
-ax.figure.savefig("predann_numelements.png")
+ax.figure.savefig(os.path.join(outputdir, "predann_numelements.png"))

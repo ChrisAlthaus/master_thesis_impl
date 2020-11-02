@@ -51,8 +51,8 @@ for i,row in enumerate(content):
             dataout.append(entry)
         else:
             entry = {'x': lr , 'y': batchsize , 'z': predictor, 'size': recall, 'color': trainloss}
-            text = 'MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>Dataset: {}<br>Attributes: {}<br>TrainLoss: {}'+\
-                   '<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}'\
+            text = ('MinSize Train: {}<br>LR: {}<br>Batchsize: {}<br>Folder: {}<br>Backbone: {}<br>Dataset: {}<br>Attributes: {}<br>TrainLoss: {}'+\
+                   '<br>TrainLoss_refined: {}<br>TrainLoss_rel: {}<br>R@100: {}')\
                             .format(minsize, lr, batchsize, folder, backbone, dataset, attributes, trainloss, loss_refined, loss_rel, recall)
             entry['text'] = text
             dataout.append(entry) 

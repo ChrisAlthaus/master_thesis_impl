@@ -60,9 +60,9 @@ print("Output Directory: %s\n"%outdir)
 print("SHORT EVALUATION:")
 predfile = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/train/23-34-53-122-3/resultfinal.json'
 gtannfile = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
-outdir = '/home/althausc/master_thesis_impl/results/posedetection/maskrcnn' #'/home/althausc/master_thesis_impl/results/posedetection/posefix'
+outdir = '/home/althausc/master_thesis_impl/results/posedetection/posefix' #'/home/althausc/master_thesis_impl/results/posedetection/posefix'
 
-cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/utils/evaluateCOCOresults.py -predictions {} -gt_ann {} -outputdir {}"\
+cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/evaluateCOCOresults.py -predictions {} -gt_ann {} -outputdir {}"\
                                                 .format(predfile, gtannfile)
 print(cmd)
 
@@ -70,4 +70,15 @@ outrun_dir = latestdir(outdir)
 print("Output Directory: %s\n"%outdir)
 
 
-/home/althausc/master_thesis_impl/scripts/utils/evaluateCOCOresults.py
+# ---------------------------- PREDICTION STATISTICS ------------------------------
+print("PREDICTION STATISTICS:")
+predfile = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/train/23-34-53-122-3/resultfinal.json'
+gtannfile = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
+
+cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/preds_statistics.py -file {} -gtanno {}"\
+                                                .format(predfile, gtannfile)
+print(cmd)
+
+outrun_dir = os.path.join(os.path.dirname(predfile), '.stats')
+print("Output Directory: %s\n"%outrun_dir)
+

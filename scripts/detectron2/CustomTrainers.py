@@ -23,46 +23,22 @@ class COCOTrainer(DefaultTrainer):
 
         #if cfg.INPUT.CROP.ENABLED:
         #    augmentations.append(T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE))# not used, since also done by DatasetMapper
+        _PROB_HIGH = 0.3
+        _PROB_LOW = 0.2
+
+        if cfg.INPUT.RESIZE_SHORTEST_EDGE:
+            augmentations.append(T.ResizeShortestEdge(cfg.INPUT.MIN_SIZE_TRAIN, cfg.INPUT.MAX_SIZE_TRAIN, cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING))
+
         if cfg.DATA_FLIP_ENABLED:
-            augmentations.append(T.RandomFlip(cfg.DATA_FLIP_PROBABILITY, horizontal=True))
+            augmentations.append(T.RandomFlip(_PROB_LOW, horizontal=True))
         if cfg.ROTATION_ENABLED:
-            augmentations.append(T.RandomApply(T.RandomRotation(cfg.ROTATION),prob=0.20))
+            augmentations.append(T.RandomApply(T.RandomRotation([-15,15]), prob=_PROB_LOW))
         if cfg.COLOR_AUGM_ENABLED:
-            augmentations.append(T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25),prob=0.20))
-            augmentations.append(T.RandomApply(transform=T.RandomContrast(intensity_min=0.76, intensity_max=1.25),prob=0.20)) 
-            augmentations.append(T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25),prob=0.5))
-
-
-        def mapper(dataset_dict):
-            # Implement a mapper, similar to the default DatasetMapper, but with your own customizations
-            dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-            image = utils.read_image(dataset_dict["file_name"], format="BGR")
-
-            augmentations = []
-            augmentations.append([T.ResizeShortestEdge((640, 672, 704, 736, 768, 800), 1333, 'choice')])
-            augmentations.append(T.RandomCrop(0.9, 0.9))# not used, since also done by DatasetMapper
-            augmentations.append(T.RandomFlip(0.25, horizontal=True))
-            augmentations.append(T.RandomRotation([-15,15]))
-
-
-            augmentations.append(T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25),
-                            prob=0.20))
-            augmentations.append(T.RandomApply(transform=T.RandomContrast(intensity_min=0.76, intensity_max=1.25),
-                            prob=0.20)) 
-            augmentations.append(T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25)))
-
-            image, transforms = T.apply_transform_gens([augmentations], image)
-
-            dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
-
-            annos = [
-                utils.transform_instance_annotations(obj, transforms, image.shape[:2])
-                for obj in dataset_dict.pop("annotations")
-                if obj.get("iscrowd", 0) == 0
-            ]
-            instances = utils.annotations_to_instances(annos, image.shape[:2])
-            dataset_dict["instances"] = utils.filter_empty_instances(instances)
-            return dataset_dict
+            augmentations.append(T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25), prob=_PROB_HIGH))
+            augmentations.append(T.RandomApply(transform=T.RandomContrast(intensity_min=0.76, intensity_max=1.25), prob=_PROB_HIGH)) 
+            augmentations.append(T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25), prob=_PROB_HIGH))
+        if cfg.INPUT.CROP.ENABLED:
+            augmentations.append(T.RandomApply(T.RandomCrop("relative_range", [0.9, 0.9]), prob=_PROB_HIGH))
 
         #return build_detection_train_loader(cfg, mapper=mapper) #test if different result, maybe error in DatasetMapper?!
         return build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations= augmentations))

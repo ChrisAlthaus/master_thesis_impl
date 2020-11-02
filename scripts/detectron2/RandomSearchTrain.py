@@ -109,16 +109,16 @@ for i in range(0,_NUM_RUNS):
     elif _PARAM_MODE == 'custom':
         trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
         dataaugm = True
-        batchsize = 4
-        lr = 0.005 #0.01
+        batchsize = 2
+        lr = 0.004 #0.005/2 #0.0035 #0.01
         bn = True
         minkpts = 4 
         #steps = np.linspace(0.7, 1, 10).tolist()
         #gamma = 0.75  #0.75 ^ 10 = 0.05
         steps = [0.4, 0.6, 0.8, 0.9] #[0.76, 0.92]
-        gamma = getgammas(lr, [0.0025, 0.001, 0.0005, 0.0001]) #getgammas(lr, [0.0025, 0.001])
+        gamma =  getgammas(lr, [0.0025, 0.001, 0.0005, 0.0001]) #getgammas(lr, [0.0025/2, 0.001/2, 0.0005/2, 0.0001/2]) #getgammas(lr, [0.0025, 0.001])
 
-        minscales = (512,) #(512, 640)
+        minscales = (640, 672, 704, 736, 768, 800) #(512,) #(640, 672, 704, 736, 768, 800) #(512,) #(512, 640)
         rpn_posratio = 0.5 #0.33
         gradient_clipvalue = 1
 

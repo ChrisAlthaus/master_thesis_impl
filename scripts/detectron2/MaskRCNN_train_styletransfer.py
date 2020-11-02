@@ -120,16 +120,15 @@ def main():
 
 
     # ------------------------- DATA AUGMENTATION ----------------------------
-    cfg.INPUT.CROP.TYPE = "relative_range"
-    cfg.INPUT.CROP.SIZE = [0.9, 0.9]
+    #cfg.INPUT.CROP.TYPE = "relative_range"
+    #cfg.INPUT.CROP.SIZE = [0.9, 0.9]
     cfg.INPUT.CROP.ENABLED = c_params['dataaugm'] #False #True
     
-    cfg.DATA_FLIP_PROBABILITY = 0.25 
     cfg.DATA_FLIP_ENABLED = c_params['dataaugm'] #False #True
-    cfg.ROTATION = [-15,15]
     cfg.ROTATION_ENABLED = c_params['dataaugm'] #False #True
     cfg.COLOR_AUGM_ENABLED = c_params['dataaugm'] #False #True
     
+    cfg.INPUT.RESIZE_SHORTEST_EDGE = True
     cfg.INPUT.MIN_SIZE_TRAIN = tuple(c_params['minscales'])  #512  #Defaults: (640, 672, 704, 736, 768, 800) #Size of the smallest side of the image during training
         	                    
     
@@ -156,6 +155,7 @@ def main():
                                                 # and save as image in checkpoint folder. Disable: -1
     cfg.SOLVER.EARLYSTOPPING_PERIOD = int(epoch_iter * 1) #window size
     cfg.TEST.PERIODICWRITER_PERIOD = 100# default:20
+    cfg.TEST.IMGAUGM_DISPLAY_PERIOD = int(epoch_iter)/2#When to write augmentated image to tensorboard (for debugging)
     cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE = c_params['gradient_clipvalue']
     
     #steps_exp = np.linspace(0,1,12)[1:-1] * max_iter
