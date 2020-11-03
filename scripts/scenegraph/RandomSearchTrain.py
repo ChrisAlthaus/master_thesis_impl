@@ -20,8 +20,8 @@ _MAX_ITER = 50000
 _VAL_PERIOD = 2000 #2000
 _CPKT_PERIOD = 2050 #2000
 
-_DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default']
-_DATASET_SELECT = _DATASET_SELECTS[0]
+_DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
+_DATASET_SELECT = _DATASET_SELECTS[1]
 
 _ATTRIBUTE_ON = False
 

@@ -70,14 +70,27 @@ def print_list(name, input_list, scores=None):
             print(name + ' ' + str(i) + ': ' + str(item) + '; score: ' + str(scores[i]))
 
     
-def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel_topk,
-               ind_to_classes, ind_to_predicates, box_scores=None, rel_scores=None, filter=False, box_indstart = None):
+def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None, rel_topk=None, 
+                box_scores=None, rel_scores=None, filter=False, box_indstart = None):
+    #Draw the scene graph onto the input image. 
+    #Additional options which can be used:
+    #   - Filter out invalid labels from the input scene graph annotation
+    #   - Only draw the top k bounding boxes
+    #   - Only draw the top k relationships
+    #Returns: overlayed image & 
+    #         string with additional information regarding class and relationship labels
 
-    size = get_size(Image.open(img_path).size) #necessary?
-    print("resize: ",size)
-    pic = Image.open(img_path).resize(size)
+    if isinstance(imagesrc, str):
+        pic = Image.open(imagesrc)
+    elif isinstance(imagesrc, np.ndarray):
+        pic = Image.fromarray(imagesrc.astype('uint8'), 'RGB')
+    elif isinstance(imagesrc, Image.Image):
+        pic = imagesrc
+    else:
+        raise ValueError("Input image source {} not supported.".format(type(imagesrc)))
+
     ann_str = ''
-
+    print("Picture size: ",pic.size)
     if filter:  #apply class filter
         validlabels = get_filterinds()
     else:
@@ -90,11 +103,12 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
     num_obj = len(boxes)
 
     for i in range(num_obj):
-        if c == box_topk:
-            break
+        if box_topk is not None:
+            if c == box_topk:
+                break
         if box_labels[i] in validlabels:
             info = str(i) + '_' + ind_to_classes[box_labels[i]]
-            draw_single_box(pic, boxes[i], draw_info=info, validsize=size)
+            draw_single_box(pic, boxes[i], draw_info=info, color='red', validsize=pic.size)
             addedlabels.append(i)
             
             if box_scores is not None:
@@ -116,28 +130,35 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels, box_topk, rel
         rel_pairs = np.array(rel_pairs) - box_indstart
    
     for i in range(len(rel_pairs)):
-        if c == rel_topk:
-            break
+        if rel_topk is not None:
+            if c == rel_topk:
+                break
         id1, id2 = rel_pairs[i]
-
+        b1 = boxes[id1]
+        b2 = boxes[id2]
+        b1_label = ind_to_classes[box_labels[id1]]
+        b2_label = ind_to_classes[box_labels[id2]]
         if filter:
             if id1 not in addedlabels or id2 not in addedlabels:
                 continue
-        if id1 in addedlabels and id2 in addedlabels:
-            b1 = boxes[id1]
-            b2 = boxes[id2]
-
+            if id1 in addedlabels and id2 in addedlabels:
+                drawline(pic, b1, b2)
+                relstr = str(id1) + '_' + b1_label + ' => ' + ind_to_predicates[rel_labels[i]] + ' => ' + str(id2) + '_' + b2_label
+                if rel_scores is not None:
+                    relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
+                
+                ann_str = ann_str + relstr + '\n'
+                c = c + 1
+        else:
             drawline(pic, b1, b2)
-            b1_label = ind_to_classes[box_labels[id1]]
-            b2_label = ind_to_classes[box_labels[id2]]
             relstr = str(id1) + '_' + b1_label + ' => ' + ind_to_predicates[rel_labels[i]] + ' => ' + str(id2) + '_' + b2_label
             if rel_scores is not None:
                 relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
             
             ann_str = ann_str + relstr + '\n'
             c = c + 1
-    
- 
+
+    #Print not filtered top-k relationships
     if filter: 
         ann_str = ann_str + 'Actual Top-k rel: \n'
         for i in range(min(len(rel_pairs), rel_topk)):

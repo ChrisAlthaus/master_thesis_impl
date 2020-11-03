@@ -36,8 +36,14 @@ from maskrcnn_benchmark.utils.miscellaneous import mkdir, save_config
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 
 from torch.utils.tensorboard import SummaryWriter
+from torchvision import transforms
 from tempfile import NamedTemporaryFile
 import shutil
+
+import sys
+sys.path.append('/home/althausc/master_thesis_impl/scripts/scenegraph')
+from visualizeimgs import draw_image
+
 
 
 # See if we can use apex.DistributedDataParallel instead of the torch default,
@@ -73,6 +79,19 @@ def train(cfg, local_rank, distributed, logger):
     if cfg.MODEL.ATTRIBUTE_ON:
         load_mapping["roi_heads.relation.att_feature_extractor"] = "roi_heads.attribute.feature_extractor"
         load_mapping["roi_heads.relation.union_feature_extractor.att_feature_extractor"] = "roi_heads.attribute.feature_extractor"
+
+
+    #modified: Save model architecture & layer specs to file 
+    print("Save model's architecture:")
+    with open(os.path.join(cfg.OUTPUT_DIR, 'model_architectur.txt'), 'w') as f:
+        print(list(model.children()),file=f)
+
+    print("Save model's state_dict:")
+    with open(os.path.join(cfg.OUTPUT_DIR, 'layer_params_overview.txt'), 'w') as f:
+        for name, param in list(model.named_parameters()):
+            f.write('{} requires_gradient: {}'.format(name, param.requires_grad)+ os.linesep)
+    #modified end
+
 
     device = torch.device(cfg.MODEL.DEVICE)
     model.to(device)
@@ -131,23 +150,74 @@ def train(cfg, local_rank, distributed, logger):
         logger.info("Validate before training")
         run_val(cfg, model, val_data_loaders, distributed, logger)
 
+    #modified
+    writer = None
+    if is_main_process():
+        writer = SummaryWriter(cfg.OUTPUT_DIR)
+    c_target_empty = 0
+    #modified end
+
+    #modified: illustrate annotations for some validation images
+    def check_valannotations(dataloader, writer):
+        print("Draw annotations for some sample validation images...")
+        for i, (images, targets, _) in enumerate(dataloader):
+            if i%1000 == 0:
+                imgwithann = getfirstimg_withann(images, targets)
+                writer.add_image('Validation Sample %d'%i, imgwithann, global_step=i, dataformats='HWC')
+                print("Wrote image to tensorboard")
+        print("Draw annotations for some sample validation images done.")
+    print(val_data_loaders)
+    check_valannotations(val_data_loaders[0], writer)
+    #modified end
+
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
     max_iter = len(train_data_loader)
     start_iter = arguments["iteration"]
     start_training_time = time.time()
     end = time.time()
-
-    #modified
-    writer = None
-    if is_main_process():
-        writer = SummaryWriter(cfg.OUTPUT_DIR)
-    #modified end
+    print("Max Iterations: ",max_iter)
+   
 
     print_first_grad = True
     for iteration, (images, targets, _) in enumerate(train_data_loader, start_iter):
+        #important class for data loading: /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/build/lib.linux-x86_64-3.6/maskrcnn_benchmark/data/datasets/visual_genome.py
+        #print('targets: ', targets, type(targets), type(targets[0]) )
+        #print("images: ",images, type(images))
+        #print(targets[0])
+        #print(targets[0].bbox)
+        #print(targets[0].size)
+        #print(targets[0].mode)
+        #print(targets[0].triplet_extra_fields)
+        #print(targets[0].extra_fields)
+
+        #modified: don't stop when seeing a target without a box annotation (very rare)
         if any(len(target) < 1 for target in targets):
             logger.error(f"Iteration={iteration + 1} || Image Ids used for training {_} || targets Length={[len(target) for target in targets]}" )
+            print(f"Iteration={iteration + 1} || Image Ids used for training {_} || targets Length={[len(target) for target in targets]}")
+
+            inds = [k for k,target in enumerate(targets) if len(target)<1]
+            inds.sort(reverse=True)
+            print("Deleting indices: ",inds)
+            print('Images before: ', images)
+            print('Targets before: ', targets)
+            targets = list(targets)
+            for k in inds:
+                images.tensors = torch.cat([images.tensors[0:k], images.tensors[k+1:]])
+                del images.image_sizes[k]
+                del targets[k]
+            targets =tuple(targets)
+            print('Images result: ', images)
+            print('Targets result: ', targets)
+            c_target_empty = c_target_empty + 1
+        #modified end
+        #modified: log of images to tensorboard
+        if iteration % cfg.SOLVER.IMG_AUGM_LOGPERIOD == 0 and is_main_process():
+            imgwithann = getfirstimg_withann(images, targets)
+            writer.add_image('Iteration %d Sample'%iteration, imgwithann, global_step=iteration, dataformats='HWC')
+            print("Wrote image to tensorboard")
+        #modified end
+
         data_time = time.time() - end
         iteration = iteration + 1
         arguments["iteration"] = iteration
@@ -157,16 +227,14 @@ def train(cfg, local_rank, distributed, logger):
 
         images = images.to(device)
         targets = [target.to(device) for target in targets]
-
         loss_dict = model(images, targets)
-
         losses = sum(loss for loss in loss_dict.values())
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = reduce_loss_dict(loss_dict)
         losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-        meters.update(loss=losses_reduced, **loss_dict_reduced)
 
+        meters.update(loss=losses_reduced, **loss_dict_reduced)
         optimizer.zero_grad()
         # Note: If mixed precision is not used, this ends up doing nothing
         # Otherwise apply loss scaling for mixed-precision recipe
@@ -207,25 +275,37 @@ def train(cfg, local_rank, distributed, logger):
 
             #modified: log meters to tensorboard
             if is_main_process():
-                print("added: ",'loss', meters.loss.median(), iteration)
-                writer.add_scalar('loss', meters.loss.median(), iteration)
+                print("added: ",'loss', meters.loss.median, iteration)
+                writer.add_scalar('loss', meters.loss.median, iteration)
+                writer.add_scalar('loss_refine_obj', meters.loss_refine_obj.median, iteration)
+                writer.add_scalar('loss_rel', meters.loss_rel.median, iteration)
+                writer.add_scalar('lr', optimizer.param_groups[-1]["lr"], iteration)
             #modified end
 
             #modified: add metrics.dat for better summary of training process & read when finished
             if is_main_process():
                 with open(os.path.join(cfg.OUTPUT_DIR, "metrics.dat"),"a+") as f:
-                    json.dump(meters.meters, f)
+                    logline = {'iter': iteration}
+                    for name, meter in meters.meters.items():
+                        logline[name] = meter.median  
+                    logline['lr'] = optimizer.param_groups[-1]["lr"]   
+                    json.dump(logline, f)
+                    f.write(os.linesep)
                     #f.write(meters_str + os.linesep)
             #modified end
+            
     
-
-        if iteration % checkpoint_period == 0:
+        
+        if iteration % checkpoint_period == 0 and is_main_process(): #modified
+            print("Creating checkpoint at iteration: {}".format(iteration))
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
+            print("Creating checkpoint done.")
         if iteration == max_iter:
             checkpointer.save("model_final", **arguments)
 
         val_result = None # used for scheduler updating
         if cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD == 0:
+            print("Start Val: ", get_rank())
             logger.info("Start validating")
             val_result = run_val(cfg, model, val_data_loaders, distributed, logger)
             logger.info("Validation Result: %.4f" % val_result)
@@ -240,6 +320,7 @@ def train(cfg, local_rank, distributed, logger):
             if is_main_process():
                 with open(os.path.join(cfg.OUTPUT_DIR, "metrics.dat"),"a+") as f:
                     json.dump({'R@100':val_result}, f)
+                    f.write(os.linesep)
                     #f.write('R@100: {}'.format(val_result) + os.linesep)
             #modified end
  
@@ -249,10 +330,13 @@ def train(cfg, local_rank, distributed, logger):
             scheduler.step(val_result, epoch=iteration)
             if scheduler.stage_count >= cfg.SOLVER.SCHEDULE.MAX_DECAY_STEP:
                 logger.info("Trigger MAX_DECAY_STEP at iteration {}.".format(iteration))
+                print("Trigger MAX_DECAY_STEP at iteration {}.".format(iteration))
                 break
         else:
             scheduler.step()
-
+    #modified
+    print("Number of empty targets, which were skipped: ", c_target_empty)
+    #modified end
     total_training_time = time.time() - start_training_time
     total_time_str = str(datetime.timedelta(seconds=total_training_time))
     logger.info(
@@ -281,7 +365,7 @@ def run_val(cfg, model, val_data_loaders, distributed, logger):
         iou_types = iou_types + ("relations", )
     if cfg.MODEL.ATTRIBUTE_ON:
         iou_types = iou_types + ("attributes", )
-
+    print("val1")
     dataset_names = cfg.DATASETS.VAL
     val_result = []
     for dataset_name, val_data_loader in zip(dataset_names, val_data_loaders):
@@ -300,6 +384,7 @@ def run_val(cfg, model, val_data_loaders, distributed, logger):
                         )
         synchronize()
         val_result.append(dataset_result)
+    print("val2")
     # support for multi gpu distributed testing
     gathered_result = all_gather(torch.tensor(dataset_result).cpu())
     gathered_result = [t.view(-1) for t in gathered_result]
@@ -395,9 +480,41 @@ def main():
         print("Successfully created output directory: ", output_dir)
     cfg.OUTPUT_DIR = output_dir
     #modified end
-    cfg.SOLVER.PRE_VAL = False
-    cfg.TEST.IMS_PER_BATCH = 12 #default:2
+
+    #modified: Set configs
+    cfg.SOLVER.PRE_VAL = False# True#False
+    cfg.SOLVER.GAMMA = 0.1 #0.3162 #0.1
+    cfg.SOLVER.STEPS = (30000,) #(30000,40000) #(30000,)
+
+    
+    if cfg.DATASETS.SELECT == 'trainandval-subset': 
+        #both train & validation annotations are subset of original annotations
+        cfg.DATASETS.TRAIN = ("VG_styletransfer_subset_train",)
+        cfg.DATASETS.TEST = ("VG_styletransfer_subset_test",)
+        cfg.DATASETS.VAL = ("VG_styletransfer_subset_val",) 
+    elif cfg.DATASETS.SELECT == 'val-subset': 
+        #validation annotations are subset of original annotations  
+        cfg.DATASETS.TRAIN = ("VG_styletransfer_val_subset_train",)
+        cfg.DATASETS.TEST = ("VG_styletransfer_val_subset_test",)
+        cfg.DATASETS.VAL = ("VG_styletransfer_val_subset_val",)
+    elif cfg.DATASETS.SELECT == 'default-styletransfer':
+        #no subset filtering   
+        cfg.DATASETS.TRAIN = ("VG_styletransfer_train",)
+        cfg.DATASETS.TEST = ("VG_styletransfer_test",)
+        cfg.DATASETS.VAL = ("VG_styletransfer_val",)
+    elif cfg.DATASETS.SELECT == 'default-vg':
+        cfg.DATASETS.TRAIN = ("VG_stanford_filtered_with_attribute_train",)
+        cfg.DATASETS.TEST = ("VG_stanford_filtered_with_attribute_test",)
+        cfg.DATASETS.VAL = ("VG_stanford_filtered_with_attribute_val",)
+    else: 
+        raise ValueError()
+
+    #cfg.DATASETS.TRAIN = ("VG_stanford_filtered_with_attribute_train",)
+    #cfg.DATASETS.TEST = ("VG_stanford_filtered_with_attribute_test",)
+    #cfg.DATASETS.VAL = ("VG_stanford_filtered_with_attribute_val",)
+
     cfg.freeze()
+    #modified end
 
 
     #modified: add line to overall config file for this run
@@ -432,6 +549,42 @@ def main():
     if not args.skip_test:
         run_test(cfg, model, args.distributed, logger)
 
+    #modified
+    add_evalstats(cfg.OUTPUT_DIR)
+    #modified end
+
+def getfirstimg_withann(images, targets):
+    bboxes = targets[0].bbox
+    print("Img tensor size: ",images.tensors[0].size())
+    #Shape (C,H,W) -> (H,W,C) ?!
+    image = images.tensors[0]
+    print("Min of Image Tensor: ",torch.min(image))
+    print("Max of Image Tensor: ",torch.max(image))
+    image = transforms.ToPILImage()(image).convert("RGB")
+    print('Img loaded size: ',image.size)
+    #image.save(os.path.join(cfg.OUTPUT_DIR,'test.jpg'))
+    ##BGR -> RGB ?!
+    blabels = targets[0].extra_fields['labels'].numpy()
+    relations = targets[0].extra_fields['relation'].numpy()
+    relpairs = []
+    rellabels = []
+    for k,row in enumerate(relations):
+        for l,predicate in enumerate(row):
+            if predicate!=0:
+                relpairs.append([k,l])
+                rellabels.append(predicate)
+    print("relpairs ",relpairs)
+    print("rellabels ",rellabels)
+
+    img , _ = draw_image(image, bboxes, blabels, relpairs, rellabels)
+    img = np.array(img)
+    print("Result/Drawn img size: ",img.shape)
+    print("Min of Image Result: ",np.min(img))
+    print("Max of Image Result: ",np.max(img))
+    #img.save(os.path.join(cfg.OUTPUT_DIR,'test2.jpg'))
+    return img
+
+
 def save_modelconfigs(configdir_all, cfg):
     filepath = os.path.join(configdir_all, 'run_configs.csv')
 
@@ -439,59 +592,61 @@ def save_modelconfigs(configdir_all, cfg):
         with open(filepath, 'w') as f:
             writer = csv.writer(f, delimiter='\t')
             headers = ['Folder', 'Predictor', 'Fusion', 'ContextLayer', 'FasterRCNN', 'Batchsize', 'LR', 'MaxIter', 'ValPeriod',
-                       'CpktPeriod', 'MinSize', 'Train Loss', 'Val Loss', 'R@100']
+                       'CpktPeriod', 'Steps', 'Gamma', 'MinSize', 'Dataset', 'Attributes', 'Train Loss', 'Loss_refined', 'Loss_rel', 'R@100']
             writer.writerow(headers)
 
     folder = os.path.basename(cfg.OUTPUT_DIR)
     predictor = cfg.MODEL.ROI_RELATION_HEAD.PREDICTOR
-    fusiontype = cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE
-    contextlayer = cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER
-    fasterrcnn_dir = os.path.dirname(cfg.MODEL.PRETRAINED_DETECTOR_CKPT)
+    fusiontype = cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE if predictor == 'CausalAnalysisPredictor' else 'not used'
+    contextlayer = cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER if predictor == 'CausalAnalysisPredictor' else 'not used'
+    fasterrcnn_dir = os.path.basename(cfg.MODEL.PRETRAINED_DETECTOR_CKPT)
     batchsize = cfg.SOLVER.IMS_PER_BATCH
     lr = cfg.SOLVER.BASE_LR
     maxiter = cfg.SOLVER.MAX_ITER
     valperiod = cfg.SOLVER.VAL_PERIOD
     cpktperiod = cfg.SOLVER.CHECKPOINT_PERIOD
     minsize = cfg.INPUT.MIN_SIZE_TRAIN
+    steps = cfg.SOLVER.STEPS
+    gamma = cfg.SOLVER.GAMMA
+    dataset = cfg.DATASETS.SELECT
+    attributes = cfg.MODEL.ATTRIBUTE_ON
 
-    row = [folder, predictor, fusiontype, contextlayer, fasterrcnn_dir, batchsize, lr, maxiter, valperiod, cpktperiod, minsize, ' ', ' ', ' ']
+    row = [folder, predictor, fusiontype, contextlayer, fasterrcnn_dir, batchsize, lr, maxiter, valperiod,
+           cpktperiod, steps, gamma, minsize, dataset, attributes, ' ', ' ', ' ', ' ']
     with open(filepath, 'a') as f:
         writer = csv.writer(f, delimiter='\t')
         writer.writerow(row)
     print("Sucessfully wrote hyper-parameter row to configs file.")
 
-def add_evalstats(modeldir, con):
-
+def add_evalstats(modeldir):
     #Get Losses
     lines = []
     with open(os.path.join(modeldir, 'metrics.dat'), 'r') as f:
         for line in f:
-            lines.append(line)
-    _LASTN = 100
-    trainloss_lastn = [entry['total_loss'] for entry in lines[-_LASTN:]]
-    valloss_lastn = [entry['validation_loss'] for entry in lines[-_LASTN:] if 'validation_loss' in entry]
-    trainloss = np.mean(trainloss_lastn)
-    valloss = np.mean(valloss_lastn)
+            lines.append(eval(line))
+
+    _LASTN = 10
+    _SEARCH_LASTN = 100
+    trainloss_lastn = [entry['loss'] for entry in lines[-_LASTN:] if 'loss' in entry]
+    trainloss_refined_lastn = [entry['loss_refine_obj'] for entry in lines[-_LASTN:] if 'loss_refine_obj' in entry]
+    trainloss_rel_lastn = [entry['loss_rel'] for entry in lines[-_LASTN:] if 'loss_rel' in entry]
+    recall_lastn = [entry['R@100'] for entry in lines[-_SEARCH_LASTN:] if 'R@100' in entry]
+
+    trainloss = np.mean(trainloss_lastn) if len(trainloss_lastn)>0 else 'not found'
+    trainloss_refined = np.mean(trainloss_refined_lastn) if len(trainloss_refined_lastn)>0 else 'not found'
+    trainloss_rel = np.mean(trainloss_rel_lastn) if len(trainloss_rel_lastn)>0 else 'not found'
+    recall = recall_lastn[-1] if len(recall_lastn)>0 else 'not found'
     print("Averaged last N losses:")
     print("\tTrain Loss: ",trainloss)
-    print("\tValidation Loss: ",valloss)
-
-    #Get BBOX APS
-    bbox_ap = lines[-1]["bbox/AP"] if "bbox/AP" in lines[-1] else 'not found'
-    bbox_ap50 = lines[-1]["bbox/AP50"] if "bbox/AP50" in lines[-1] else 'not found'
-    bbox_ap75 = lines[-1]["bbox/AP75"] if "bbox/AP75" in lines[-1] else 'not found'
-
-    kpts_ap = lines[-1]["keypoints/AP"] if "keypoints/AP" in lines[-1] else 'not found'
-    kpts_ap50 = lines[-1]["keypoints/AP50"] if "keypoints/AP50" in lines[-1] else 'not found'
-    kpts_ap75 = lines[-1]["keypoints/AP75"] if "keypoints/AP75" in lines[-1] else 'not found'
-
+    print("\tTrain Loss_refind: ",trainloss_refined)
+    print("\tTrain Loss_rel: ",trainloss_rel)
+    print("R@100: ", recall)
 
     #Update CSV config
     csvfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/run_configs.csv'
-    tempfile = NamedTemporaryFile('w+t', newline='', delete=False, dir='/home/althausc/master_thesis_impl/detectron2/out/checkpoints/tmp')
+    tempfile = NamedTemporaryFile('w+t', newline='', delete=False, dir='/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/tmp')
     shutil.copyfile(csvfile, tempfile.name)
     foldername = os.path.basename(modeldir)
-
     content = None
     with open(csvfile, 'r', newline='') as csvFile:
         reader = csv.reader(csvFile, delimiter='\t')
@@ -499,20 +654,21 @@ def add_evalstats(modeldir, con):
         for i,row in enumerate(content):
             if i==0:
                 header = row
-                
+                header = [h.strip() for h in header]
+                print(header)
             else:
                 #update losses in row of current model entry
+                print(row[header.index('Folder')], foldername, row[header.index('Folder')] == foldername)
                 if row[header.index('Folder')] == foldername:
-                    row[header.index('Train Loss')] = trainloss
-                    row[header.index('Val Loss')] = valloss
-                    row[header.index('bboxAP')] = bbox_ap
-                    row[header.index('bboxAP50')] = bbox_ap50
-                    row[header.index('bboxAP75')] = bbox_ap75
-                    row[header.index('kptsAP')] = kpts_ap
-                    row[header.index('kptsAP50')] = kpts_ap50
-                    row[header.index('kptsAP75')] = kpts_ap75
-
+                    row[header.index('Train Loss')] = '%.2f'%trainloss if not isinstance(trainloss, str) else trainloss
+                    row[header.index('R@100')] = '%.2f'%recall if not isinstance(recall,str) else recall 
+                    row[header.index('Loss_refined')] = '%.2f'%trainloss_refined if not isinstance(trainloss_refined, str) else trainloss_refined
+                    row[header.index('Loss_rel')] = '%.2f'%trainloss_rel if not isinstance(trainloss_rel, str) else trainloss_rel
                     break
+
+    with open(csvfile, 'w', newline='') as csvFile:  
+        writer = csv.writer(csvFile, delimiter='\t')
+        writer.writerows(content)
 
 if __name__ == "__main__":
     main()
