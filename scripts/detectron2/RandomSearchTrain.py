@@ -110,7 +110,7 @@ for i in range(0,_NUM_RUNS):
         trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
         dataaugm = True
         batchsize = 2
-        lr = 0.004 #0.005/2 #0.0035 #0.01
+        lr = 0.0025 #0.005/2 #0.0035 #0.01
         bn = True
         minkpts = 4 
         #steps = np.linspace(0.7, 1, 10).tolist()

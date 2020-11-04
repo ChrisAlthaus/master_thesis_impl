@@ -66,7 +66,7 @@ if args.image_folder is not None:
 if args.image_path is None and args.image_folder is None:
     raise ValueError("Please specify an image or an image directory.")
 
-if args.target not in ['train', 'query']:
+if args.target not in ['train', 'query', 'eval']:
     raise ValueError("Please specify a valid prediction purpose.")
 if args.score_tresh > 1 or args.score_tresh < 0:
     raise ValueError("Please specify a valid filter treshold.")
@@ -181,7 +181,15 @@ def main():
             f.write("Topk: %d"%args.topk + os.linesep)
             f.write("Score Treshold: %f"%args.score_tresh + os.linesep)
             f.write("Number of images: %d"%len(image_paths) + os.linesep)
-
+    elif args.target == 'eval':
+        #Writing config to file
+        with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
+            f.write("Src Image Folder: %s"%(args.image_folder if args.image_folder is not None else args.image_path) + os.linesep)
+            f.write("Model Checkpoint: %s"%args.model_cp + os.linesep)
+            f.write("Topk: %d"%args.topk + os.linesep)
+            f.write("Score Treshold: %f"%args.score_tresh + os.linesep)
+            f.write("Number of images: %d"%len(image_paths) + os.linesep)
+            
     # ------------------------- VISUALIZE PREDICTIONS ONTO SOME IMAGES FOR VALIDATION ---------------------- 
     
     MetadataCatalog.get("my_dataset_val").set(keypoint_names=COCO_PERSON_KEYPOINT_NAMES,

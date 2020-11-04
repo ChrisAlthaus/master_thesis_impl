@@ -63,7 +63,7 @@ gtannfile = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/pe
 outdir = '/home/althausc/master_thesis_impl/results/posedetection/posefix' #'/home/althausc/master_thesis_impl/results/posedetection/posefix'
 
 cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/evaluateCOCOresults.py -predictions {} -gt_ann {} -outputdir {}"\
-                                                .format(predfile, gtannfile)
+                                                .format(predfile, gtannfile, outdir)
 print(cmd)
 
 outrun_dir = latestdir(outdir)

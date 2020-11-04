@@ -41,7 +41,8 @@ def draw_image(img_path, boxes, box_labels, rel_pairs, rel_labels,
         id1, id2 = rel_pairs[i]
         b1 = boxes[id1]
         b2 = boxes[id2]
-        drawline(pic, b1, b2)
+        info = str(i) + '_' + ind_to_predicates[rel_labels[i]]
+        drawline(pic, b1, b2, draw_info=info)
         #b1_label = ind_to_classes[box_labels[id1]]
        # b2_label = ind_to_classes[box_labels[id2]]
     return pic
@@ -63,7 +64,7 @@ args, unknown = parser.parse_known_args()
 output_dir = os.path.join(args.outputdir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
-
+# ---------------------------------- VG CLASS TESTING ---------------------------------------
 vgdataset = VGDataset('train', args.imagefolder, args.file, args.labelmappings, args.imageinfo)
 print(vgdataset.img_info[0])
 print(vgdataset.filenames[0])
@@ -72,47 +73,44 @@ print(vgdataset.gt_classes[0])
 print(vgdataset.gt_attributes[0])
 print(vgdataset.relationships[0])
 
-indices = list(range(0,len(vgdataset.filenames[0]),10000))
+indices = list(range(0,len(vgdataset.filenames),1000))
+imgids = []
 for i in indices:
+    #print(vgdataset.filenames[i])
+    #continue
     rels = vgdataset.relationships[i][:,:2]
-    print(vgdataset.relationships[i][0], type(vgdataset.relationships[i][0]), vgdataset.relationships[i][0][2])
+    #print(vgdataset.relationships[i][0], type(vgdataset.relationships[i][0]), vgdataset.relationships[i][0][2])
     preds = vgdataset.relationships[i][:,2]
-    img = draw_image(vgdataset.filenames[i], vgdataset.gt_boxes[i], vgdataset.gt_classes[i], rels, preds,
-               ind_to_classes, ind_to_predicates)
-    imgname =  "%s_scenegraph.jpg"%os.path.splitext(os.path.basename(vgdataset.filenames[i]))[0]
+    #print("--")
+    #print("Index %d :"%i, vgdataset.filenames[i], vgdataset.gt_boxes[i], vgdataset.gt_classes[i], rels, preds)
+    #print("--")
+    w, h = vgdataset.img_info[i]['width'], vgdataset.img_info[i]['height']
+    gtboxes = vgdataset.gt_boxes[i] / 1024 * max(w, h)
+    img = draw_image(vgdataset.filenames[i], gtboxes, vgdataset.gt_classes[i], rels, preds,
+               vgdataset.ind_to_classes, vgdataset.ind_to_predicates)
+    imgname =  "%s_scenegraph1.jpg"%os.path.splitext(os.path.basename(vgdataset.filenames[i]))[0]
     img.save(os.path.join(output_dir, imgname))
+    imgids.append(int(os.path.splitext(os.path.basename(vgdataset.filenames[i]))[0]))
+    #print("")
 
-"""f = h5py.File(args.file, 'r')
+print("Wrote visualizations to: ", output_dir)
 
+# ---------------------------------- OWN DATALOADER COMPARISON ---------------------------------------
+f = h5py.File(args.file, 'r')
 img_info = None
 with open(args.imageinfo, "r") as f_meta:
     img_info = json.load(f_meta)
 
-
 #img_info = [elem for elem in img_info if elem['image_id'] not in [1592, 1722, 4616, 4617]]
 #Important: do not sort img_info, the given image_data.json is from approx. 4000 image not in right ordering
-
-output_dir = os.path.join(args.outputdir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
-
-indices = []  
-if args.randomsample:
-    indices = random.sample(list(range(0,len(f['img_to_first_box']))), 100)
-elif args.firstn:
-    indices = list(range(0,len(f['img_to_first_box'])))[:100]
-else:
-    indices = list(range(0,len(f['img_to_first_box']),1000))
-
-
-for i in indices:
-    print("i= ",i)
+exit(1)
+for i in imgids: #indices:
+    #print(img_info[i]['image_id'])
+    #continue
     box_indstart = f['img_to_first_box'][i]
     box_indend = f['img_to_last_box'][i]
 
     labels = f['labels'][box_indstart:box_indend+1].flatten()
-
-
     boxes_512 = f['boxes_512'][box_indstart:box_indend+1]
     boxes_1024 = f['boxes_1024'][box_indstart:box_indend+1]
     attr = f['attributes'][box_indstart:box_indend+1]
@@ -124,34 +122,30 @@ for i in indices:
     preds = f['predicates'][rel_indstart:rel_indend+1].flatten()
 
     image_path = os.path.join(args.imagefolder,"%s.jpg"%img_info[i]['image_id'])
-
-    print("number boxes: ",len(boxes_512))
-    print("number rels: ",len(rels))
-    #print("boxes: ",boxes_512)
-    #print("labels: ",labels.flatten(), type(labels))
-    #print("first 10: ",f['boxes_1024'][:10])
-    #print("first 10: ",f['boxes_512'][:10])
-    #print("boxes_1024: ",boxes_1024, type(boxes_1024))
-    #print("rels labels: ",preds)
+    
 
     boxes_512[:, :2] = boxes_512[:, :2] - boxes_512[:, 2:] / 2
     boxes_512[:, 2:] = boxes_512[:, :2] + boxes_512[:, 2:]
+    #print("boxes_1024: ",boxes_1024)
     boxes_1024[:, :2] = boxes_1024[:, :2] - boxes_1024[:, 2:] / 2
     boxes_1024[:, 2:] = boxes_1024[:, :2] + boxes_1024[:, 2:]
-
+    #print("boxes_1024: ",boxes_1024)
+    #print("--")
+    #print("Index %d :"%i, img_info[i], boxes_1024, labels, rels, preds)
+    #print("--")
     BOX_SCALE = 512
     w, h = img_info[i]['width'], img_info[i]['height']
     #print("width= ",w, 'height= ',h)
     # important: recover original box from BOX_SCALE
     boxes_512 = boxes_512 / BOX_SCALE * max(w, h)
-    img = draw_image(image_path, boxes_512, labels, rels, preds,
+    boxes_1024 = boxes_1024 / 1024 * max(w, h)
+    img = draw_image(image_path, boxes_1024, labels, rels, preds,
                    ind_to_classes, ind_to_predicates,
                    box_indstart = box_indstart)
     #print('*' * 40 )
     #print("Image %d"%i)
     #print(ann_str)
-    imgname =  "%s_scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
+    imgname =  "%s_scenegraph2.jpg"%os.path.splitext(os.path.basename(image_path))[0]
     img.save(os.path.join(output_dir, imgname))
    
 print("Wrote visualizations to: ", output_dir)
-"""

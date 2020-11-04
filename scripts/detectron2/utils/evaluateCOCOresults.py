@@ -16,6 +16,10 @@ args = parser.parse_args()
 outputdir = os.path.join(args.outputdir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
 os.makedirs(outputdir)
 
+with open(os.path.join(outputdir, 'config.txt'), 'a') as f:
+    f.write("Prediction Src Flie: %s"%args.predictions + os.linesep)
+    f.write("Groundtruth Annotations: %s"%args.gt_annotations + os.linesep)
+
 annType = ['segm','bbox','keypoints']
 #annType = annType[1]      #specify type here
 #prefix = 'person_keypoints' if annType=='keypoints' else 'instances'

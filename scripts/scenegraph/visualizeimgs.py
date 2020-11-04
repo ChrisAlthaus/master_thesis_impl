@@ -52,7 +52,7 @@ def draw_single_box(pic, box, color='red', draw_info=None, validsize=None):
         info = draw_info
         draw.text((x1, y1), info)
 
-def drawline(pic, box1, box2, color='blue'):
+def drawline(pic, box1, box2, color='blue', draw_info=None):
     draw = ImageDraw.Draw(pic)
     x11,y11,x12,y12 = int(box1[0]), int(box1[1]), int(box1[2]), int(box1[3])
     m1x, m1y = (x11+x12)/2, (y11+y12)/2
@@ -61,6 +61,13 @@ def drawline(pic, box1, box2, color='blue'):
     m2x, m2y = (x21+x22)/2, (y21+y22)/2
     #draw.line([(m1x,m1y), (m2x,m2y)], fill=color)
     draw.line([(x11,y11), (x21,y21)], fill=color)
+    if draw_info:
+        linemx = (x11+x21)/2
+        linemy = (y11+y21)/2
+        draw.rectangle(((linemx, linemy), (linemx+len(draw_info)*6, linemy+10)), fill=color)
+        draw.text((linemx, linemy), draw_info)
+
+
    
 def print_list(name, input_list, scores=None):
     for i, item in enumerate(input_list):
@@ -142,7 +149,8 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
             if id1 not in addedlabels or id2 not in addedlabels:
                 continue
             if id1 in addedlabels and id2 in addedlabels:
-                drawline(pic, b1, b2)
+                info = str(i) + '_' + ind_to_predicates[rel_labels[i]]
+                drawline(pic, b1, b2, draw_info=info)
                 relstr = str(id1) + '_' + b1_label + ' => ' + ind_to_predicates[rel_labels[i]] + ' => ' + str(id2) + '_' + b2_label
                 if rel_scores is not None:
                     relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
@@ -150,7 +158,8 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
                 ann_str = ann_str + relstr + '\n'
                 c = c + 1
         else:
-            drawline(pic, b1, b2)
+            info = str(i) + '_' + ind_to_predicates[rel_labels[i]]
+            drawline(pic, b1, b2, draw_info=info)
             relstr = str(id1) + '_' + b1_label + ' => ' + ind_to_predicates[rel_labels[i]] + ' => ' + str(id2) + '_' + b2_label
             if rel_scores is not None:
                 relstr = relstr + '; ' + str(rel_scores[i]) + '\t%d'%i
