@@ -65,7 +65,7 @@ output_dir = os.path.join(args.outputdir, datetime.datetime.now().strftime('%m-%
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 # ---------------------------------- VG CLASS TESTING ---------------------------------------
-vgdataset = VGDataset('train', args.imagefolder, args.file, args.labelmappings, args.imageinfo)
+vgdataset = VGDataset('train', args.imagefolder, args.file, args.labelmappings, args.imageinfo, filter_non_overlap=False, filter_empty_rels=False)
 print(vgdataset.img_info[0])
 print(vgdataset.filenames[0])
 print(vgdataset.gt_boxes[0])
@@ -73,6 +73,14 @@ print(vgdataset.gt_classes[0])
 print(vgdataset.gt_attributes[0])
 print(vgdataset.relationships[0])
 
+c_noann = 0
+for (image, target, _) in vgdataset:
+    if len(target)<1:
+        print(_)
+        print("no bbox")
+        c_noann += 1
+print("Number of no annotations: ",c_noann)
+exit(1)
 indices = list(range(0,len(vgdataset.filenames),1000))
 imgids = []
 for i in indices:

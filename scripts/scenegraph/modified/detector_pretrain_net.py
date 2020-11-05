@@ -30,6 +30,10 @@ from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 
 from torch.utils.tensorboard import SummaryWriter
 import json
+import csv
+import numpy as np
+import cv2
+from torchvision import transforms
 import sys
 sys.path.append('/home/althausc/master_thesis_impl/scripts/scenegraph')
 from visualizeimgs import draw_image
@@ -46,14 +50,15 @@ def train(cfg, local_rank, distributed, logger):
     model = build_detection_model(cfg)
 
     #modified: Save model architecture & layer specs to file 
-    print("Save model's architecture:")
-    with open(os.path.join(cfg.OUTPUT_DIR, 'model_architectur.txt'), 'w') as f:
-        print(list(model.children()),file=f)
+    if is_main_process():
+        print("Save model's architecture:")
+        with open(os.path.join(cfg.OUTPUT_DIR, 'model_architectur.txt'), 'w') as f:
+            print(list(model.children()),file=f)
 
-    print("Save model's state_dict:")
-    with open(os.path.join(cfg.OUTPUT_DIR, 'layer_params_overview.txt'), 'w') as f:
-        for name, param in list(model.named_parameters()):
-            f.write('{} requires_gradient: {}'.format(name, param.requires_grad)+ os.linesep)
+        print("Save model's state_dict:")
+        with open(os.path.join(cfg.OUTPUT_DIR, 'layer_params_overview.txt'), 'w') as f:
+            for name, param in list(model.named_parameters()):
+                f.write('{} requires_gradient: {}'.format(name, param.requires_grad)+ os.linesep)
     #modified end
 
     device = torch.device(cfg.MODEL.DEVICE)
@@ -113,10 +118,13 @@ def train(cfg, local_rank, distributed, logger):
             if i%1000 == 0:
                 imgwithann = getfirstimg_withann(images, targets)
                 writer.add_image('Validation Sample %d'%i, imgwithann, global_step=i, dataformats='HWC')
+                cv2.imwrite(os.path.join(cfg.OUTPUT_DIR, '.images', "validation_sample_%d.jpg"%i), imgwithann)
                 print("\tWrote image to tensorboard")
         print("Draw annotations for some sample validation images done.")
     if is_main_process():
         print("Val dataloaders: ",val_data_loaders)
+        if not os.path.exists(os.path.join(cfg.OUTPUT_DIR,'.images')):
+            os.makedirs(os.path.join(cfg.OUTPUT_DIR,'.images'))
         check_valannotations(val_data_loaders[0], writer)
     #modified end
 
@@ -196,8 +204,9 @@ def train(cfg, local_rank, distributed, logger):
 
         eta_seconds = meters.time.global_avg * (max_iter - iteration)
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
+
         # MATTHIAS CHANGES
-        print(f'Train: process {local_rank}:{iteration}')
+        #print(f'Train: process {local_rank}:{iteration}')
 
         if iteration % 200 == 0 or iteration == max_iter:
             logger.info(
@@ -218,30 +227,32 @@ def train(cfg, local_rank, distributed, logger):
                 )
             )
 
-        #modified: log meters to tensorboard
-        if is_main_process():
-            print("added: ",'loss', meters.loss.median, iteration)
-            writer.add_scalar('loss', meters.loss.median, iteration)
-            writer.add_scalar('loss_refine_obj', meters.loss_refine_obj.median, iteration)
-            writer.add_scalar('loss_rel', meters.loss_rel.median, iteration)
-            writer.add_scalar('lr', optimizer.param_groups[-1]["lr"], iteration)
-        #modified end
+            #modified: log meters to tensorboard
+            if is_main_process():
+                print("added loss:", meters.loss.median, iteration)
+                writer.add_scalar('loss', meters.loss.median, iteration)
+                writer.add_scalar('loss_box_reg', meters.loss_box_reg.median, iteration)
+                writer.add_scalar('loss_classifier', meters.loss_classifier.median, iteration)
+                writer.add_scalar('loss_objectness', meters.loss_objectness.median, iteration)
+                writer.add_scalar('loss_rpn_box_reg', meters.loss_rpn_box_reg.median, iteration)
+                writer.add_scalar('lr', optimizer.param_groups[0]["lr"], iteration)
+            #modified end
 
-        #modified: add metrics.dat for better summary of training process & read when finished
-        if is_main_process():
-            with open(os.path.join(cfg.OUTPUT_DIR, "metrics.dat"),"a+") as f:
-                logline = {'iter': iteration}
-                for name, meter in meters.meters.items():
-                    logline[name] = meter.median  
-                logline['lr'] = optimizer.param_groups[-1]["lr"]   
-                json.dump(logline, f)
-                f.write(os.linesep)
-                #f.write(meters_str + os.linesep)
-        #modified end
+            #modified: add metrics.dat for better summary of training process & read when finished
+            if is_main_process():
+                with open(os.path.join(cfg.OUTPUT_DIR, "metrics.dat"),"a+") as f:
+                    logline = {'iter': iteration}
+                    for name, meter in meters.meters.items():
+                        logline[name] = meter.median  
+                    logline['lr'] = optimizer.param_groups[0]["lr"]  
+                    json.dump(logline, f)
+                    f.write(os.linesep)
+                    #f.write(meters_str + os.linesep)
+            #modified end
 
         if cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD == 0:
             logger.info("Start validating")
-            print(f'VAL: prozess {torch.distributed.get_rank()} start val')
+            print(f'VAL: process {torch.distributed.get_rank()} start val')
 
             val_result = run_val(cfg, model, val_data_loaders, distributed)
             logger.info("Validation Result: %.4f" % val_result)
@@ -295,23 +306,35 @@ def run_val(cfg, model, val_data_loaders, distributed):
         iou_types = iou_types + ("attributes", )
         
     dataset_names = cfg.DATASETS.VAL
+    val_result = []
     for dataset_name, val_data_loader in zip(dataset_names, val_data_loaders):
-        inference(
-            cfg,
-            model,
-            val_data_loader,
-            dataset_name=dataset_name,
-            iou_types=iou_types,
-            box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
-            device=cfg.MODEL.DEVICE,
-            expected_results=cfg.TEST.EXPECTED_RESULTS,
-            expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
-            output_folder=None,
-        )
+        dataset_result = inference(
+                            cfg,
+                            model,
+                            val_data_loader,
+                            dataset_name=dataset_name,
+                            iou_types=iou_types,
+                            box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
+                            device=cfg.MODEL.DEVICE,
+                            expected_results=cfg.TEST.EXPECTED_RESULTS,
+                            expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
+                            output_folder=None,
+                        )
         # MATTHIAS CHANGES
         print(f'VAL: prozess {torch.distributed.get_rank()} reaches barrier')
         synchronize()
-
+        val_result.append(dataset_result)
+        print("Validation result: {} Process {}".format(dataset_result,torch.distributed.get_rank()))
+    #modified    
+    gathered_result = all_gather(torch.tensor(dataset_result).cpu())
+    gathered_result = [t.view(-1) for t in gathered_result]
+    gathered_result = torch.cat(gathered_result, dim=-1).view(-1)
+    valid_result = gathered_result[gathered_result>=0]
+    val_result = float(valid_result.mean())
+    del gathered_result, valid_result
+    torch.cuda.empty_cache()
+    return val_result
+    #modified end
 
 def run_test(cfg, model, distributed):
     if distributed:
@@ -510,9 +533,9 @@ def save_modelconfigs(configdir_all, cfg):
         with open(filepath, 'w') as f:
             writer = csv.writer(f, delimiter='\t')
             headers = ['Folder', 'Predictor', 'Fusion', 'ContextLayer', 'FasterRCNN', 'Batchsize', 'LR', 'MaxIter', 'ValPeriod',
-                       'CpktPeriod', 'Steps', 'Gamma', 'MinSize', 'Dataset', 'Attributes', 'Train Loss', 'Loss_refined', 'Loss_rel', 'R@100']
+                       'CpktPeriod', 'Steps', 'Gamma', 'MinSize', 'Dataset', 'Attributes', 'Train Loss', 'R@100']
             writer.writerow(headers)
-
+            
     folder = os.path.basename(cfg.OUTPUT_DIR)
     predictor = cfg.MODEL.ROI_RELATION_HEAD.PREDICTOR
     fusiontype = cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE if predictor == 'CausalAnalysisPredictor' else 'not used'
@@ -530,7 +553,7 @@ def save_modelconfigs(configdir_all, cfg):
     attributes = cfg.MODEL.ATTRIBUTE_ON
 
     row = [folder, predictor, fusiontype, contextlayer, fasterrcnn_dir, batchsize, lr, maxiter, valperiod,
-           cpktperiod, steps, gamma, minsize, dataset, attributes, ' ', ' ', ' ', ' ']
+           cpktperiod, steps, gamma, minsize, dataset, attributes, ' ', ' ']
     with open(filepath, 'a') as f:
         writer = csv.writer(f, delimiter='\t')
         writer.writerow(row)
@@ -546,18 +569,12 @@ def add_evalstats(modeldir):
     _LASTN = 10
     _SEARCH_LASTN = 100
     trainloss_lastn = [entry['loss'] for entry in lines[-_LASTN:] if 'loss' in entry]
-    trainloss_refined_lastn = [entry['loss_refine_obj'] for entry in lines[-_LASTN:] if 'loss_refine_obj' in entry]
-    trainloss_rel_lastn = [entry['loss_rel'] for entry in lines[-_LASTN:] if 'loss_rel' in entry]
     recall_lastn = [entry['R@100'] for entry in lines[-_SEARCH_LASTN:] if 'R@100' in entry]
 
     trainloss = np.mean(trainloss_lastn) if len(trainloss_lastn)>0 else 'not found'
-    trainloss_refined = np.mean(trainloss_refined_lastn) if len(trainloss_refined_lastn)>0 else 'not found'
-    trainloss_rel = np.mean(trainloss_rel_lastn) if len(trainloss_rel_lastn)>0 else 'not found'
     recall = recall_lastn[-1] if len(recall_lastn)>0 else 'not found'
     print("Averaged last N losses:")
     print("\tTrain Loss: ",trainloss)
-    print("\tTrain Loss_refind: ",trainloss_refined)
-    print("\tTrain Loss_rel: ",trainloss_rel)
     print("R@100: ", recall)
 
     #Update CSV config
@@ -579,9 +596,7 @@ def add_evalstats(modeldir):
                 print(row[header.index('Folder')], foldername, row[header.index('Folder')] == foldername)
                 if row[header.index('Folder')] == foldername:
                     row[header.index('Train Loss')] = '%.2f'%trainloss if not isinstance(trainloss, str) else trainloss
-                    row[header.index('R@100')] = '%.2f'%recall if not isinstance(recall,str) else recall 
-                    row[header.index('Loss_refined')] = '%.2f'%trainloss_refined if not isinstance(trainloss_refined, str) else trainloss_refined
-                    row[header.index('Loss_rel')] = '%.2f'%trainloss_rel if not isinstance(trainloss_rel, str) else trainloss_rel
+                    row[header.index('R@100')] = '%.2f'%recall if not isinstance(recall,str) else recall
                     break
 
     with open(csvfile, 'w', newline='') as csvFile:  

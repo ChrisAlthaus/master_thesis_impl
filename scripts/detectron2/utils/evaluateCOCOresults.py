@@ -32,20 +32,23 @@ imgIds=sorted(cocoGt.getImgIds())
 evalstr = ''
 evalstr = evalstr + "----------- EVALUATION FOR KEYPOINTS -------------" + os.linesep
 # running evaluation
+#Path of Cocoeval: .local/lib64/python3.6/site-packages/pycocotools/cocoeval.py
 cocoEval = COCOeval(cocoGt,cocoDt,'keypoints')
 cocoEval.params.imgIds  = imgIds
 cocoEval.evaluate()
 cocoEval.accumulate()
-evalstr = evalstr + cocoEval.summarize() + os.linesep
-evalstr = evalstr + "--------------------------------------------------" + os.linesep
+cocoEval.summarize()
+evalstr = evalstr + cocoEval.evalresults + os.linesep
 
-evalstr = evalstr + "----------- EVALUATION FOR BBOX -------------" + os.linesep
+evalstr = evalstr + "-------------- EVALUATION FOR BBOX ----------------" + os.linesep
 # running evaluation
 cocoEval = COCOeval(cocoGt,cocoDt,'bbox')
 cocoEval.params.imgIds  = imgIds
 cocoEval.evaluate()
 cocoEval.accumulate()
-evalstr = evalstr + cocoEval.summarize() + os.linesep
-evalstr = evalstr + "--------------------------------------------------" + os.linesep
+cocoEval.summarize()
+evalstr = evalstr + cocoEval.evalresults + os.linesep
 
+with open(os.path.join(outputdir, 'evaluations.txt'), 'w') as f:
+    f.write(evalstr)
 print("Wrote evaluation summary to: ", outputdir)

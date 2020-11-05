@@ -156,6 +156,7 @@ def main():
     cfg.SOLVER.EARLYSTOPPING_PERIOD = int(epoch_iter * 1) #window size
     cfg.TEST.PERIODICWRITER_PERIOD = 100# default:20
     cfg.TEST.IMGAUGM_DISPLAY_PERIOD = int(epoch_iter)/2#When to write augmentated image to tensorboard (for debugging)
+    os.makedirs(os.path.join(cfg.OUTPUT_DIR, '.images')) #for saving sampled images during training process (for validation/debugging)
     cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE = c_params['gradient_clipvalue']
     
     #steps_exp = np.linspace(0,1,12)[1:-1] * max_iter

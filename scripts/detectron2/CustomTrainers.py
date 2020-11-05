@@ -45,6 +45,7 @@ class COCOTrainer(DefaultTrainer):
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+        #Evaluator used to print & save validation COCO result summary to eventfile
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR,"inference")
         print("--------------------- BUILD EVALUATOR --------------------")
@@ -53,6 +54,11 @@ class COCOTrainer(DefaultTrainer):
     #For Single-GPU loss computation, uncomment if not used
     def build_hooks(self):
         hooks = super().build_hooks()
+        #Hooks:
+        # -LossEvalHook: calculate validation loss & save to eventfile
+        # -LoggingHook: print config & save specific config parameters to eventfile
+        # -EarlyStoppingHook: stop training if loss of windowsizes don't decrease
+
         #Insert hooks before PeriodicWriter at last position
         hooks.insert(-1,LossEvalHook(self.cfg.TEST.EVAL_PERIOD,self.model,
                 build_detection_test_loader(
@@ -60,8 +66,8 @@ class COCOTrainer(DefaultTrainer):
                     self.cfg.DATASETS.TEST[0],
                     DatasetMapper(self.cfg,True)
                 ),
-                self.cfg.TEST.PLOT_PERIOD,self.cfg.OUTPUT_DIR))
-        hooks.insert(-1,LoggingHook(self.cfg, self.cfg.TEST.EVAL_PERIOD))
+                self.cfg.TEST.PLOT_PERIOD, self.cfg.OUTPUT_DIR))
+        hooks.insert(-1,LoggingHook(self.cfg))
         hooks.insert(-1,EarlyStoppingHook(self.cfg))
 
         print("Registered hooks: ",hooks)

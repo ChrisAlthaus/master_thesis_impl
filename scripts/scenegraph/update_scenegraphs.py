@@ -127,9 +127,13 @@ for i in range(len(f['img_to_first_box'])):
         attributes_filtered.extend(attr)
         labels_filtered.extend(labels)
 
-        img_first_box_updated.append(added_boxes)
-        added_boxes = added_boxes + len(boxes_512)
-        img_last_box_updated.append(added_boxes-1)
+        if len(boxes_512)>0:
+            img_first_box_updated.append(added_boxes)
+            added_boxes = added_boxes + len(boxes_512)
+            img_last_box_updated.append(added_boxes-1)
+        else:
+            img_first_box_updated.append(-1)
+            img_last_box_updated.append(-1) 
 
     # ---------------------------- Update Relationship indices & data ----------------------------
     rel_indstart = f['img_to_first_rel'][i]

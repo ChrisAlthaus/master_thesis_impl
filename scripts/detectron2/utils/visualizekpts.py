@@ -54,7 +54,7 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
             img_path = os.path.join(imagedir, imgname)
         else:
             imgname = "%s.jpg"%(imgid)
-            imgname_out = "{}_{}.jpg"%(imgid, suffix)
+            imgname_out = "{}_{}.jpg".format(imgid, suffix)
             img_path = os.path.join(imagedir, imgname)
 
         img = cv2.imread(img_path, 0)

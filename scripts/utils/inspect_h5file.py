@@ -24,6 +24,12 @@ for item in list(f):
     print(item + ": " + str(f[item].shape))
     print(f[item][:10])
     print()
+
+traininds = [k for k in f['split'] if k==0]
+valinds = [k for k in f['split'] if k==2]
+print("Number of train images: ",len(traininds))
+print("Number of validation images: ",len(valinds))
+
 exit(1)
 
 if args.searchindex is not None:
