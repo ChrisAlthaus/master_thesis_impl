@@ -352,7 +352,7 @@ class Visualizer:
         )
         self._instance_mode = instance_mode
 
-    def draw_instance_predictions(self, predictions, vistresh):
+    def draw_instance_predictions(self, predictions, vistresh=0.0):
         """
         Draw instance-level prediction results on an image.
 
@@ -371,16 +371,17 @@ class Visualizer:
         keypoints = predictions.pred_keypoints if predictions.has("pred_keypoints") else None
 
         #modified: remove bboxes under a given treshold
-        delinds = []
-        for i, score in enumerate(scores):
-            if score < vistresh:
-                delinds.append(i)
-        for i in sorted(delinds, key=lambda x: x , reverse=True):
-            boxes.tensor = torch.cat([boxes.tensor[0:i], boxes.tensor[i+1:]])
-            scores = torch.cat([scores[0:i], scores[i+1:]])
-            classes = torch.cat([classes[0:i], classes[i+1:]])
-            keypoints = torch.cat([keypoints[0:i], keypoints[i+1:]])
-            del labels[i]
+        if scores is not None:
+            delinds = []
+            for i, score in enumerate(scores):
+                if score < vistresh:
+                    delinds.append(i)
+            for i in sorted(delinds, key=lambda x: x , reverse=True):
+                boxes.tensor = torch.cat([boxes.tensor[0:i], boxes.tensor[i+1:]])
+                scores = torch.cat([scores[0:i], scores[i+1:]])
+                classes = torch.cat([classes[0:i], classes[i+1:]])
+                keypoints = torch.cat([keypoints[0:i], keypoints[i+1:]])
+                del labels[i]
         #modified end
 
         if predictions.has("pred_masks"):
@@ -699,6 +700,7 @@ class Visualizer:
         # draw keypoints
         if keypoints is not None:
             for keypoints_per_instance in keypoints:
+                print("keypoints_per_instance: ",keypoints_per_instance)
                 self.draw_and_connect_keypoints(keypoints_per_instance)
 
         return self.output
@@ -760,7 +762,10 @@ class Visualizer:
             # draw keypoint
             x, y, prob = keypoint
             if prob > _KEYPOINT_THRESHOLD:
-                self.draw_circle((x, y), color=_RED, radius=np.log(prob+1)*20)
+                #modified: draw keypoint joint dependent on visualization probability (used for validation)
+                self.draw_circle((x, y), color=_RED)
+                #self.draw_circle((x, y), color=_RED, radius=np.log(prob+1)*20)
+                #modified end
                 if keypoint_names:
                     keypoint_name = keypoint_names[idx]
                     visible[keypoint_name] = (x, y)
@@ -771,6 +776,7 @@ class Visualizer:
                     x0, y0 = visible[kp0]
                     x1, y1 = visible[kp1]
                     color = tuple(x / 255.0 for x in color)
+                    #print("Draw Line: ",[x0, x1], [y0, y1])
                     self.draw_line([x0, x1], [y0, y1], color=color)
 
         # draw lines from nose to mid-shoulder and mid-shoulder to mid-hip
@@ -798,6 +804,33 @@ class Visualizer:
                 mid_hip_x, mid_hip_y = (lh_x + rh_x) / 2, (lh_y + rh_y) / 2
                 self.draw_line([mid_hip_x, mid_shoulder_x], [mid_hip_y, mid_shoulder_y], color=_RED)
         return self.output
+
+    #modified
+    def draw_gpddescriptor(self, jldist, llangles):
+        for j, lstart, lend, dist in jldist:
+            lmidx = (lstart[0] + lend[0])/2
+            lmidy = (lstart[1] + lend[1])/2
+            jx = j[0]
+            jy = j[1]
+            #print("Draw Line: ",[jx, lmidx], [jy, lmidy])
+            self.draw_line([jx, lmidx], [jy, lmidy], color='b', linestyle='--', linewidth=1)
+            self.draw_text('%.2f'%dist, [(jx+lmidx)/2, (jy+lmidy)/2], color='b')
+    
+        for l1start, l1end, l2start, l2end, angle in llangles:
+            l1midx = (l1start[0] + l1end[0])/2
+            l1midy = (l1start[1] + l1end[1])/2
+            l2midx = (l2start[0] + l2end[0])/2
+            l2midy = (l2start[1] + l2end[1])/2
+
+            #print("Draw Line: ",[l1start, l2start], [l1end, l2end])
+            #self.draw_line([l1start[0], l1end[0]], [l1start[1], l1end[1]], color='r', linestyle='--', linewidth=1)
+            #self.draw_line([l2start[0], l2end[0]], [l2start[1], l2end[1]], color='r', linestyle='--', linewidth=1)
+
+            #self.draw_line([l1midx, l2midx], [l1midy, l2midy], color='g', linestyle='--', linewidth=1)
+            #self.draw_text('%.2f'%math.degrees(angle), [(l1midx+l2midx)/2, (l1midy+l2midy)/2], color='g')
+
+        return self.output
+    #modified end
 
     """
     Primitive drawing functions:

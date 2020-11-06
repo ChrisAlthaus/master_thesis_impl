@@ -130,15 +130,16 @@ def main():
         f.write("Minimum KPTS: %d"%_MINKPTs + os.linesep)
         f.write("Mode: %s"%args.mode + os.linesep)
         f.write("Filter: %d"%_FILTER + os.linesep)
-        f.write("Filter mode: %d"%_FILTERMODE + os.linesep)
         f.write("Keypoint threshold: %d"%_VISIBILITY_TRESH + os.linesep)
         f.write("Ref(s): %s"%str(_REFs) + os.linesep)
         f.write("PCA dimension: %s"%(str(args.pca) if args.pca is not None else 'not used')+ os.linesep)
         f.write("Number input predictions: %d"%len(json_data) + os.linesep)
         f.write("Number calculated descriptors: %d"%c + os.linesep)
+        f.write("Dimension of descriptor: %d"%len(json_out[0]['gpd']) + os.linesep)
 
 
-    json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d.%d_mkpt%d'%(c,args.mode, _VISIBILITY_TRESH, _FILTER, _FILTERMODE, _MINKPTs)
+
+    json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d_mkpt%d'%(c,args.mode, _VISIBILITY_TRESH, _FILTER, _MINKPTs)
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
         print("Writing to folder: ",output_dir)
         json.dump(json_out, f)

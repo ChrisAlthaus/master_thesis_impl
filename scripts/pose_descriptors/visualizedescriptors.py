@@ -1,0 +1,157 @@
+import time
+import argparse
+import json
+import logging
+from detectron2.structures import Instances
+from detectron2.structures import Boxes
+from detectron2.utils.visualizer import Visualizer
+from detectron2.data import MetadataCatalog
+from detectron2.data.datasets.builtin_meta import KEYPOINT_CONNECTION_RULES, COCO_PERSON_KEYPOINT_NAMES, COCO_PERSON_KEYPOINT_FLIP_MAP
+import os
+import cv2
+import torch
+import itertools
+
+#Visualizes human pose keypoints given by input file.
+#Treshold for score possible.
+#Image folder corresponding to input file annotations needed.
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-predictionfile',required=True,
+                        help='File with a list of dict items with fields imageid and keypoints.')  
+    parser.add_argument('-gpdfile',required=True) 
+    parser.add_argument('-imagespath',required=True)   
+    parser.add_argument('-transformid',action="store_true", 
+                        help='Wheather to split imageid to get image filepath (used for style transfered images.')    
+    parser.add_argument('-vistresh',type=float, default=0.0)                
+    args = parser.parse_args()
+
+    preddata = None
+    with open(args.predictionfile, "r") as f:
+         preddata = json.load(f)   
+
+    gpddata = None
+    with open(args.gpdfile, "r") as f:
+         gpddata = json.load(f)   
+
+    predgpd_map = {}
+    for item in preddata:
+        if item['image_id'] not in predgpd_map:
+            predgpd_map[item['image_id']] = [item]
+        else:
+            predgpd_map[item['image_id']].append(item)
+    for item in gpddata:
+        if item['image_id'] not in predgpd_map:
+            predgpd_map[item['image_id']] = [item]
+        else:
+            predgpd_map[item['image_id']].append(item)
+
+    #print(predgpd_map)
+    outputdir = os.path.join(os.path.dirname(args.gpdfile), '.visimages')
+    if not os.path.exists(outputdir):
+        os.makedirs(outputdir)
+        print("Successfully created output directory: ", outputdir)
+
+    print("Visualize the predictions onto the original image(s) ...")
+    visualize( predgpd_map, args.imagespath, outputdir)
+    print("Visualize done.")
+    print("Wrote images to path: ",outputdir)
+
+body_part_mapping = {
+        0: "nose", 1: "left_eye", 2: "right_eye", 3: "left_ear", 4: "right_ear", 5: "left_shoulder", 6: "right_shoulder",
+        7: "left_elbow", 8: "right_elbow", 9: "left_wrist", 10: "right_wrist", 11: "left_hip", 12: "right_hip",
+        13: "left_knee", 14: "right_knee", 15: "left_ankle", 16: "right_ankle"}
+#Dimensions: 18 distances
+kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'], 
+                            3:[(5,0),'shoulder_head_left'], 4:[(6,0),'shoulder_head_right'],
+                            6:[(8,5),'shoulders_elbowr'], 6:[(10,4),'endpoints_earhand_shoulder_r'], 
+                            5:[(6,7),'shoulders_elbowsl'], 5:[(3,9),'endpoints_earhand_shoulder_l'], 
+                            13:[(14,15),'knees_foot_side'], 13:[(11,15),'left_leg'],
+                            14:[(13,16),'knees_foot_side'], 14:[(12,16),'right_leg'], 
+                            10:[(5,9),'arms_left_side'], 9:[(6,10),'arms_right_side'],
+                            0:[(16,12),'headpos_side'], 0:[(15,11),'headpos_side'],
+                            11:[(15,9),'endpoints_foodhand_hip_l'], 12:[(10,16),'endpoints_foodhand_hip_r']}
+    
+#Dimensions: 12 angles
+line_line_mapping = {(10,9):[(9,15),'hands_lfoot'], (9,10):[(9,16),'hands_rfoot'],
+                            (10,16):[(9,10),'hands_lfoot'], (16,10):[(10,15),'hands_rfoot'],
+                            (5,11):[(5,9),'hand_shoulder_hip_l'], (6,12):[(6,10),'hand_shoulder_hip_r'],
+                            (6,8):[(5,7),'upper_arms'], (8,10):[(7,9),'lower_arms'],
+                            (12,14):[(11,13),'upper_legs'], (14,16):[(13,15),'lower_legs'],
+                            (0,5):[(3,5),'head_shoulder_l'], (4,6):[(0,6),'head_shoulder_r']}
+
+def visualize(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False, suffix='overlay'):
+    #Grouped imageid input: [{imageid1 : [{imageid1,...},...,{imageid1,...}], ... , {imageidn :[{imageidn,...},...,{imageidn,...}]}]
+    
+    MetadataCatalog.get("my_dataset_val").set(keypoint_names=COCO_PERSON_KEYPOINT_NAMES,
+                                              keypoint_flip_map=COCO_PERSON_KEYPOINT_FLIP_MAP,
+                                              keypoint_connection_rules=KEYPOINT_CONNECTION_RULES)
+
+    for imgid,group in predgpds.items():
+        imgid = str(imgid)
+        preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
+        gpds = [item for item in group if 'gpd' in item]
+
+        if transformid:
+            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+            imgname_out = "{}_{}_{}.jpg".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:], suffix)
+            img_path = os.path.join(imagedir, imgname)
+        else:
+            imgname = "%s.jpg"%(imgid)
+            imgname_out = "{}_{}.jpg".format(imgid, suffix)
+            img_path = os.path.join(imagedir, imgname)
+
+        img = cv2.imread(img_path, 0)
+        height, width = img.shape[:2]
+
+        instances = Instances((height, width))
+        boxes = []
+        scores = []
+        classes = []
+        masks = []
+        keypoints = []
+
+        #"image_id": 785050351, "category_id": 1, "score": 1.0, "keypoints"
+        for pred in preds:
+            classes.append(pred["category_id"])
+            if 'score' in pred: #gt annotations don't have score entry
+                scores.append(pred['score'])
+            else:
+                scores.append(1.0)
+            kpts = list(zip(pred['keypoints'][::3], pred['keypoints'][1::3], pred['keypoints'][2::3]))
+            keypoints.append(kpts)
+    
+        instances.scores = torch.Tensor(scores)
+        instances.pred_classes = torch.Tensor(classes)
+        instances.pred_keypoints = torch.Tensor(keypoints)
+
+        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        out = v.draw_instance_predictions(instances, vistresh)
+
+        jld_kpts = []
+        lla_kpts = []
+        jl_start = 34
+        ll_start = 52
+        
+        assert len(keypoints) == len(gpds)
+        for i in range(len(keypoints)):
+            
+            kpts = keypoints[i]
+            gpd = gpds[i]['gpd']
+            
+            for k,[j,l] in enumerate(kpt_line_mapping.items()):
+                jltuple = [kpts[j][:2], kpts[l[0][0]][:2], kpts[l[0][1]][:2], gpd[jl_start+k]]
+                jld_kpts.append(jltuple)
+            for k,[j,l] in enumerate(line_line_mapping.items()):
+                lltuple = [kpts[j[0]][:2] ,kpts[j[1]][:2], kpts[l[0][0]][:2], kpts[l[0][1]][:2],  gpd[ll_start+k]]
+                lla_kpts.append(lltuple)
+
+        out = v.draw_gpddescriptor(jld_kpts, lla_kpts)
+        cv2.imwrite(os.path.join(outputdir, imgname_out),out.get_image()[:, :, ::-1])
+
+        if out == None:
+            print("img is none")
+
+if __name__=="__main__":
+    main()
