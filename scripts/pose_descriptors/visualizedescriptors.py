@@ -65,13 +65,13 @@ body_part_mapping = {
 #Dimensions: 18 distances
 kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'], 
                             3:[(5,0),'shoulder_head_left'], 4:[(6,0),'shoulder_head_right'],
-                            6:[(8,5),'shoulders_elbowr'], 6:[(10,4),'endpoints_earhand_shoulder_r'], 
-                            5:[(6,7),'shoulders_elbowsl'], 5:[(3,9),'endpoints_earhand_shoulder_l'], 
-                            13:[(14,15),'knees_foot_side'], 13:[(11,15),'left_leg'],
-                            14:[(13,16),'knees_foot_side'], 14:[(12,16),'right_leg'], 
+                            6:[[(8,5),'shoulders_elbowr'], [(10,4),'endpoints_earhand_shoulder_r']], 
+                            5:[[(6,7),'shoulders_elbowsl'], [(3,9),'endpoints_earhand_shoulder_l']], 
+                            13:[[(14,15),'knees_foot_side'], [(11,15),'left_leg']],
+                            14:[[(13,16),'knees_foot_side'], [(12,16),'right_leg']], 
                             10:[(5,9),'arms_left_side'], 9:[(6,10),'arms_right_side'],
-                            0:[(16,12),'headpos_side'], 0:[(15,11),'headpos_side'],
-                            11:[(15,9),'endpoints_foodhand_hip_l'], 12:[(10,16),'endpoints_foodhand_hip_r']}
+                            0:[[(16,12),'headpos_side'], [(15,11),'headpos_side']],
+                            11:[(15,9),'endpoints_foodhand_hip_l'], 12:[(10,16),'endpoints_foodhand_hip_r']} 
     
 #Dimensions: 12 angles
 line_line_mapping = {(10,9):[(9,15),'hands_lfoot'], (9,10):[(9,16),'hands_rfoot'],
@@ -139,11 +139,19 @@ def visualize(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False, su
             
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
-            
-            for k,[j,l] in enumerate(kpt_line_mapping.items()):
-                jltuple = [kpts[j][:2], kpts[l[0][0]][:2], kpts[l[0][1]][:2], gpd[jl_start+k]]
-                jld_kpts.append(jltuple)
+            k = 0
+            for j,l in kpt_line_mapping.items():
+                if isinstance(l[0], list):
+                    for ls in l:
+                        jltuple = [kpts[j][:2], kpts[ls[0][0]][:2], kpts[ls[0][1]][:2], gpd[jl_start+k]]
+                        jld_kpts.append(jltuple)
+                        k += 1
+                else:
+                    jltuple = [kpts[j][:2], kpts[l[0][0]][:2], kpts[l[0][1]][:2], gpd[jl_start+k]]
+                    jld_kpts.append(jltuple)
+                    k += 1
             for k,[j,l] in enumerate(line_line_mapping.items()):
+                print("%d: (%s,%s)->(%s,%s)"%(k,body_part_mapping[j[0]], body_part_mapping[j[1]], body_part_mapping[l[0][0]], body_part_mapping[l[0][1]]))
                 lltuple = [kpts[j[0]][:2] ,kpts[j[1]][:2], kpts[l[0][0]][:2], kpts[l[0][1]][:2],  gpd[ll_start+k]]
                 lla_kpts.append(lltuple)
 

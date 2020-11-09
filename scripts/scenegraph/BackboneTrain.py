@@ -10,7 +10,7 @@ _NUMGPUS = 2 #default parameters for 4 GPUs
 _IMS_PER_BATCH = 2 #default: 8
 #scalefactor to get right learning rate & keep same number of epochs
 scalefactor = 8/_IMS_PER_BATCH 
-_LR = 0.001/scalefactor#0.0025 #original: 0.001
+_LR = 0.00075 #0.001/scalefactor#0.0025 #original: 0.001
 _MAX_ITER = 50000 * scalefactor
 _STEPS = (30000* scalefactor, 45000* scalefactor) 
 _VAL_PERIOD = 2000 * scalefactor
@@ -18,6 +18,7 @@ _CPKT_PERIOD = 2000 * scalefactor
 
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
 _DATASET_SELECT = _DATASET_SELECTS[1]
+_ADD_NOTES = ''
 
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun2-2.sh'
 jobname = 'scenegraph-train%s'%datetime.datetime.now().strftime('%d_%H-%M-%S')
@@ -28,6 +29,13 @@ out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/check
 logdir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/logs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
 logfile = os.path.join(logdir, 'train.log')
 os.makedirs(logdir)
+
+
+params = {'datasetselect': _DATASET_SELECT, 'gpus': _NUMGPUS, 'lr': _LR, 'steps': _STEPS, 'maxiterations': _MAX_ITER, 'addnotes': _ADD_NOTES}
+paramconfig = os.path.join(logdir, 'paramsconfig.txt')
+with open(paramconfig, 'w') as f:
+        json.dump(params, f)
+
 
 cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
     "{} python3.6 -m torch.distributed.launch --master_port {} --nproc_per_node={} "+\

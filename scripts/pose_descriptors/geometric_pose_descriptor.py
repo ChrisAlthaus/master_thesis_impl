@@ -13,6 +13,7 @@ import datetime
 import time
 import logging
 import itertools
+import matplotlib.pyplot as plt
 
 #Transform the input pose predictions to descriptors based on multiple measures.
 #Provided measures:
@@ -256,17 +257,22 @@ def calculateGPD(keypoints, mode):
         #pose_descriptor.append(JJ_o)
 
         l_adjacent = lines_direct_adjacent(keypoints, kpts_lines)
+        print("Lines adjacent:", l_adjacent)
         l_end_depth2 = lines_endjoints_depth2(keypoints, end_joints_depth2)
+        print("l_end_depth2:", l_end_depth2)
+
 
         indices_pairs = []
         line_endjoints = lines_endjoints(keypoints, end_joints, indices_pairs = None)
-
+        print("line_endjoints:",line_endjoints)
+        
         l_custom = lines_custom(keypoints)
+        print("l_custom:", l_custom)
         #Merge all lines
         l_adjacent.update(l_end_depth2)
         l_adjacent.update(line_endjoints)
         l_adjacent.update(l_custom)
-
+        
         #Dimensions: 18 distances
         kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'], 
                             3:[(5,0),'shoulder_head_left'], 4:[(6,0),'shoulder_head_right'],
@@ -488,7 +494,10 @@ def lines_custom(keypoints):
 
 def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
     #Joint-Line Distance
-    
+    body_part_mapping = {
+        0: "nose", 1: "left_eye", 2: "right_eye", 3: "left_ear", 4: "right_ear", 5: "left_shoulder", 6: "right_shoulder",
+        7: "left_elbow", 8: "right_elbow", 9: "left_wrist", 10: "right_wrist", 11: "left_hip", 12: "right_hip",
+        13: "left_knee", 14: "right_knee", 15: "left_ankle", 16: "right_ankle"}
     joint_line_distances = []
     
     if kpt_line_mapping is None:
@@ -508,49 +517,84 @@ def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
         for k, item in kpt_line_mapping.items():
             if isinstance(item[0], list): 
                 for [(k1,k2),label] in item:
+                    print('%s->(%s,%s)'%(body_part_mapping[k],body_part_mapping[k1],body_part_mapping[k2]))
                     if not kpts_valid[k1] or not kpts_valid[k2] or not kpts_valid[k]:
                         joint_line_distances.append(0)
                         continue
                     if (k1,k2) in lines.keys():
                         joint_line_distances.append(Point(keypoints[k]).distance(lines[(k1,k2)]))
+                        print(Point(keypoints[k]).distance(lines[(k1,k2)]))
                     elif (k2,k1) in lines.keys():
                         joint_line_distances.append(Point(keypoints[k]).distance(lines[(k2,k1)]))
+                        print(Point(keypoints[k]).distance(lines[(k2,k1)]))
                     else:
                         logging.debug("Not found line: {}{}".format(k1,k2))
+                        print("Not found")
                         #raise ValueError("Line in keypoint-line mapping not in line storage.")
             else:
                 [(k1,k2),label] = item
+                print('%s->(%s,%s)'%(body_part_mapping[k],body_part_mapping[k1],body_part_mapping[k2]))
                 if not kpts_valid[k1] or not kpts_valid[k2]:
                     joint_line_distances.append(0)
                     continue                
                 if (k1,k2) in lines.keys():
                     joint_line_distances.append(Point(keypoints[k]).distance(lines[(k1,k2)]))
+                    print(Point(keypoints[k]).distance(lines[(k1,k2)]))
                 elif (k2,k1) in lines.keys():
                     joint_line_distances.append(Point(keypoints[k]).distance(lines[(k2,k1)]))
+                    print(Point(keypoints[k]).distance(lines[(k2,k1)]))
                 else:
                     logging.debug("Not found line: {}{}".format(k1,k2))
+                    print("Not found")
    
     logging.debug("Dimension joint line distances: {}".format(len(joint_line_distances)))
-    return normalizevec(joint_line_distances)
+    return joint_line_distances
+    #return normalizevec(joint_line_distances)
 
 def line_line_angles(lines, kpts_valid, line_line_mapping = None):
     #Line-Line Angle
     line_line_angles = []    
     def angle(l1,l2):
         [p11,p12] = list(l1.coords)
+        print("coords1: ", list(l1.coords))
+        print("coords2: ", list(l2.coords))
+
         [p21,p22] = list(l2.coords)
         #When line is a point (due to prediction overlay kpts) return 0
         if (p11[0] == p12[0] and p11[1] == p12[1]) or (p21[0] == p22[0] and p21[1] == p22[1]):
             return 0
         #limb vectors pointing outwards
-        j1 = np.subtract(p12,p11)
-        j2 = np.subtract(p22,p21)
+        if p12[0] >= p11[0]:
+            j1 = np.subtract(p12,p11)
+        else:
+            j1 = np.subtract(p11,p12)
+        if p22[0] >= p21[0]:
+            j2 = np.subtract(p22,p21)
+        else:
+            j2 = np.subtract(p21,p22)
+
+        print("norm vectors: ",j1,j2)
+
+        plt.plot([0,j1[0]], [0,j1[1]], 'g-', lw=1)
+        plt.plot([0,j2[0]], [0,j2[1]], 'g-', lw=1)
+
+        l1 = [(0,0), (1,1)]
+        l2 = [(0.5, 1), (0.5, 2)]
+        m1 = (p12[1]-p12[0])/(p11[1]-p11[0])
+        m2 = (p22[1]-p22[0])/(p21[1]-p21[0])
+
+        angle_rad = abs(math.atan(m1) - math.atan(m2))
 
         j1_norm = j1/np.linalg.norm(j1)
         j2_norm = j2/np.linalg.norm(j2)
 
-        return np.arccos(np.clip(np.dot(j1_norm, j2_norm), -1.0, 1.0))
- 
+        return np.arccos(np.clip(np.dot(j1_norm, j2_norm), -1.0, 1.0)), angle_rad
+    
+    body_part_mapping = {
+        0: "nose", 1: "left_eye", 2: "right_eye", 3: "left_ear", 4: "right_ear", 5: "left_shoulder", 6: "right_shoulder",
+        7: "left_elbow", 8: "right_elbow", 9: "left_wrist", 10: "right_wrist", 11: "left_hip", 12: "right_hip",
+        13: "left_knee", 14: "right_knee", 15: "left_ankle", 16: "right_ankle"}
+
     if line_line_mapping is None:
         #(25-1) over 2 = 276 / (17-1) over 2 = 120
         finished = []
@@ -572,6 +616,8 @@ def line_line_angles(lines, kpts_valid, line_line_mapping = None):
                     #else:
                     #    line_line_angles.append(0)
     else:
+        
+        k = 0
         for (k11,k12),[(k21,k22),label] in line_line_mapping.items():
             if not kpts_valid[k11] or not kpts_valid[k12] or not kpts_valid[k21] or not kpts_valid[k22]:
                 line_line_angles.append(0)
@@ -579,13 +625,28 @@ def line_line_angles(lines, kpts_valid, line_line_mapping = None):
             l1 = lines[(k11,k12)] if (k11,k12) in lines.keys() else lines[(k12,k11)]
             l2 = lines[(k21,k22)] if (k21,k22) in lines.keys() else lines[(k22,k21)]
             if l1!=l2:
-                line_line_angles.append(angle(l1,l2))
+                an, an2 = angle(l1,l2)
+                print(k,"angle between ", l1,l2, "is", an, an2, math.degrees(an), math.degrees(an2))
+                print("(%s,%s)->(%s,%s)"%(body_part_mapping[k11], body_part_mapping[k12], body_part_mapping[k21], body_part_mapping[k22]))
+                [p11,p12] = list(l1.coords)
+                [p21,p22] = list(l2.coords)
+                plt.axis('equal')
+                plt.plot([p11[0], p12[0]], [p11[1], p12[1]], 'k-', lw=1)
+                plt.plot([p21[0], p22[0]], [p21[1], p22[1]], 'k-', lw=1)
+                #line_line_angles.append(angle(l1,l2))
+                plt.gca().invert_yaxis()
+                plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/angle%d.jpg"%k)
+                plt.clf()
+                k += 1
             else:
+                print("zero")
                 #lines having the exact same directions
                 line_line_angles.append(0)
-
+    
+    exit(1)
     logging.debug("Dimension line line angles: {}".format(len(line_line_angles)) )
-    return normalizevec(line_line_angles)
+    return line_line_angles
+    #return normalizevec(line_line_angles)
 
 def get_planes(plane_points):
     planes = []

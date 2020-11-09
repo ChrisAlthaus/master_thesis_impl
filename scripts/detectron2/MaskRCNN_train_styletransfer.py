@@ -75,6 +75,7 @@ def main():
     # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
     if trainmode != 'SCRATCH':
         if args.resume is None:
+            print("Load weigths from pretrained model...")
             cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml") #"COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"
         else:
             cfg.MODEL.WEIGHTS = args.resume
@@ -168,6 +169,8 @@ def main():
     #steps_exp.astype(np.int)
     cfg.SOLVER.STEPS = tuple([x * max_iter for x in c_params['steps']])
     
+    #customs
+    #cfg.SOLVER.MOMENTUM = 0.98
 
     # -------------------------- BATCH NORMALIZATION SETUP ------------------------
     setupLayersAndBN(cfg, trainmode, batchnorm= c_params['bn'])

@@ -70,7 +70,8 @@ def predict(imgpath):
     # ----------------- POSEFIX PREDICTIONS ---------------------
     print("POSEFIX PREDICTION ...")
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
-    model_dir = latestdir('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO')
+    #model_dir = latestdir('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO')
+    model_dir = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/MSCOCO-pretrained'
     model_epoch = 140
     inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
     image_dir = os.path.dirname(imgpath)

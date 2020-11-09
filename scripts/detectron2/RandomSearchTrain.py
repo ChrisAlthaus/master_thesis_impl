@@ -17,7 +17,7 @@ _DATA_AUGM = [True, False]
 _LRS = [0.01, 0.001, 0.0001, 0.00001]
 _BN = [True, False]
 _MINKPTS = [1,2,4]
-_NUMEPOCHS = 10 #20 #10
+_NUMEPOCHS = 30#10 #20 #10
 _STEPS_GAMMA = [ [[0.76, 0.92], 0.1], [np.linspace(0.7, 0.92, 6).tolist(), 0.5] ]#[np.linspace(0.7, 1, 4).tolist(), 0.5]  ]
 _MINSCALES = [(640, 672, 704, 736, 768, 800), [512], [800]]
 _IMSPERBATCH = [2, 4]
@@ -25,7 +25,7 @@ _NUMGPUS = 1
 _RPN_POSITIVE_RATIOS = [0.33, 0.5]
 _GRADIENT_CLIP_VALUE = [1, 5]
 
-_ADD_NOTES = 'Continue 11-02_14-04-50_scratch/model_final.pth'
+_ADD_NOTES = ''#'Continue 11-02_14-04-50_scratch/model_final.pth'
 
 def paramsexist(params):
     #Look in the overview csv file containing all done training runs if random params exists
@@ -110,13 +110,13 @@ for i in range(0,_NUM_RUNS):
         trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
         dataaugm = True
         batchsize = 2
-        lr = 0.0005 #0.005/2 #0.0035 #0.01
+        lr = 0.0035 #0.00185 #0.0005 #0.005/2 #0.0035 #0.01
         bn = True
         minkpts = 4 
         #steps = np.linspace(0.7, 1, 10).tolist()
         #gamma = 0.75  #0.75 ^ 10 = 0.05
-        steps = [0.25, 0.5, 0.75, 0.9]#[0.4, 0.6, 0.8, 0.9] #[0.76, 0.92]
-        gamma =  getgammas(lr, [0.00025, 0.00015, 0.0001, 0.000075]) #getgammas(lr, [0.0025/2, 0.001/2, 0.0005/2, 0.0001/2]) #getgammas(lr, [0.0025, 0.001])
+        steps = [0.3, 0.6, 0.8, 0.9] #[0.4, 0.6, 0.8, 0.9]#[0.25, 0.5, 0.75, 0.9]#[0.4, 0.6, 0.8, 0.9] #[0.76, 0.92]
+        gamma =  getgammas(lr, [0.0025, 0.0015, 0.001, 0.0001])#getgammas(lr, [0.001, 0.00075, 0.00025, 0.0001]) #getgammas(lr, [0.00025, 0.00015, 0.0001, 0.000075]) #getgammas(lr, [0.0025/2, 0.001/2, 0.0005/2, 0.0001/2]) #getgammas(lr, [0.0025, 0.001])
 
         minscales = (640, 672, 704, 736, 768, 800) #(512,) #(640, 672, 704, 736, 768, 800) #(512,) #(512, 640)
         rpn_posratio = 0.5 #0.33
@@ -131,8 +131,9 @@ for i in range(0,_NUM_RUNS):
         with open(args.paramsconfig, 'r') as f:
             params = json.load(f)
 
-        _ADD_NOTES = 'Rerun of 10-15_19-31-30_all'
+        _ADD_NOTES = 'Same parameters as 11-02_14-04-50_scratch, but momentum=0.98'
         params.update({'addnotes': _ADD_NOTES})
+        #params['trainmode'] = 'ALL'
 
     else:
         raise ValueError()
@@ -153,7 +154,7 @@ for i in range(0,_NUM_RUNS):
 
     #Normal run command, Print for eventually debugging
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
-    resume = True #False #True
+    resume = False #False #True
     maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-02_14-04-50_scratch/model_final.pth'
 
 
