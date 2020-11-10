@@ -82,3 +82,18 @@ print(cmd)
 outrun_dir = os.path.join(os.path.dirname(predfile), '.stats')
 print("Output Directory: %s\n"%outrun_dir)
 
+
+# ----------------------------- DRAW GPD DESCRIPTORS ON IMAGES ---------------------------
+print("VISUALIZING GPD DESCRIPTORS:")
+predfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query/11-10_16-46-44/maskrcnn_predictions.json'
+gpdfile = '/home/althausc/master_thesis_impl/posedescriptors/out/query/11-10_16-47-40/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.10_f0_mkpt10.json'
+imagespath = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-34-5'
+
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/visualizedescriptors.py  -predictionfile {} -gpdfile {} -imagespath {}"\
+                                                .format(gpu_cmd, predfile, gpdfile, imagespath)
+ 
+outrun_dir = os.path.dirname(gpdfile)
+print("Output Directory: %s\n"%outrun_dir)
+

@@ -10,9 +10,10 @@ _NUMGPUS = 2 #default parameters for 4 GPUs
 _IMS_PER_BATCH = 2 #default: 8
 #scalefactor to get right learning rate & keep same number of epochs
 scalefactor = 8/_IMS_PER_BATCH 
-_LR = 0.00075 #0.001/scalefactor#0.0025 #original: 0.001
-_MAX_ITER = 50000 * scalefactor
-_STEPS = (30000* scalefactor, 45000* scalefactor) 
+_LR = 0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
+_ADD_ITER = 25000
+_MAX_ITER = (50000 + _ADD_ITER) * scalefactor
+_STEPS = ((30000 + _ADD_ITER)* scalefactor, (45000 + _ADD_ITER)* scalefactor) 
 _VAL_PERIOD = 2000 * scalefactor
 _CPKT_PERIOD = 2000 * scalefactor
 

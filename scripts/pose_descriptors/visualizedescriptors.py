@@ -11,6 +11,7 @@ import os
 import cv2
 import torch
 import itertools
+from utils import dict_to_item_list
 
 #Visualizes human pose keypoints given by input file.
 #Treshold for score possible.
@@ -74,14 +75,15 @@ kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'],
                             11:[(15,9),'endpoints_foodhand_hip_l'], 12:[(10,16),'endpoints_foodhand_hip_r']} 
     
 #Dimensions: 12 angles
-line_line_mapping = {(10,9):[(9,15),'hands_lfoot'], (9,10):[(9,16),'hands_rfoot'],
-                            (10,16):[(9,10),'hands_lfoot'], (16,10):[(10,15),'hands_rfoot'],
+line_line_mapping = {(10,9):[[(9,15),'rhand_lhandrfoot'],[(9,16),'rhand_lhandlfoot'],
+                                    [(10,16),'lhand_rhandlfoot'],[(10,15),'lhand_rhandrfoot']],
                             (5,11):[(5,9),'hand_shoulder_hip_l'], (6,12):[(6,10),'hand_shoulder_hip_r'],
                             (6,8):[(5,7),'upper_arms'], (8,10):[(7,9),'lower_arms'],
                             (12,14):[(11,13),'upper_legs'], (14,16):[(13,15),'lower_legs'],
-                            (0,5):[(3,5),'head_shoulder_l'], (4,6):[(0,6),'head_shoulder_r']}
+                            (0,5):[(3,5),'head_shoulder_l'], (0,6):[(4,6),'head_shoulder_r']}
+        
 
-def visualize(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False, suffix='overlay'):
+def visualize(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False):
     #Grouped imageid input: [{imageid1 : [{imageid1,...},...,{imageid1,...}], ... , {imageidn :[{imageidn,...},...,{imageidn,...}]}]
     
     MetadataCatalog.get("my_dataset_val").set(keypoint_names=COCO_PERSON_KEYPOINT_NAMES,
@@ -95,52 +97,28 @@ def visualize(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False, su
 
         if transformid:
             imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-            imgname_out = "{}_{}_{}.jpg".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:], suffix)
+            imgname_out = "{}_{}".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
             img_path = os.path.join(imagedir, imgname)
         else:
             imgname = "%s.jpg"%(imgid)
-            imgname_out = "{}_{}.jpg".format(imgid, suffix)
+            imgname_out = "{}".format(imgid)
             img_path = os.path.join(imagedir, imgname)
 
-        img = cv2.imread(img_path, 0)
-        height, width = img.shape[:2]
-
-        instances = Instances((height, width))
-        boxes = []
-        scores = []
-        classes = []
-        masks = []
         keypoints = []
-
-        #"image_id": 785050351, "category_id": 1, "score": 1.0, "keypoints"
         for pred in preds:
-            classes.append(pred["category_id"])
-            if 'score' in pred: #gt annotations don't have score entry
-                scores.append(pred['score'])
-            else:
-                scores.append(1.0)
             kpts = list(zip(pred['keypoints'][::3], pred['keypoints'][1::3], pred['keypoints'][2::3]))
             keypoints.append(kpts)
-    
-        instances.scores = torch.Tensor(scores)
-        instances.pred_classes = torch.Tensor(classes)
-        instances.pred_keypoints = torch.Tensor(keypoints)
-
-        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
-        out = v.draw_instance_predictions(instances, vistresh)
 
         jld_kpts = []
         lla_kpts = []
         jl_start = 34
         ll_start = 52
-        
         assert len(keypoints) == len(gpds)
         for i in range(len(keypoints)):
-            
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
             k = 0
-            for j,l in kpt_line_mapping.items():
+            for j,l in dict_to_item_list(kpt_line_mapping):
                 if isinstance(l[0], list):
                     for ls in l:
                         jltuple = [kpts[j][:2], kpts[ls[0][0]][:2], kpts[ls[0][1]][:2], gpd[jl_start+k]]
@@ -150,16 +128,50 @@ def visualize(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False, su
                     jltuple = [kpts[j][:2], kpts[l[0][0]][:2], kpts[l[0][1]][:2], gpd[jl_start+k]]
                     jld_kpts.append(jltuple)
                     k += 1
-            for k,[j,l] in enumerate(line_line_mapping.items()):
-                print("%d: (%s,%s)->(%s,%s)"%(k,body_part_mapping[j[0]], body_part_mapping[j[1]], body_part_mapping[l[0][0]], body_part_mapping[l[0][1]]))
+            k = 0
+            for j,l in dict_to_item_list(line_line_mapping):
+                #print("%d: (%s,%s)->(%s,%s)"%(k,body_part_mapping[j[0]], body_part_mapping[j[1]], body_part_mapping[l[0][0]], body_part_mapping[l[0][1]]))
                 lltuple = [kpts[j[0]][:2] ,kpts[j[1]][:2], kpts[l[0][0]][:2], kpts[l[0][1]][:2],  gpd[ll_start+k]]
                 lla_kpts.append(lltuple)
+                k += 1
 
-        out = v.draw_gpddescriptor(jld_kpts, lla_kpts)
-        cv2.imwrite(os.path.join(outputdir, imgname_out),out.get_image()[:, :, ::-1])
+        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        drawkeypoints(preds, img_path, v)
+        outjldist = v.draw_gpddescriptor_jldist(jld_kpts)
+        cv2.imwrite(os.path.join(outputdir, imgname_out+'_jldists.jpg'),outjldist.get_image()[:, :, ::-1])
 
-        if out == None:
-            print("img is none")
+        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        drawkeypoints(preds, img_path, v)
+        outllangle = v.draw_gpddescriptor_llangle(lla_kpts)
+        cv2.imwrite(os.path.join(outputdir, imgname_out+'_llangles.jpg'),outllangle.get_image()[:, :, ::-1])
+
+
+def drawkeypoints(preds, img_path, visualizer, vistresh=0.0):
+     img = cv2.imread(img_path, 0)
+     height, width = img.shape[:2]
+
+     instances = Instances((height, width))
+     boxes = []
+     scores = []
+     classes = []
+     masks = []
+     keypoints = []
+
+     #"image_id": 785050351, "category_id": 1, "score": 1.0, "keypoints"
+     for pred in preds:
+         classes.append(pred["category_id"])
+         if 'score' in pred: #gt annotations don't have score entry
+             scores.append(pred['score'])
+         else:
+             scores.append(1.0)
+         kpts = list(zip(pred['keypoints'][::3], pred['keypoints'][1::3], pred['keypoints'][2::3]))
+         keypoints.append(kpts)
+ 
+     instances.scores = torch.Tensor(scores)
+     instances.pred_classes = torch.Tensor(classes)
+     instances.pred_keypoints = torch.Tensor(keypoints)
+     
+     visualizer.draw_instance_predictions(instances, vistresh)
 
 if __name__=="__main__":
     main()

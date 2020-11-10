@@ -9,7 +9,7 @@ import argparse
 
 #Perform random search over the hyper-parameters
 _PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom', 'loadparams']
-_PARAM_MODE = _PARAM_MODES[3]
+_PARAM_MODE = _PARAM_MODES[4]
 _NUM_RUNS = 1
 
 _TRAINMODES = ["ALL", "RESNETF", "RESNETL", "HEADSALL", 'SCRATCH']
@@ -131,8 +131,9 @@ for i in range(0,_NUM_RUNS):
         with open(args.paramsconfig, 'r') as f:
             params = json.load(f)
 
-        _ADD_NOTES = 'Same parameters as 11-02_14-04-50_scratch, but momentum=0.98'
+        _ADD_NOTES = 'Same parameters as 11-02_14-04-50_scratch, but minkpts=7'
         params.update({'addnotes': _ADD_NOTES})
+        params['minkpt'] = 7
         #params['trainmode'] = 'ALL'
 
     else:
