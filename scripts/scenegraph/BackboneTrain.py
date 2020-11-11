@@ -10,18 +10,18 @@ _NUMGPUS = 2 #default parameters for 4 GPUs
 _IMS_PER_BATCH = 2 #default: 8
 #scalefactor to get right learning rate & keep same number of epochs
 scalefactor = 8/_IMS_PER_BATCH 
-_LR = 0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
+_LR = 0.001 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
 _ADD_ITER = 25000
 _MAX_ITER = (50000 + _ADD_ITER) * scalefactor
 _STEPS = ((30000 + _ADD_ITER)* scalefactor, (45000 + _ADD_ITER)* scalefactor) 
-_VAL_PERIOD = 2000 * scalefactor
-_CPKT_PERIOD = 2000 * scalefactor
+_VAL_PERIOD = 4000 * scalefactor
+_CPKT_PERIOD = 4000 * scalefactor
 
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
 _DATASET_SELECT = _DATASET_SELECTS[1]
 _ADD_NOTES = ''
 
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun2-2.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
 jobname = 'scenegraph-train%s'%datetime.datetime.now().strftime('%d_%H-%M-%S')
 masterport = random.randint(10020, 10100)
 

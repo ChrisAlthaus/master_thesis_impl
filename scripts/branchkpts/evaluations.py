@@ -93,7 +93,24 @@ gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d
 
 cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/visualizedescriptors.py  -predictionfile {} -gpdfile {} -imagespath {}"\
                                                 .format(gpu_cmd, predfile, gpdfile, imagespath)
+print(cmd)
  
 outrun_dir = os.path.dirname(gpdfile)
 print("Output Directory: %s\n"%outrun_dir)
 
+
+# -------------------------- DRAW KEYPOINT PREDICTIONS ON IMAGES -----------------------------    
+print("VISUALIZING KEYPOINT PREDICTIONS:")
+predfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query/11-10_16-46-44/maskrcnn_predictions.json'
+imagespath = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-34-5'
+outputdir = os.path.dirname(predfile)
+isstyletransfer = False
+vistresh = 0.0 # Cause Mask-RCNN prediction also has treshold filtering
+
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py  -file {} -imagespath {} -outputdir {} {} -vistresh {}"\
+                                                .format(gpu_cmd, predfile, imagespath, outputdir, '-transformid' if isstyletransfer else '', vistresh)
+print(cmd)
+
+print("Output Directory: %s\n"%outputdir)

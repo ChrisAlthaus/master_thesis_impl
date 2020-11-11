@@ -207,7 +207,8 @@ def get_size(image_size):
 
 
 if __name__ == "__main__":
-    output_dir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    #output_dir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    output_dir = os.path.join(args.predictdir, '.visimages')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     else:

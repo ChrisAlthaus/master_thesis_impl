@@ -300,14 +300,21 @@ def query(es, featurevector, size, method):
                                 "match_all": {}
                             },
                             "script": {
-                                "source": "cosineSimilarity(params.queryVector, doc['gpdcluster']) + 1.0", #add *score?!
+                                "lang":"painless",
+                                "source": """
+                                return cosineSimilarity(params.queryVector, gpd1) + 1.0
+                                """,
                                 "params": {
-                                "queryVector": list(featurevector)  
-                                }
+                                    "queryVector": list(featurevector)
+                                }    
                             }
                         }
                     }
                   }
+                  
+                  #"source": "gpd1 =doc['gpdcluster'] + doc['gpdcluster']; cosineSimilarity(params.queryVector, gpd1) + 1.0", #add *score?!
+                                #"params": {
+                                #"queryVector": list(featurevector)  
     elif method == _METHODS_SEARCH[1]:
         request = { "size": size,
                     "query": {
@@ -316,7 +323,7 @@ def query(es, featurevector, size, method):
                                 "match_all": {}
                             },
                             "script": {
-                                "source": "cosineSimilarity(params.queryVector, doc['gpd']) + 1.0",
+                                "source": "gpd1 =doc['gpd'] + doc['gpd']; cosineSimilarity(params.queryVector, gpd1) + 1.0",
                                 "params": {
                                     "queryVector": list(featurevector)  
                                 }

@@ -35,3 +35,18 @@ print(cmd)
 outrun_dir = os.path.join(os.path.dirname(predfile), '.stats')
 print("Output Directory: %s\n"%outrun_dir)
 
+
+# --------------------------- VISUALIZE SCENE GRAPH PREDICTIONS --------------------------
+print("VISUALIZE SCENE GRAPHS:")
+preddir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single/10-12_11-57-33'
+filterbylabels = False
+boxestopk = 20
+relstopk = 20
+
+cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} {} -boxestopk {} -relstopk {}"\
+                                                .format(preddir, '-filter' if filterbylabels else '', boxestopk, relstopk)
+print(cmd)
+
+outrun_dir = os.path.join(preddir, '.visimages')
+print("Output Directory: %s\n"%outrun_dir)  
+

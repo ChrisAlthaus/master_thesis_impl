@@ -33,6 +33,8 @@ parser.add_argument('-images', '--pathImages', required=True, help='path to dir 
 parser.add_argument('-dFile', '--dFile', default=None, help='run style transfer only on list of input directories')
 parser.add_argument('-o', '--output', required=True, help='output path for stylished images')
 parser.add_argument('-nC', '--numContents', required=True, help='number of content/base images. Disable with -1 = all images.')
+parser.add_argument('-split', default=1.0, type=float, help='used for split/subset of content images (Percentage value).')
+parser.add_argument('-splitdirection', default='begin', help='Either reduce to first or last split-percentage of content images.')
 parser.add_argument('-nS', '--numStyles', required=True, help='number of styles to apply to each image')
 parser.add_argument('-add','--add', default=False, action='store_true')
 parser.add_argument('-dimS','--dimStyle', default=256, type=int, help='dimension used for scaling style image, NOT USED')
@@ -119,11 +121,11 @@ output_dir = args.output
 style_paths = [os.path.join(args.pathStyles, x) for x in os.listdir(args.pathStyles)]
 style_paths = np.array(style_paths)
 
-
 image_paths = [os.path.join(args.pathImages, x) for x in os.listdir(args.pathImages)]
 image_paths = np.array(image_paths)
 
-
+print("Number of content images: ",len(image_paths))
+print("Number of style images: ",len(style_paths))
 
 # Remove style & content images from path lists which are too large
 MAX_SIZE = 20971520 # 20 MBytes
@@ -136,7 +138,22 @@ for file_path in image_paths:
 	if os.path.getsize(file_path) > MAX_SIZE:
 		image_paths = np.delete(image_paths, np.where(image_paths == file_path))		
 		logging.debug("Removed content image %s with size %d ."%(file_path,os.path.getsize(file_path)))
+
+print("Number of content images without too large images: ",len(image_paths))
+print("Number of style images without too large images: ",len(style_paths))
+
 		
+# Slicing can be used to divide dataset into train/val subset
+assert args.split >= 0 and args.split <= 1
+subsetlength = int(args.split * len(image_paths))
+if args.splitdirection == 'begin':
+	image_paths = image_paths[:subsetlength]
+elif args.splitdirection == 'end':
+	image_paths = image_paths[-subsetlength:]
+else:
+	raise ValueError()
+print("Number of subset of content images: ",len(image_paths))
+
 
 print("STYLIZE IMAGES ... ")
 print("Number of styles = ",int(args.numStyles))
@@ -146,6 +163,7 @@ if args.add:
 	for img_path in image_paths:
 		out_img_path = img_path.replace(args.pathImages,args.output)
 		shutil.copy2(img_path, out_img_path)
+
 
 import time
 start_time = time.time()

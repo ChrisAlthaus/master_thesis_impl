@@ -54,6 +54,7 @@ if args.mode == 'graph-prediction':
     exit(1)
 
 if args.mode == 'coco-annotations-firstn':
+    print(str(json_file['images'])[:10000])
     print(str(json_file['annotations'])[:10000])
     exit(1)
 

@@ -96,16 +96,19 @@ def main():
 
     # ---------------------------- DATASETS ------------------------------
     #Register to DatasetCatalog and MetadataCatalog
-    train_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json"
-    train_dir = "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer"
-    val_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json"
-    val_dir = "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer"
-
-    """train_ann = "/nfs/data/coco_17/annotations/person_keypoints_train2017.json"
-    train_dir = "/nfs/data/coco_17/train2017"
-    val_ann = "/nfs/data/coco_17/annotations/person_keypoints_val2017.json"
-    val_dir = "/nfs/data/coco_17/val2017"""
-
+    _DATASET_TYPE = 'medium'
+    if _DATASET_TYPE == 'medium':
+        train_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json"
+        train_dir = "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer"
+        val_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json"
+        val_dir = "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer"
+    elif _DATASET_TYPE == 'large':
+        train_ann = "/home/althausc/nfs/data/coco_17_large/annotations_styletransfer/person_keypoints_train2017_stAPI.json"
+        train_dir = "/home/althausc/nfs/data/coco_17_large/train2017_styletransfer"
+        val_ann = "/home/althausc/nfs/data/coco_17_large/annotations_styletransfer/person_keypoints_val2017_stAPI.json"
+        val_dir = "/home/althausc/nfs/data/coco_17_large/val2017_styletransfer"
+    else:
+        raise ValueError()
     
     register_coco_instances("my_dataset_train", {}, train_ann, train_dir)
     register_coco_instances("my_dataset_val", {}, val_ann, val_dir)
