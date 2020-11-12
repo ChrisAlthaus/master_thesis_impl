@@ -14,6 +14,7 @@ import torch
 from fvcore.common.file_io import PathManager
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from PIL import Image
+import copy
 
 from detectron2.data import MetadataCatalog
 from detectron2.structures import BitMasks, Boxes, BoxMode, Keypoints, PolygonMasks, RotatedBoxes
@@ -343,6 +344,7 @@ class Visualizer:
         if metadata is None:
             metadata = MetadataCatalog.get("__nonexist__")
         self.metadata = metadata
+        self.scale = scale
         self.output = VisImage(self.img, scale=scale)
         self.cpu_device = torch.device("cpu")
 
@@ -700,7 +702,6 @@ class Visualizer:
         # draw keypoints
         if keypoints is not None:
             for keypoints_per_instance in keypoints:
-                print("keypoints_per_instance: ",keypoints_per_instance)
                 self.draw_and_connect_keypoints(keypoints_per_instance)
 
         return self.output
@@ -806,16 +807,25 @@ class Visualizer:
         return self.output
 
     #modified
-    def draw_gpddescriptor(self, jldist, llangles):
+    def draw_gpddescriptor_jldist(self, jldist):
         for j, lstart, lend, dist in jldist:
             lmidx = (lstart[0] + lend[0])/2
             lmidy = (lstart[1] + lend[1])/2
             jx = j[0]
             jy = j[1]
             #print("Draw Line: ",[jx, lmidx], [jy, lmidy])
-            self.draw_line([jx, lmidx], [jy, lmidy], color='b', linestyle='--', linewidth=1)
-            self.draw_text('%.2f'%dist, [(jx+lmidx)/2, (jy+lmidy)/2], color='b')
+            self.draw_line([lstart[0], lend[0]], [lstart[1], lend[1]], color='k', linestyle='-', linewidth=1)
+            self.draw_line([jx, lmidx], [jy, lmidy], color='b', linestyle='--', linewidth=0.5)
+            self.draw_text('%.2f'%dist, [(jx+lmidx)/2, (jy+lmidy)/2], color='w', colorbox='blue', alpha=0.5, font_size=4)
+            
+            width, height = self.img.shape[1], self.img.shape[0]
+            self.draw_line([width-100, width-90], [height-75, height-75], color='k', linestyle='-', linewidth=1)
+            self.draw_line([width-100, width-100], [height-78, height-72], color='k', linestyle='-', linewidth=1)
+            self.draw_line([width-90, width-90], [height-78, height-72], color='k', linestyle='-', linewidth=1)
+            self.draw_text('10pix', [width-90, height-70], color='w')
+        return self.output
     
+    def draw_gpddescriptor_llangle(self, llangles):
         for l1start, l1end, l2start, l2end, angle in llangles:
             l1midx = (l1start[0] + l1end[0])/2
             l1midy = (l1start[1] + l1end[1])/2
@@ -823,12 +833,20 @@ class Visualizer:
             l2midy = (l2start[1] + l2end[1])/2
 
             #print("Draw Line: ",[l1start, l2start], [l1end, l2end])
-            #self.draw_line([l1start[0], l1end[0]], [l1start[1], l1end[1]], color='r', linestyle='--', linewidth=1)
-            #self.draw_line([l2start[0], l2end[0]], [l2start[1], l2end[1]], color='r', linestyle='--', linewidth=1)
+            self.draw_line([l1start[0], l1end[0]], [l1start[1], l1end[1]], color='k', linestyle='-', linewidth=1)
+            self.draw_line([l2start[0], l2end[0]], [l2start[1], l2end[1]], color='k', linestyle='-', linewidth=1)
 
-            #self.draw_line([l1midx, l2midx], [l1midy, l2midy], color='g', linestyle='--', linewidth=1)
-            #self.draw_text('%.2f'%math.degrees(angle), [(l1midx+l2midx)/2, (l1midy+l2midy)/2], color='g')
+            self.draw_line([l1midx, l2midx], [l1midy, l2midy], color='g', linestyle='--', linewidth=1)
+            self.draw_text('%.2f'%math.degrees(angle), [(l1midx+l2midx)/2, (l1midy+l2midy)/2], color='w', colorbox='green', alpha=0.5, font_size=4)
+        return self.output
 
+    def draw_gpddescriptor_jjo(self, kptsjj_os):
+        for kpt,orientation in kptsjj_os:
+            #print("Draw Line: ",[jx, lmidx], [jy, lmidy])
+            endx = kpt[0] + orientation[0] * 10
+            endy = kpt[1] + orientation[1] * 10
+
+            self.draw_line([kpt[0], endx, [kpt[1], endy, color='r', linestyle='-', linewidth=1)
         return self.output
     #modified end
 
@@ -844,7 +862,9 @@ class Visualizer:
         font_size=None,
         color="g",
         horizontal_alignment="center",
-        rotation=0
+        rotation=0,
+        alpha=0.8,
+        colorbox='black'
     ):
         """
         Args:
@@ -874,7 +894,7 @@ class Visualizer:
             text,
             size=font_size * self.output.scale,
             family="sans-serif",
-            bbox={"facecolor": "black", "alpha": 0.8, "pad": 0.7, "edgecolor": "none"},
+            bbox={"facecolor": colorbox, "alpha": alpha, "pad": 0.7, "edgecolor": "none"},
             verticalalignment="top",
             horizontalalignment=horizontal_alignment,
             color=color,

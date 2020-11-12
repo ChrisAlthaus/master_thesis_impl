@@ -35,6 +35,10 @@ import numpy as np
 import cv2
 from torchvision import transforms
 import sys
+
+from tempfile import NamedTemporaryFile
+import shutil
+
 sys.path.append('/home/althausc/master_thesis_impl/scripts/scenegraph')
 from visualizeimgs import draw_image
 
@@ -103,8 +107,16 @@ def train(cfg, local_rank, distributed, logger):
         mode='val',
         is_distributed=distributed,
     )
-
-     #modified
+    #Validation on other dataset possible
+    if cfg.DATASETS.VAL2:
+        val_data_loaders2 = make_data_loader(
+            cfg,
+            mode='val2',
+            is_distributed=distributed,
+        )
+    #modified end
+    
+    #modified
     writer = None
     if is_main_process():
         writer = SummaryWriter(cfg.OUTPUT_DIR)
@@ -133,6 +145,7 @@ def train(cfg, local_rank, distributed, logger):
     if cfg.SOLVER.PRE_VAL:
         logger.info("Validate before training")
         run_val(cfg, model, val_data_loaders, distributed)
+        savevalresult(val_result, arguments["iteration"], cfg.OUTPUT_DIR, writer)
 
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
@@ -254,23 +267,17 @@ def train(cfg, local_rank, distributed, logger):
             logger.info("Start validating")
             print(f'VAL: process {torch.distributed.get_rank()} start val')
 
-            val_result = run_val(cfg, model, val_data_loaders, distributed)
+            val_result = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
             logger.info("Validation Result: %.4f" % val_result)
+            savevalresult(val_result, iteration, cfg.OUTPUT_DIR, writer)
 
-            #modified: log to tensorboard
-            if is_main_process():
-                print("added: ",'R@100', val_result, iteration)
-                writer.add_scalar('R@100', val_result, iteration)
-            #modified end
-            
-            #modified: add metrics.dat for better summary of training process & read when finished
-            if is_main_process():
-                with open(os.path.join(cfg.OUTPUT_DIR, "metrics.dat"),"a+") as f:
-                    json.dump({'R@100':val_result}, f)
-                    f.write(os.linesep)
-                    #f.write('R@100: {}'.format(val_result) + os.linesep)
-            #modified end
+        if cfg.DATASETS.VAL2 and cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD * 2 == 0:
+            logger.info("Start validating")
+            print(f'VAL: process {torch.distributed.get_rank()} start val')
 
+            val_result = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed)
+            logger.info("Validation Result: %.4f" % val_result)
+            savevalresult(val_result, iteration, cfg.OUTPUT_DIR, writer, suffix='(2)')
 
         if iteration % checkpoint_period == 0 and is_main_process(): #modified
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
@@ -291,7 +298,7 @@ def train(cfg, local_rank, distributed, logger):
     return model
 
 
-def run_val(cfg, model, val_data_loaders, distributed):
+def run_val(cfg, datasetname, model, val_data_loaders, distributed):
     if distributed:
         model = model.module
     torch.cuda.empty_cache()  # TODO check if it helps
@@ -305,7 +312,7 @@ def run_val(cfg, model, val_data_loaders, distributed):
     if cfg.MODEL.ATTRIBUTE_ON:
         iou_types = iou_types + ("attributes", )
         
-    dataset_names = cfg.DATASETS.VAL
+    dataset_names = datasetname
     val_result = []
     for dataset_name, val_data_loader in zip(dataset_names, val_data_loaders):
         dataset_result = inference(
@@ -393,16 +400,23 @@ def main():
         help="Do not test the final model",
         action="store_true",
     )
+    
+    #modified
+    parser.add_argument(
+        "--paramsconfig",
+        default="",
+        help="path to parameters file",
+        type=str,
+    )
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
         default=None,
         nargs=argparse.REMAINDER,
     )
+    #modified end
 
     args = parser.parse_args()
-
-    print(args)
 
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     args.distributed = num_gpus > 1
@@ -415,20 +429,36 @@ def main():
         synchronize()
 
     cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
 
-    #modified: create for each run a new directory
-    output_dir = os.path.join(cfg.OUTPUT_DIR, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
-    if is_main_process():
-        os.makedirs(output_dir)
-        print("Successfully created output directory: ", output_dir)
-    cfg.OUTPUT_DIR = output_dir
+    #modified: to support tuple and list arguments
+    print("Reading config (hyper-)parameters from file: ",args.paramsconfig)
+    params = []
+    with open (args.paramsconfig, "r") as f:
+        params = json.load(f)
+
+    cfg.SOLVER.IMS_PER_BATCH = params['trainbatchsize']
+    cfg.TEST.IMS_PER_BATCH = params['testbatchsize']
+    cfg.DTYPE = params['dtype']
+    cfg.SOLVER.BASE_LR = params['lr']
+    cfg.SOLVER.MAX_ITER = params['maxiterations']
+    cfg.SOLVER.STEPS = tuple(params['steps'])
+    cfg.SOLVER.VAL_PERIOD = params['valperiod']
+    cfg.SOLVER.CHECKPOINT_PERIOD = params['cpktperiod']
+    cfg.DATASETS.SELECT = params['datasetselect']
+    cfg.MODEL.RELATION_ON = params['relationon']
+    cfg.SOLVER.PRE_VAL = params['preval']
+    cfg.OUTPUT_DIR = params['outputdir']
+    #Custom arguments setup
+    print("Optional arguments: ",args.opts)
+    cfg.merge_from_list(args.opts)
     #modified end
 
     #modified: Set configs
-    #cfg.SOLVER.PRE_VAL = False# True#False
     #cfg.SOLVER.GAMMA = 0.1 #0.3162 #0.1
     #cfg.SOLVER.STEPS = (30000,) #(30000,40000) #(30000,)
+
+    #Entire backbone should be unfreezed
+    cfg.MODEL.BACKBONE.FREEZE_CONV_BODY_AT = 0
 
     if cfg.DATASETS.SELECT == 'trainandval-subset': 
         #both train & validation annotations are subset of original annotations
@@ -440,6 +470,8 @@ def main():
         cfg.DATASETS.TRAIN = ("VG_styletransfer_val_subset_train",)
         cfg.DATASETS.TEST = ("VG_styletransfer_val_subset_test",)
         cfg.DATASETS.VAL = ("VG_styletransfer_val_subset_val",)
+        #additional: compare with unreduced validation set annotations
+        cfg.DATASETS.VAL2 = ("VG_styletransfer_val",) 
     elif cfg.DATASETS.SELECT == 'default-styletransfer':
         #no subset filtering   
         cfg.DATASETS.TRAIN = ("VG_styletransfer_train",)
@@ -449,16 +481,20 @@ def main():
         cfg.DATASETS.TRAIN = ("VG_stanford_filtered_with_attribute_train",)
         cfg.DATASETS.TEST = ("VG_stanford_filtered_with_attribute_test",)
         cfg.DATASETS.VAL = ("VG_stanford_filtered_with_attribute_val",)
+        #additional: compare with unreduced style-transfer validation set annotations
+        cfg.DATASETS.VAL2 = ("VG_styletransfer_val",)
     else: 
         raise ValueError()
-
-    #cfg.DATASETS.TRAIN = ("VG_stanford_filtered_with_attribute_train",)
-    #cfg.DATASETS.TEST = ("VG_stanford_filtered_with_attribute_test",)
-    #cfg.DATASETS.VAL = ("VG_stanford_filtered_with_attribute_val",)
-
-    cfg.freeze()
     #modified end
 
+    #modified: create for each run a new directory
+    output_dir = os.path.join(cfg.OUTPUT_DIR, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    if is_main_process():
+        os.makedirs(output_dir)
+        print("Successfully created output directory: ", output_dir)
+    cfg.OUTPUT_DIR = output_dir
+    cfg.freeze()
+    #modified end
 
     #modified: add line to overall config file for this run
     if is_main_process():
@@ -483,7 +519,8 @@ def main():
     output_config_path = os.path.join(cfg.OUTPUT_DIR, 'config.yml')
     logger.info("Saving config into: {}".format(output_config_path))
     # save overloaded model config in the output directory
-    save_config(cfg, output_config_path)
+    if is_main_process():
+        save_config(cfg, output_config_path)
 
     model = train(cfg, args.local_rank, args.distributed, logger)
 
@@ -491,8 +528,22 @@ def main():
         run_test(cfg, model, args.distributed)
 
     #modified
-    add_evalstats(cfg.OUTPUT_DIR)
+    if is_main_process():
+        add_evalstats(cfg.OUTPUT_DIR)
     #modified end
+
+def savevalresult(val_result, iteration, outputdir, writer, suffix=None):
+    #log to tensorboard
+    scalarname = 'R@100' if suffix is None else 'R@100'+suffix
+    if is_main_process():
+        print("added: ", scalarname, val_result, iteration)
+        writer.add_scalar(scalarname, val_result, iteration)
+    
+    #add metrics.dat for better summary of training process & read when finished
+    if is_main_process():
+        with open(os.path.join(outputdir, "metrics.dat"),"a+") as f:
+            json.dump({scalarname:val_result}, f)
+            f.write(os.linesep)
 
 def getfirstimg_withann(images, targets):
     bboxes = targets[0].bbox

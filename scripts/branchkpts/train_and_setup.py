@@ -59,8 +59,12 @@ score_tresh = 0.8 #0.7
 
 target = 'train'
 styletransfered = True
-cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target {} {} -visrandom  "\
-                                                                             .format(gpu_cmd, maskrcnn_cp, img_dir, topk, score_tresh, target, '-styletransfered' if styletransfered else ' ')
+jobname = 'mrcnnprediction'
+logfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/logs/%s.txt'%datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
+
+cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
+      "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target {} {} -visrandom")\
+                                                .format(jobname, logfile, gpu_cmd, maskrcnn_cp, img_dir, topk, score_tresh, target, '-styletransfered' if styletransfered else ' ')
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
@@ -77,8 +81,12 @@ gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d
 predictionpath = os.path.join(outrun_dir, 'maskrcnn_predictions.json')
 annpath = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
 
-cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/posefix/preproc_predictions.py -predictions {} -annotations {} -visfirstn -drawbmapping"\
-                                                                                    .format(gpu_cmd, predictionpath, annpath)
+jobname = 'preprocess'
+logfile = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/inputs/preprocess-logs/%s.txt'%datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
+
+cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
+        "{} python3.6 /home/althausc/master_thesis_impl/scripts/posefix/preproc_predictions.py -predictions {} -annotations {} -visfirstn -drawbmapping")\
+                                                                        .format(jobname, logfile, gpu_cmd, predictionpath, annpath)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:

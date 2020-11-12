@@ -18,7 +18,7 @@ _VAL_PERIOD = 4000 * scalefactor
 _CPKT_PERIOD = 4000 * scalefactor
 
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
-_DATASET_SELECT = _DATASET_SELECTS[1]
+_DATASET_SELECT = _DATASET_SELECTS[3]
 _ADD_NOTES = ''
 
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
@@ -31,8 +31,21 @@ logdir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.p
 logfile = os.path.join(logdir, 'train.log')
 os.makedirs(logdir)
 
+params = {'datasetselect': _DATASET_SELECT, 
+			'gpus': _NUMGPUS, 
+			'trainbatchsize': int(_IMS_PER_BATCH), 
+			'testbatchsize': 4, 
+			'lr': _LR, 
+			'steps': tuple(map(int,_STEPS)), 
+			'maxiterations': int(_MAX_ITER), 
+			'dtype': 'float16', 
+			'valperiod': int(_VAL_PERIOD), 
+			'cpktperiod': int(_CPKT_PERIOD), 
+			'relationon': False, 
+			'preval': False, 
+			'outputdir': out_dir, 
+			'addnotes': _ADD_NOTES}
 
-params = {'datasetselect': _DATASET_SELECT, 'gpus': _NUMGPUS, 'lr': _LR, 'steps': _STEPS, 'maxiterations': _MAX_ITER, 'addnotes': _ADD_NOTES}
 paramconfig = os.path.join(logdir, 'paramsconfig.txt')
 with open(paramconfig, 'w') as f:
         json.dump(params, f)
@@ -42,18 +55,8 @@ cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
     "{} python3.6 -m torch.distributed.launch --master_port {} --nproc_per_node={} "+\
 	"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/detector_pretrain_net.py \t"+\
 	"--config-file \"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_X_101_32_8_FPN_1x.yaml\" \t"+\
-	"SOLVER.IMS_PER_BATCH {} \t"+\
-	"TEST.IMS_PER_BATCH 4 \t"+\
-	"DTYPE \"float16\" \t"+\
-	"SOLVER.BASE_LR {} \t"+\
-	"SOLVER.MAX_ITER {} \t"+\
-	"SOLVER.VAL_PERIOD {} \t"+\
-	"SOLVER.CHECKPOINT_PERIOD {} \t"+\
-	"DATASETS.SELECT {} \t"+\
-	"MODEL.RELATION_ON False  \t"+\
-	"SOLVER.PRE_VAL False \t"+\
-	"OUTPUT_DIR {}")\
-		.format(jobname, logfile, gpu_cmd, masterport, _NUMGPUS, int(_IMS_PER_BATCH), _LR, int(_MAX_ITER), int(_VAL_PERIOD), int(_CPKT_PERIOD), _DATASET_SELECT, out_dir)
+	"--paramsconfig {}")\
+		.format(jobname, logfile, gpu_cmd, masterport, _NUMGPUS, paramconfig)
 print(cmd)
 os.system(cmd)
 time.sleep(10)

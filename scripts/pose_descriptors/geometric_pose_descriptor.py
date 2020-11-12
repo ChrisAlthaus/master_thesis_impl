@@ -54,7 +54,7 @@ _VISIBILITY_TRESH = 0.1 #refering to visibility probability of keypoints , TODO:
 _REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
 _MINKPTs = 10
 _NUMKPTS = 17
-_MODES = ['JcJLdLLa_reduced', 'JLd_all_direct']
+_MODES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced']
 _FILTER = False#True
 
 if not os.path.isfile(args.inputFile):
@@ -282,6 +282,24 @@ def calculateGPD(keypoints, mode):
         if _NOTESFLAG:
             _ADDNOTES += 'Dimensions JL_d: %d \n'%len(JL_d)
 
+    elif mode == 'JJo_reduced':
+        #Descriptor contains normalized joint-joint orientations
+        #Used: all limbs in COCO keypoint model (direction facing outwards) = 16 
+        #       + lines between endjoints and depth 2 from endjoints = 6
+        #       + custom lines
+        custom_jj_mapping = [(9,15), (10,16), #endjoints
+                             (0,6), (0,5)] #head-shoulders
+        kpt_kpt_mapping = []
+        kpt_kpt_mapping.extend(_KPTS_LINES)
+        kpt_kpt_mapping.extend(_END_JOINTS_DEPTH_2)
+        kpt_kpt_mapping.extend(custom_jj_mapping)
+        
+        JJ_o = joint_joint_orientations(keypoints, kpt_kpt_mapping)
+        pose_descriptor.append(JJ_o)
+
+        if _NOTESFLAG:
+            _ADDNOTES += 'Dimensions JJ_o: %d \n'%len(JJ_o)
+
     #indices_pairs = []
     #JJ_d = joint_joint_distances(keypoints,indices_pairs=None)
     #pose_descriptor.append(JJ_d)
@@ -301,17 +319,17 @@ def calculateGPD(keypoints, mode):
 
     #planes = get_planes(plane_points)
     #JP_d = joint_plane_distances(keypoints, planes)
-
-    for l in pose_descriptor:
-        for v in l:
-            if math.isnan(v):
-                print("Detected NaN value in final descriptor: ")
-                print(pose_descriptor)
-                exit(1)
+    print(pose_descriptor)
+    pose_descriptor = [item for sublist in pose_descriptor for item in sublist]
+    for v in pose_descriptor:
+        if math.isnan(v):
+            print("Detected NaN value in final descriptor: ")
+            print(pose_descriptor)
+            exit(1)
     #logging.debug(pose_descriptor)
     logging.debug("\nDimension of pose descriptor: {}".format(len(pose_descriptor)) ) 
     #flatten desriptor
-    pose_descriptor = [item for sublist in pose_descriptor for item in sublist]
+    
     logging.debug("Dimension of pose descriptor flattened: {}".format(len(pose_descriptor)))
     logging.debug("\n")
 
@@ -391,25 +409,36 @@ def joint_joint_orientations(keypoints, indices_pairs=None):
                     j1 = keypoints[i1]
                     j2 = keypoints[i2]
                     #Don't compute for zero points or points with same coordinates
-                    if np.any(j1) and np.any(j2) and not (j1==j2).all():
-                        n1 = ((j2-j1)/np.linalg.norm(j2-j1))[0]
-                        n2 = ((j2-j1)/np.linalg.norm(j2-j1))[1]
-                        joint_orientations.append( tuple((j2-j1)/np.linalg.norm(j2-j1)) ) #a-b = target-origin
+                    if np.any(j1) and np.any(j2) and not j1==j2:
+                        vec = np.subtract(j2,j1)
+                        normvec = vec/np.linalg.norm(vec)
+                        joint_orientations.extend(list(normvec))
                     else:
-                        joint_orientations.append((0,0))
+                        joint_orientations.extend([0,0])
     else:
         for start,end in indices_pairs:
-            j1 = keypoints[i1]
-            j2 = keypoints[i2]
+            j1 = keypoints[start]
+            j2 = keypoints[end]
             #Don't compute for zero points or points with same coordinates
-            if np.any(j1) and np.any(j2) and not (j1==j2).all():
-                n1 = ((j2-j1)/np.linalg.norm(j2-j1))[0]
-                n2 = ((j2-j1)/np.linalg.norm(j2-j1))[1]
-                joint_orientations.append( tuple((j2-j1)/np.linalg.norm(j2-j1)) ) #a-b = target-origin
+            if np.any(j1) and np.any(j2) and not j1==j2:
+                vec = np.subtract(j2,j1)
+                normvec = vec/np.linalg.norm(vec)
+                joint_orientations.extend(list(normvec))
+                #plt.axis('equal')
+                #plt.plot([j1[0], j2[0]], [j1[1], j2[1]], 'k-', lw=1)
+                #plt.plot([0, vec[0]], [0, vec[1]], 'g-', lw=1)
+                #plt.plot([0, normvec[0]], [0, normvec[1]], 'r-', lw=1)
+                #plt.gca().invert_yaxis()
+                #print("(%s,%s)->(%s,%s)"%(_BODY_PART_MAPPING[k11], _BODY_PART_MAPPING[k12], _BODY_PART_MAPPING[k21], _BODY_PART_MAPPING[k22]))
+                #label = "%s-%s"%(_BODY_PART_MAPPING[start], _BODY_PART_MAPPING[end])
+                #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/jj_o/%s.jpg"%label)
+                #plt.clf()
             else:
-                joint_orientations.append((0,0))
+                joint_orientations.extend([0,0])
+            #plt.gca().invert_yaxis()
+            #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/jj_o/entirebody.jpg")       
     logging.debug("Dimension of joint orientations: {}".format(len(joint_orientations)))
-    return joint_orientations #TODO:check for normalization
+    return joint_orientations 
 
 def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
     #Joint-Line Distance

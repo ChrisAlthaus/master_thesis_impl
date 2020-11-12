@@ -39,6 +39,9 @@ if not os.path.isfile(args.prediction_path):
 if not os.path.isfile(args.gt_annotations):
     raise ValueError("Annotation file does not exists.")
 
+if args.visfirstn is not None and args.drawbmapping is not None:
+    raise ValueError("Either visualizing keypoints or bounding box mapping.")
+
 #For visualization
 _IMGDIR = '/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer'
 _VIS_NUM = 20
