@@ -45,6 +45,7 @@ image_ids_added = []
 #Style transfered images maybe not in person_keypoints file under subitem annotations, beacause sometimes no person present
 #Also all images are present under subitem images
 jsonFiles = [f for f in  os.listdir(args.styleTransferImDir) if os.path.isfile(os.path.join(args.styleTransferImDir, f))]
+print("Number of input images: ", len(jsonFiles))
 
 #Mapping for coco filename -> [styleimageName1,..,styleimageNameN]
 cocoToStyle = dict()
@@ -88,6 +89,8 @@ for image_entry in images:
 annotations = json_data['annotations']
 annotations_updated = {'annotations':[]}    
 
+
+
 #Output Json can be processed by COCO API, where ids of images have to be unique
 if(args.annotationSchema == 'COCOAPI'):
     #Map: original image_id -> {indices of original annotations}
@@ -99,28 +102,35 @@ if(args.annotationSchema == 'COCOAPI'):
         else:
             imId_to_index.update({imId:[i]})
 
-    #Add for each content-style image an annotation entry with add. saved filename (c_s.jpg)
-    #in following order for cocoapi preprocessing (ordering necessary for OpenPose)
+    #Add for each content-style image an annotation entry with add. saved filename (c_s.jpg) ?
+    #in following order for cocoapi preprocessing (ordering necessary for OpenPose) ?
     #Ordering for annotations is given by cocoapi: [c1_s1, c1_s1, c1_s1, c1_s2, c1_s2, c1_s2, c2_s3, c2_s4, ...]
     ann_id_num = 1  #also unqiue annotation id (!= annotation image_id!)
+    c = 0
+    #Approach: Search for every coco annotation the corresponding content-style image names
+    #Expand the annotation to multiple annotations matching all content-style ids
     for i in range(len(annotations)):
         image_id = annotations[i]['image_id']
         content_filename = "%012d"%int(image_id)
+        #If coco imgid in image input directory
         if content_filename in cocoToStyle:
             for style_filename in cocoToStyle[content_filename]:
                 annotations_of_image_id = []
                 for i in imId_to_index[int(image_id)]:
                     annotation_entry = annotations[i]
                     styleImName = content_filename+'_'+style_filename
-                    print("Adding annotation for: ",styleImName)
+                    #print("Adding annotation for: ",styleImName)
                     #print(int("%s%s"%(content_filename,style_filename)))
                     #annotation_entry.update({'image_id':int(hashlib.md5(styleImName.encode('utf-8')).hexdigest(), 16)})
-                    annotation_entry.update({'image_id':int("%s%s"%(content_filename,style_filename))})
+                    annotation_entry.update({'image_id':int("%s%s"%(content_filename, style_filename))})
                     annotation_entry.update({'id':ann_id_num})
                     
                     annotations_of_image_id.append(copy.copy(annotation_entry))
                     ann_id_num = ann_id_num + 1
                 annotations_updated['annotations'].extend(copy.copy(annotations_of_image_id))
+                c += 1
+        if c%1000 == 0:
+            print("Processed %d images"%c)
 
 #Ids of images are not unique, so that only for the base/content image the annoations are saved
 #Half the memory usage of actual unique annotations

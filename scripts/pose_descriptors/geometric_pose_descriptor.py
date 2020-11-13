@@ -50,12 +50,15 @@ args = parser.parse_args()
 #   - keypoints
 #   - score
 
-_VISIBILITY_TRESH = 0.1 #refering to visibility probability of keypoints , TODO:check if valid, range [0,1]? 
-_REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
-_MINKPTs = 10
-_NUMKPTS = 17
 _MODES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced']
-_FILTER = False#True
+_REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
+_NUMKPTS = 17
+
+_FILTER = True
+_MINKPTs = 10
+_KPTS_THRESHOLD = 0.05 #same as in detectron2/utils/visualizer.py
+
+_NORM = True
 
 if not os.path.isfile(args.inputFile):
     raise ValueError("No valid input file.")
@@ -97,22 +100,20 @@ def main():
     i = 0
     for i,person in enumerate(json_data):
         if "keypoints" in person:
-            #logging.debug("PREV:",person['keypoints'])
-            isvalid = True
-            if _FILTER:
-                #Decide based on visibility score weather to process this prediction
-                isvalid = filterKeypoints(person['keypoints'])
+            #Decide based on confidence score weather to process this prediction
+            if not filterKeypoints(person['keypoints'], args.mode):
+                continue
+
             #if person['score'] >= 0.9:
             #    print(person['keypoints'][2::3], isvalid, person['score'])
             #logging.debug("LATER:",person['keypoints'])
-
-            if isvalid:
-                keypoint_descriptor, visibilities = calculateGPD(person['keypoints'], args.mode)
-                if args.gtAnn:
-                    json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': [1]*len(keypoint_descriptor), 'vis': visibilities})
-                else:
-                    json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': person['score'], 'vis': visibilities})
-                c = c + 1
+            metadata = {'imagesize': person['image_size']}
+            keypoint_descriptor, confidences = calculateGPD(person['keypoints'], args.mode, metadata)
+            if args.gtAnn:
+                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': [1]*len(keypoint_descriptor), 'confidences': confidences})
+            else:
+                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': person['score'], 'confidences': confidences})
+            c = c + 1
         if i%1000 == 0 and i!=0:
             print("Processed %d elements."%i)
 
@@ -135,15 +136,16 @@ def main():
         f.write("Minimum KPTS: %d"%_MINKPTs + os.linesep)
         f.write("Mode: %s"%args.mode + os.linesep)
         f.write("Filter: %d"%_FILTER + os.linesep)
-        f.write("Keypoint threshold: %d"%_VISIBILITY_TRESH + os.linesep)
+        f.write("Keypoint threshold: %d"%_KPTS_THRESHOLD + os.linesep)
         f.write("Ref(s): %s"%str(_REFs) + os.linesep)
+        f.write("Normalization: %s"%str(_NORM) + os.linesep)
         f.write("PCA dimension: %s"%(str(args.pca) if args.pca is not None else 'not used')+ os.linesep)
         f.write("Number input predictions: %d"%len(json_data) + os.linesep)
         f.write("Number calculated descriptors: %d"%c + os.linesep)
         f.write("Dimension of descriptor: %d"%len(json_out[0]['gpd']) + os.linesep)
         f.write(_ADDNOTES)
 
-    json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d_mkpt%d'%(c,args.mode, _VISIBILITY_TRESH, _FILTER, _MINKPTs)
+    json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d_mkpt%dn%d'%(c,args.mode, _KPTS_THRESHOLD, _FILTER, _MINKPTs, _NORM)
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:
         print("Writing to folder: ",output_dir)
         json.dump(json_out, f)
@@ -169,16 +171,15 @@ _END_JOINTS = {3: 'left_ear', 4: 'right_ear', 9: 'left_wrist', 10: 'right_wrist'
 _END_JOINTS_DEPTH_2 = [(0,4), (0,3), (6,10), (5,9), (12,16), (11,15)]
 
 
-def calculateGPD(keypoints, mode):
+def calculateGPD(keypoints, mode, metadata):
     #Get the geometric pose descriptor based on:
     #   -selected mode
     #   -slected reference point(s)
     xs = keypoints[::3]
     ys = keypoints[1::3]
-    vs = keypoints[2::3]
+    cs = keypoints[2::3]
 
-    num_kps = 17
-    kpts_valid = [1 if v is not None else 0 for v in vs] #Keypoints with visibility None should not be considered (0 in feature decsriptor)
+    kpts_valid = [False if x==-1 or y==-1 else True for x,y in zip(xs,ys)] 
     logging.debug("kpts_valid: {}".format(kpts_valid))
 
     #Delete background label if present & included in keypoint list 
@@ -188,22 +189,7 @@ def calculateGPD(keypoints, mode):
             del ys[_INV_BODY_PART_MAPPING['Background']]
             print("Info: Deleted background label.")
    
-    # Make all keypoints relative to a selected reference point
-    if len(_REFs) == 2:
-        ref_ids = list(_REFs.keys())
-        p1 = [xs[ref_ids[0]], ys[ref_ids[0]]]
-        p2 = [xs[ref_ids[1]], ys[ref_ids[1]]]
-        pmid = [(p1[0]+p2[0])/2, (p1[1]+p2[1])/2 ]
-        vs.insert(0, (vs[ref_ids[0]] + vs[ref_ids[1]])/2)
-    elif len(_REFs) == 1:
-        pmid = [xs[ref_ids[0]], ys[ref_ids[0]]]
-        vs.insert(0, vs[ref_ids[0]])
-    else:
-        raise ValueError("_REFS not valid.")
-
-    ref_point = np.array(pmid)
     keypoints = np.asarray(list(zip(xs,ys)), np.float32)
-    keypoints = (keypoints - ref_point).tolist()
 
     # Construct different connection lines from keypoints
     l_direct_adjacent = lines_direct_adjacent(keypoints)
@@ -232,7 +218,8 @@ def calculateGPD(keypoints, mode):
         #Result dimension: 64
 
         #Dimensions: 17 keypoints, 17x2 values (with or without visibility flag)
-        joint_coordinates = joint_coordinates_rel(keypoints)
+        #            + 1 reference keypoint, 1x2 values
+        joint_coordinates = joint_coordinates_rel(keypoints, kpts_valid, metadata['imagesize'], addconfidences=None)
         #joint_coordinates = joint_coordinates_rel(keypoints, ref_point.tolist(), visiblities = vs , vclipping = True)
         pose_descriptor.append(joint_coordinates)
         if _NOTESFLAG:
@@ -333,12 +320,6 @@ def calculateGPD(keypoints, mode):
     logging.debug("Dimension of pose descriptor flattened: {}".format(len(pose_descriptor)))
     logging.debug("\n")
 
-    #Visibilities of kpts clipped
-    print("vs:",vs)
-    vs = list(map(lambda x: 0 if x is None else x, vs))
-    print("vs:",vs)
-    visibilities = list(map(lambda y: max(0,min(2,y)), vs))
-    print("visibilities:", visibilities)
 
     _ADDNOTES += 'Lines directly adjacent: %d \n'%len(l_direct_adjacent)
     _ADDNOTES += 'Lines endjoints depth 2: %d \n'%len(l_end_depth2)
@@ -348,39 +329,57 @@ def calculateGPD(keypoints, mode):
 
     _NOTESFLAG = False
 
-    return pose_descriptor, visibilities
+    return pose_descriptor, cs
 
 # ------------------------------------- DESCRIPTORS OF DIFFERENT TYPES ------------------------------------- 
 
-def joint_coordinates_rel(keypoints, visiblities = None, vclipping = False, normalize=True):
+def joint_coordinates_rel(keypoints, kptsvalid, imagesize, addconfidences = None):
     #Joint Coordinate: all keypoints in relative coordinate system + reference point in world coordinate system
-    joint_coordinates = []
-    
-    if visiblities is None:
-        #Dimension 17 x 2 + 1 x 2 = 36 
-        #joint_coordinates = np.delete(keypoints,_INV_BODY_PART_MAPPING['MidHip'])
-        #joint_coordinates = itertools.chain([reference_point], keypoints)
-        joint_coordinates = [item for sublist in list(keypoints) for item in sublist]
-        logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
-
+    # Make all keypoints relative to a selected reference point
+    ref_ids = list(_REFs.keys())
+    if len(_REFs) == 2:
+        p1 = keypoints[ref_ids[0]]
+        p2 = keypoints[ref_ids[1]]
+        pmid = [(p1[0]+p2[0])/2, (p1[1]+p2[1])/2]
+    elif len(_REFs) == 1:
+        pmid = keypoints[ref_ids[0]]
     else:
-        #Adding the visibility flag
-        #Meaning:   visibility == 0 that keypoint not in the image
-        #           visibility == 1 that keypoint is in the image BUT not visible, 
-        #           visibility == 2 that keypoint is visible
-        #Dimension 17 x 3 + 1 x 3 = 54 
-        #joint_coordinates = itertools.chain([reference_point], keypoints)
-        if vclipping:
-            #Clip values bcose sometime very large
-            visiblities = map(lambda y: max(0,min(2,y)), visiblities)
-        joint_coordinates = [(xy[0],xy[1],v) for [xy, v] in zip(keypoints, visiblities)]
-        joint_coordinates = [item for sublist in joint_coordinates for item in sublist]
-        logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
+        raise ValueError("_REFS not valid.")
 
+    ref_point = np.array(pmid)
+    keypoints = (keypoints - ref_point).tolist()
+
+    #Dimension 17 x 2 + 2(reference point) [+ 17 (confidences)]
+    joint_coordinates = []
+    for i,k in enumerate(keypoints):
+        if not kptsvalid[i]:
+            joint_coordinates.append((-1,-1))
+        else:
+            joint_coordinates.append(k)
     #Normalization allows for scale invariance
-    return normalizevec(joint_coordinates)
+    #Only normalize valid entries, since -1 entries would falsify the normalization result  
+    if _NORM:      
+        joint_coordinates = normalizevec(joint_coordinates, mask=True)
 
-def joint_joint_distances(keypoints,indices_pairs=None):
+    #Add relative position of pose to descriptor
+    height, width = imagesize[0], imagesize[1]
+    relative_refpoint = [pmid[0]/width, pmid[1]/height]
+    print(pmid[0], width, pmid[1], height ,pmid[0]/width, pmid[1]/height)
+    joint_coordinates.extend([relative_refpoint])
+
+    if addconfidences is not None:
+        #Clip values bcose sometime very large
+        #Lower clip value if too much effect on search result
+        confs = map(lambda y: max(y,1), addconfidences)
+        joint_coordinates.extend(confs)
+    
+    #Flatten result
+    print(joint_coordinates)
+    joint_coordinates = [item for sublist in joint_coordinates for item in sublist] 
+    logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
+    return joint_coordinates
+
+def joint_joint_distances(keypoints, kptsvalid, indices_pairs=None):
     #Joint-Joint Distance
     joint_distances = []
     if indices_pairs is None:
@@ -390,15 +389,23 @@ def joint_joint_distances(keypoints,indices_pairs=None):
         for i1 in range(len(keypoints)):
             for i2 in range(len(keypoints)):
                 if i1 < i2:
-                    joint_distances.append(np.linalg.norm(keypoints[i2]-keypoints[i1]))
+                    if not kptsvalid[i1] or not kptsvalid[i2]:
+                        joint_distances.append(-1)
+                    else:    
+                        joint_distances.append(np.linalg.norm(keypoints[i2]-keypoints[i1]))
     else:
         for start,end in indices_pairs:
-            joint_distances.append(np.linalg.norm(keypoints[start]-keypoints[end]))
+            if not kptsvalid[start] or not kptsvalid[end]:
+                joint_distances.append(-1)
+            else: 
+                joint_distances.append(np.linalg.norm(keypoints[start]-keypoints[end]))
     
     logging.debug("Dimension joint distances: {}".format(len(joint_distances))) 
-    return normalizevec(joint_distances)
+    if _NORM:
+        joint_distances = normalizevec(joint_distances, mask=True)
+    return joint_distances
 
-def joint_joint_orientations(keypoints, indices_pairs=None):
+def joint_joint_orientations(keypoints, kptsvalid, indices_pairs=None):
     #Joint-Joint Orientation (vector orientation of unit vector from j1 to j2)
     joint_orientations = []
     if indices_pairs is None:
@@ -408,19 +415,26 @@ def joint_joint_orientations(keypoints, indices_pairs=None):
                 if i1 < i2:
                     j1 = keypoints[i1]
                     j2 = keypoints[i2]
-                    #Don't compute for zero points or points with same coordinates
-                    if np.any(j1) and np.any(j2) and not j1==j2:
+                    #Don't compute for unvalid points or points with same coordinates
+                    if j1==j2:
+                        joint_orientations.extend([0,0])
+                    elif not kptsvalid[i1] or not kptsvalid[i2]:
+                        joint_orientations.extend([-1,-1])
+                    else:    
                         vec = np.subtract(j2,j1)
                         normvec = vec/np.linalg.norm(vec)
                         joint_orientations.extend(list(normvec))
-                    else:
-                        joint_orientations.extend([0,0])
+
     else:
         for start,end in indices_pairs:
             j1 = keypoints[start]
             j2 = keypoints[end]
-            #Don't compute for zero points or points with same coordinates
-            if np.any(j1) and np.any(j2) and not j1==j2:
+            #Don't compute for unvalid points or points with same coordinates
+            if j1==j2:
+                joint_orientations.extend([0,0])
+            elif not kptsvalid[start] or not kptsvalid[end]:
+                joint_orientations.extend([-1,-1])
+            else:   
                 vec = np.subtract(j2,j1)
                 normvec = vec/np.linalg.norm(vec)
                 joint_orientations.extend(list(normvec))
@@ -433,14 +447,15 @@ def joint_joint_orientations(keypoints, indices_pairs=None):
                 #label = "%s-%s"%(_BODY_PART_MAPPING[start], _BODY_PART_MAPPING[end])
                 #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/jj_o/%s.jpg"%label)
                 #plt.clf()
-            else:
-                joint_orientations.extend([0,0])
+
             #plt.gca().invert_yaxis()
             #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/jj_o/entirebody.jpg")       
     logging.debug("Dimension of joint orientations: {}".format(len(joint_orientations)))
+    if _NORM:
+        joint_orientations = normalizevec(joint_orientations, mask=True)
     return joint_orientations 
 
-def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
+def joint_line_distances(keypoints, lines, kptsvalid, kpt_line_mapping = None):
     #Joint-Line Distance
     #Modes: 1. calculate distance between lines and all keypoints (kpt_line_mapping = None)
     #       2. calculate distance only for specified lines and specified keypoints (kpt_line_mappints != None)
@@ -454,16 +469,15 @@ def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
                 #if joint is the same as either start or end point of the line, continue
                 if i in k: 
                     continue
-                if not kpts_valid[i]:
-                    joint_line_distances.append(0)
-                    continue
-                joint_line_distances.append(Point(joint).distance(l))
-                
+                if not kptsvalid[i] or not kptsvalid[k[0]] or not kptsvalid[k[1]]:
+                    joint_line_distances.append(-1)
+                else:
+                    joint_line_distances.append(Point(joint).distance(l))           
     else:
         for k, [(k1,k2),label] in dict_to_item_list(kpt_line_mapping):
             print('%s->(%s,%s)'%(_BODY_PART_MAPPING[k],_BODY_PART_MAPPING[k1],_BODY_PART_MAPPING[k2]))
-            if not kpts_valid[k1] or not kpts_valid[k2]:
-                joint_line_distances.append(0)
+            if not kptsvalid[k] or not kptsvalid[k1] or not kptsvalid[k2]:
+                joint_line_distances.append(-1)
                 continue                
             if (k1,k2) in lines.keys():
                 joint_line_distances.append(Point(keypoints[k]).distance(lines[(k1,k2)]))
@@ -476,65 +490,56 @@ def joint_line_distances(keypoints, lines, kpts_valid, kpt_line_mapping = None):
                 print("Not found")
    
     logging.debug("Dimension joint line distances: {}".format(len(joint_line_distances)))
+    if _NORM:
+        joint_line_distances = normalizevec(joint_line_distances, mask=True)
     return joint_line_distances
-    #return normalizevec(joint_line_distances)
 
-def line_line_angles(lines, kpts_valid, line_line_mapping = None):
+def line_line_angles(lines, kptsvalid, line_line_mapping = None):
     #Line-Line Angle
     line_line_angles = []    
     
-
     if line_line_mapping is None:
         #(25-1) over 2 = 276 / (17-1) over 2 = 120
         finished = []
         for (k11,k12),l1 in lines.items():
             for (k21,k22),l2 in lines.items():
-                if not kpts_valid[k11] or not kpts_valid[k12] or not kpts_valid[k21] or not kpts_valid[k22]:
-                    line_line_angles.append(0)
+                if not kptsvalid[k11] or not kptsvalid[k12] or not kptsvalid[k21] or not kptsvalid[k22]:
+                    line_line_angles.append(-1)
                     continue
                 #skip self-angle and already calculated angles of same lines
                 if(k21,k22) == (k11,k12) or [(k11,k12),(k21,k22)] in finished or [(k21,k22),(k11,k12)] in finished:
                     continue
                 line_line_angles.append(angle(l1,l2))
                 finished.append([(k11,k12),(k21,k22)])
-                        #don't consider origin(zero-point)
-                        #if np.any(j1) and np.any(j2): 
-                        #else:
-                        #    line_line_angles.append(0)
-                    #To provide static descriptor dimension
-                    #else:
-                    #    line_line_angles.append(0)
     else:
         k = 0
         for (k11,k12),[(k21,k22),label] in dict_to_item_list(line_line_mapping):
             if not kpts_valid[k11] or not kpts_valid[k12] or not kpts_valid[k21] or not kpts_valid[k22]:
-                line_line_angles.append(0)
+                line_line_angles.append(-1)
                 continue
             l1 = lines[(k11,k12)] if (k11,k12) in lines.keys() else lines[(k12,k11)]
             l2 = lines[(k21,k22)] if (k21,k22) in lines.keys() else lines[(k22,k21)]
-            if l1!=l2:
-                #an= angle(l1,l2)
-                #print(k,"angle between ", l1,l2, "is", an, math.degrees(an))
-                #print("(%s,%s)->(%s,%s)"%(_BODY_PART_MAPPING[k11], _BODY_PART_MAPPING[k12], _BODY_PART_MAPPING[k21], _BODY_PART_MAPPING[k22]))
-                #[p11,p12] = list(l1.coords)
-                #[p21,p22] = list(l2.coords)
-                #plt.axis('equal')
-                #plt.plot([p11[0], p12[0]], [p11[1], p12[1]], 'k-', lw=1)
-                #plt.plot([p21[0], p22[0]], [p21[1], p22[1]], 'k-', lw=1)
-                #print(k,"angle between ", l1,l2, "is", an, math.degrees(an))
-                #print((k11,k12), (k21,k22), (k11,k12) in lines.keys(), (k21,k22) in lines.keys())
-                line_line_angles.append(angle(l1,l2))
-                #plt.gca().invert_yaxis()
-                #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/angle%d.jpg"%k)
-                #plt.clf()
-                #k += 1
-            else:
-                #lines having the exact same directions
-                line_line_angles.append(0.0)
-    exit(1)
+            #an= angle(l1,l2)
+            #print(k,"angle between ", l1,l2, "is", an, math.degrees(an))
+            #print("(%s,%s)->(%s,%s)"%(_BODY_PART_MAPPING[k11], _BODY_PART_MAPPING[k12], _BODY_PART_MAPPING[k21], _BODY_PART_MAPPING[k22]))
+            #[p11,p12] = list(l1.coords)
+            #[p21,p22] = list(l2.coords)
+            #plt.axis('equal')
+            #plt.plot([p11[0], p12[0]], [p11[1], p12[1]], 'k-', lw=1)
+            #plt.plot([p21[0], p22[0]], [p21[1], p22[1]], 'k-', lw=1)
+            #print(k,"angle between ", l1,l2, "is", an, math.degrees(an))
+            #print((k11,k12), (k21,k22), (k11,k12) in lines.keys(), (k21,k22) in lines.keys())
+            line_line_angles.append(angle(l1,l2))
+            #plt.gca().invert_yaxis()
+            #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/angle%d.jpg"%k)
+            #plt.clf()
+            #k += 1
+
     logging.debug("Dimension line line angles: {}".format(len(line_line_angles)) )
+    if _NORM:
+        #line_line_angles = normalizevec(line_line_angles, rangemin=0, rangemax=math.pi)
+        line_line_angles = normalizevec(line_line_angles)
     return line_line_angles
-    #return normalizevec(line_line_angles)
 
 def joint_plane_distances(keypoints,planes):
     #Joint-Plane Distance
@@ -553,27 +558,27 @@ def joint_plane_distances(keypoints,planes):
 
 # ------------------------------------ HELPER FUNCTIONS -----------------------------------
 
-def filterKeypoints(pose_keypoints):
+def filterKeypoints(pose_keypoints, mode):
     #Filter out keypoints above a treshold
-    #Skip pose if too few keypoints or reference point is not contained
+    #Skip pose if too few keypoints or reference point is not contained (for keypoint coordinate descriptor)
+    #Probability = confidence score for the keypoint (not visibility flag!)
     
-    #Visibility flag: v=0: not labeled (in which case x=y=0), 
-    #                 v=1: labeled but not visible
-    #                 v=2: labeled and visible 
-
-    #Keypoints are sorted out or given back fully/not reduced
-        c = 0
-        for idx in range(0,_NUMKPTS):
-            x, y, prob = pose_keypoints[idx:idx+3]
-            if prob <= _VISIBILITY_TRESH:
-                if idx/3 in _REFs.keys():
-                    return False
-            else:   
-                c = c + 1
-        if c >= _MINKPTs:
-            return True
+    if mode == 'JcJLdLLa_reduced':
+        for ref in _REFs.keys():
+            if pose_keypoints[ref*3+2] <= _KPTS_THRESHOLD:
+                return False  
+    c = 0
+    for idx in range(0,_NUMKPTS):
+        x, y, prob = pose_keypoints[idx*3:idx*3+3]
+        if prob <= _KPTS_THRESHOLD:
+            pose_keypoints[idx*3:idx*3+3] = [-1,-1,-1]
         else:
-            return False
+            c = c + 1
+    logging.debug("Not valid keypoints: {}".format(_NUMKPTS-c))
+    if c >= _MINKPTs:
+        return True
+    else:
+        return False
 
 def lines_direct_adjacent(keypoints):
     #Directly adjacent lines (linemapping of _KPTS_LINES), Dimesions: 25 - 1 / 17-1 = 16
@@ -632,35 +637,7 @@ def lines_custom(keypoints):
         lines.update({(k1,k2) : LineString([keypoints[k1], keypoints[k2]])})
     logging.debug("\tDimension lines custom: {}".format(len(lines))) 
     return lines
-"""
-def get_endjoints():
-    #Create a dict containing all end points (e.g. RWrist, LWrist)
-    part_pairs = [item for tupl in _KPTS_LINES for item in tupl] #plain list without tuples
-    endjoints = dict()
-    frequencies = collections.Counter(part_pairs)
-    for (joint,freq) in frequencies.items():
-        if freq == 1:
-            endjoints.update({joint: _BODY_PART_MAPPING[joint]})
-    return endjoints
 
-def get_endjoints_depth2():
-    #Create a dict for listing all lines from end points of depth 2
-    endjoints_depth2 = dict()
-    endjoints = get_endjoints()
-    print("endjoints:",endjoints)
-    for k in  endjoints.keys():
-        d1 = [line for line in _KPTS_LINES if line[0] == k]
-        d1.extend([(line[1],line[0]) for line in _KPTS_LINES if line[1] == k])
-        
-        for (end,middle) in d1:
-            d2 = [line for line in _KPTS_LINES if line[0] == middle and line[1] != end]
-            d2.extend([(line[1],line[0]) for line in _KPTS_LINES if line[1] == middle and line[0] != end])
-            for (middle,begin) in d2:
-                endjoints_depth2.update({end: begin})
-    print("endjoints_depth2:",endjoints_depth2)
-    exit(1)
-    return endjoints_depth2
-"""
 def get_planes(plane_points):
     planes = []
     for p in plane_points:

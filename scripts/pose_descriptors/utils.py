@@ -1,9 +1,30 @@
 import numpy as np
 from sklearn.decomposition import PCA
 
-def normalizevec(featurevector, rangemin=0, rangemax=1):
-    #Normalize aka rescale input vector to new range
-    return [ (x-min(featurevector)) * (rangemax - rangemin)/(max(featurevector) - min(featurevector)) + rangemin for x in featurevector]
+def normalizevec(featurevector, rangemin=0, rangemax=1, mask=False):
+    if mask:
+        #Filter out unvalid features (=-1) for normalization
+        #Then combine normalization and unvalid features in same ordering
+        maskvalid = []
+        for n in featurevector:
+            if n == -1:
+                maskvalid.append(False)
+            else:
+                maskvalid.append(True)
+        subvec = [n for n,l in zip(featurevector, maskvalid) if l=='True']
+        normsubvec = [ (x-min(featurevector)) * (rangemax - rangemin)/(max(featurevector) - min(featurevector)) + rangemin for x in subvec]
+        normvec = []
+        c_valid = 0
+        for l in maskvalid:
+            if l=='True':
+                normvec.append(normsubvec[c_valid])
+                c_valid += 1
+            else:
+                normvec.append(-1)
+        return normvec
+    else:
+        #Normalize aka rescale input vector to new range
+        return [ (x-min(featurevector)) * (rangemax - rangemin)/(max(featurevector) - min(featurevector)) + rangemin for x in featurevector]
 
 def applyPCA(json_data, dim=None, pca=None):
     gpds = [item['gpd'] for item in json_data]

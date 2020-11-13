@@ -12,6 +12,7 @@ import cv2
 import torch
 import itertools
 from utils import dict_to_item_list
+import math
 
 #Visualizes human pose keypoints given by input file.
 #Treshold for score possible.
@@ -188,19 +189,23 @@ def visualizeJJo(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
             keypoints.append(kpts)
 
         kptsjj_os = []
+        kptdists = [] #for scaling arrows according to limb length
         assert len(keypoints) == len(gpds)
         for i in range(len(keypoints)):
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
             k = 0
             for j1,j2 in kpt_kpt_mapping:
-                kptstart = keypoints[j1]
-                orientation = gpd[k:k+2]
+                print((j1,j2))
+                kptstart = kpts[j1]
+                orientation = gpd[k:k+2] 
                 kptsjj_os.append((kptstart, orientation))
+                kptdists.append(math.hypot(kpts[j2][0]- kpts[j1][0],  kpts[j2][1]- kpts[j1][1]))
+                k += 2
 
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         drawkeypoints(preds, img_path, v)
-        outjldist = v.draw_gpddescriptor_jjo(self, kptsjj_os)
+        outjldist = v.draw_gpddescriptor_jjo(kptsjj_os, kptdists)
         cv2.imwrite(os.path.join(outputdir, imgname_out+'_jjo.jpg'),outjldist.get_image()[:, :, ::-1])
 
 
