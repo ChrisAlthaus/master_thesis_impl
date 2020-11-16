@@ -72,7 +72,7 @@ for image_entry in images:
             styleImName = filename+'_'+style_filename
             im = Image.open(os.path.join(args.styleTransferImDir, styleImName + '.jpg'))
             width, height = im.size
-            print("Adding image descriptor for: ",styleImName)
+            #print("Adding image descriptor for: ",styleImName)
             image_entry['file_name'] = styleImName + '.jpg'
             
             

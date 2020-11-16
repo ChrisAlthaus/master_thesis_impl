@@ -14,11 +14,25 @@ _LR = 0.001 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
 _ADD_ITER = 25000
 _MAX_ITER = (50000 + _ADD_ITER) * scalefactor
 _STEPS = ((30000 + _ADD_ITER)* scalefactor, (45000 + _ADD_ITER)* scalefactor) 
-_VAL_PERIOD = 4000 * scalefactor
+_VAL_PERIOD = 100 #4000 * scalefactor
 _CPKT_PERIOD = 4000 * scalefactor
 
+# Default Training Command:
+# CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --master_port 10001 --nproc_per_node=4 
+# tools/detector_pretrain_net.py --config-file "configs/e2e_relation_detector_X_101_32_8_FPN_1x.yaml" 
+# SOLVER.IMS_PER_BATCH 8 
+# TEST.IMS_PER_BATCH 4 
+# DTYPE "float16" 
+# SOLVER.MAX_ITER 50000 
+# SOLVER.STEPS "(30000, 45000)" 
+# SOLVER.VAL_PERIOD 2000 
+# SOLVER.CHECKPOINT_PERIOD 2000 
+# MODEL.RELATION_ON False 
+# OUTPUT_DIR /home/kaihua/checkpoints/pretrained_faster_rcnn 
+# SOLVER.PRE_VAL False
+
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
-_DATASET_SELECT = _DATASET_SELECTS[3]
+_DATASET_SELECT = _DATASET_SELECTS[1]
 _ADD_NOTES = ''
 
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
@@ -42,7 +56,7 @@ params = {'datasetselect': _DATASET_SELECT,
 			'valperiod': int(_VAL_PERIOD), 
 			'cpktperiod': int(_CPKT_PERIOD), 
 			'relationon': False, 
-			'preval': False, 
+			'preval': True, #False, 
 			'outputdir': out_dir, 
 			'addnotes': _ADD_NOTES}
 

@@ -70,6 +70,11 @@ if args.mode == 'coco-annotations':
             print(ann)
     exit(1)
 
+if args.mode == 'coco-ann-images-number':
+    print("Length of annotations: ", len(json_file['annotations']))
+    print("Length of image field: ", len(json_file['images']))
+    exit(1)
+
 #List of dicts
 if isinstance(json_file,list):
     print("Number of elements: ",len(json_file))

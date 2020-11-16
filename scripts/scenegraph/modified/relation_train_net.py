@@ -82,14 +82,15 @@ def train(cfg, local_rank, distributed, logger):
 
 
     #modified: Save model architecture & layer specs to file 
-    print("Save model's architecture:")
-    with open(os.path.join(cfg.OUTPUT_DIR, 'model_architectur.txt'), 'w') as f:
-        print(list(model.children()),file=f)
-
-    print("Save model's state_dict:")
-    with open(os.path.join(cfg.OUTPUT_DIR, 'layer_params_overview.txt'), 'w') as f:
-        for name, param in list(model.named_parameters()):
-            f.write('{} requires_gradient: {}'.format(name, param.requires_grad)+ os.linesep)
+    if is_main_process():
+        print("Save model's architecture:")
+        with open(os.path.join(cfg.OUTPUT_DIR, 'model_architectur.txt'), 'w') as f:
+            print(list(model.children()),file=f)
+    
+        print("Save model's state_dict:")
+        with open(os.path.join(cfg.OUTPUT_DIR, 'layer_params_overview.txt'), 'w') as f:
+            for name, param in list(model.named_parameters()):
+                f.write('{} requires_gradient: {}'.format(name, param.requires_grad)+ os.linesep)
     #modified end
 
 
@@ -133,7 +134,7 @@ def train(cfg, local_rank, distributed, logger):
         checkpointer.load(cfg.MODEL.PRETRAINED_DETECTOR_CKPT, with_optim=False, load_mapping=load_mapping)
     debug_print(logger, 'end load checkpointer')
 
-    #modified: important class for data loading: Scene-Graph-Benchmark.pytorch/build/lib.linux-x86_64-3.6/maskrcnn_benchmark/data/datasets/visual_genome.py
+    #important class for data loading: Scene-Graph-Benchmark.pytorch/build/lib.linux-x86_64-3.6/maskrcnn_benchmark/data/datasets/visual_genome.py
     train_data_loader = make_data_loader(
         cfg,
         mode='train',
@@ -145,12 +146,22 @@ def train(cfg, local_rank, distributed, logger):
         mode='val',
         is_distributed=distributed,
     )
+    #Validation on other dataset possible
+    if cfg.DATASETS.VAL2:
+        val_data_loaders2 = make_data_loader(
+            cfg,
+            mode='val2',
+            is_distributed=distributed,
+        )
+    #modified end
+
     debug_print(logger, 'end dataloader')
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
 
     if cfg.SOLVER.PRE_VAL:
         logger.info("Validate before training")
-        run_val(cfg, model, val_data_loaders, distributed, logger)
+        val_results, _ = run_val(cfg, model, val_data_loaders, distributed, logger)
+        savevalresult(val_results, arguments["iteration"], cfg.OUTPUT_DIR, writer)
 
     #modified
     writer = None
@@ -298,31 +309,33 @@ def train(cfg, local_rank, distributed, logger):
         if iteration == max_iter:
             checkpointer.save("model_final", **arguments)
 
-        val_result = None # used for scheduler updating
+        rk_100 = None # used for scheduler updating
         if cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD == 0:
             print("Start Val: ", get_rank())
             logger.info("Start validating")
-            val_result = run_val(cfg, model, val_data_loaders, distributed, logger)
+            val_results, rk_100 = run_val(cfg, model, val_data_loaders, distributed, logger)
             logger.info("Validation Result: %.4f" % val_result)
-
-            #modified: log to tensorboard
-            if is_main_process():
-                print("added: ",'R@100', val_result, iteration)
-                writer.add_scalar('R@100', val_result, iteration)
-            #modified end
+            savevalresult(val_results, iteration, cfg.OUTPUT_DIR, writer)
             
             #modified: add metrics.dat for better summary of training process & read when finished
             if is_main_process():
                 with open(os.path.join(cfg.OUTPUT_DIR, "metrics.dat"),"a+") as f:
-                    json.dump({'R@100':val_result}, f)
+                    json.dump(val_results, f)
                     f.write(os.linesep)
-                    #f.write('R@100: {}'.format(val_result) + os.linesep)
             #modified end
- 
+
+        if cfg.DATASETS.VAL2 and cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD * 2 == 0:
+            logger.info("Start validating")
+            print(f'VAL: process {torch.distributed.get_rank()} start val')
+
+            val_results, _ = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed)
+            logger.info("Validation Result: %.4f" % val_result)
+            savevalresult(val_results, iteration, cfg.OUTPUT_DIR, writer, suffix='(2)')
+
         # scheduler should be called after optimizer.step() in pytorch>=1.1.0
         # https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
         if cfg.SOLVER.SCHEDULE.TYPE == "WarmupReduceLROnPlateau":
-            scheduler.step(val_result, epoch=iteration)
+            scheduler.step(rk_100, epoch=iteration)
             if scheduler.stage_count >= cfg.SOLVER.SCHEDULE.MAX_DECAY_STEP:
                 logger.info("Trigger MAX_DECAY_STEP at iteration {}.".format(iteration))
                 print("Trigger MAX_DECAY_STEP at iteration {}.".format(iteration))
@@ -360,11 +373,11 @@ def run_val(cfg, model, val_data_loaders, distributed, logger):
         iou_types = iou_types + ("relations", )
     if cfg.MODEL.ATTRIBUTE_ON:
         iou_types = iou_types + ("attributes", )
-    print("val1")
+
     dataset_names = cfg.DATASETS.VAL
-    val_result = []
+    val_results = []
     for dataset_name, val_data_loader in zip(dataset_names, val_data_loaders):
-        dataset_result = inference(
+        dataset_results = inference(
                             cfg,
                             model,
                             val_data_loader,
@@ -378,17 +391,17 @@ def run_val(cfg, model, val_data_loaders, distributed, logger):
                             logger=logger,
                         )
         synchronize()
-        val_result.append(dataset_result)
-    print("val2")
+        val_results.append(dataset_results)
+
     # support for multi gpu distributed testing
-    gathered_result = all_gather(torch.tensor(dataset_result).cpu())
+    gathered_result = all_gather(torch.tensor(dataset_results).cpu())
     gathered_result = [t.view(-1) for t in gathered_result]
     gathered_result = torch.cat(gathered_result, dim=-1).view(-1)
     valid_result = gathered_result[gathered_result>=0]
-    val_result = float(valid_result.mean())
-    del gathered_result, valid_result
+    #val_result = float(valid_result.mean())
+    del gathered_result#, valid_result
     torch.cuda.empty_cache()
-    return val_result
+    return valid_result
 
 def run_test(cfg, model, distributed, logger):
     if distributed:
@@ -444,12 +457,21 @@ def main():
         help="Do not test the final model",
         action="store_true",
     )
+
+    #modified
+    parser.add_argument(
+        "--paramsconfig",
+        default="",
+        help="path to parameters file",
+        type=str,
+    )
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
         default=None,
         nargs=argparse.REMAINDER,
     )
+    #modified end
 
     args = parser.parse_args()
 
@@ -464,7 +486,38 @@ def main():
         synchronize()
 
     cfg.merge_from_file(args.config_file)
+
+    #modified: to support tuple and list arguments
+    print("Reading config (hyper-)parameters from file: ",args.paramsconfig)
+    params = []
+    with open (args.paramsconfig, "r") as f:
+        params = json.load(f)
+
+    cfg.MODEL.ROI_RELATION_HEAD.USE_GT_BOX = params['use_gt_box']
+    cfg.MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL = params['use_gt_objectlabel']
+    cfg.MODEL.ROI_RELATION_HEAD.PREDICTOR = params['predictor']
+    cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE = params['effecttype']
+    cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE = params['fusiontype']
+    cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER = params['contextlayer']
+    cfg.MODEL.ROI_RELATION_HEAD.REQUIRE_BOX_OVERLAP = params['require_bboxoverlap']
+    cfg.MODEL.ATTRIBUTE_ON = params['attribute_on']
+    cfg.SOLVER.IMS_PER_BATCH = params['trainbatchsize']
+    cfg.TEST.IMS_PER_BATCH = params['testbatchsize']
+    cfg.DTYPE = params['dtype']
+    cfg.SOLVER.MAX_ITER = params['maxiterations']
+    cfg.SOLVER.VAL_PERIOD = params['valperiod']
+    cfg.SOLVER.STEPS = tuple(params['steps'])
+    cfg.SOLVER.CHECKPOINT_PERIOD = params['cpktperiod']
+    cfg.SOLVER.PRE_VAL = params['preval']
+    cfg.DATASETS.SELECT = params['datasetselect']
+    cfg.GLOVE_DIR = params['glovedir']
+    cfg.MODEL.PRETRAINED_DETECTOR_CKPT = params['pretrainedcpkt']
+    cfg.OUTPUT_DIR = params['outputdir']
+
+    #Custom arguments setup
+    print("Optional arguments: ",args.opts)
     cfg.merge_from_list(args.opts)
+    #modified end
     
     print("Local rank: ", args.local_rank)
 
@@ -475,11 +528,6 @@ def main():
         print("Successfully created output directory: ", output_dir)
     cfg.OUTPUT_DIR = output_dir
     #modified end
-
-    #modified: Set configs
-    cfg.SOLVER.PRE_VAL = False# True#False
-    cfg.SOLVER.GAMMA = 0.1 #0.3162 #0.1
-    cfg.SOLVER.STEPS = (30000,) #(30000,40000) #(30000,)
 
     
     if cfg.DATASETS.SELECT == 'trainandval-subset': 
@@ -492,17 +540,24 @@ def main():
         cfg.DATASETS.TRAIN = ("VG_styletransfer_val_subset_train",)
         cfg.DATASETS.TEST = ("VG_styletransfer_val_subset_test",)
         cfg.DATASETS.VAL = ("VG_styletransfer_val_subset_val",)
+        #additional: compare with unreduced validation set annotations
+        cfg.DATASETS.VAL2 = ("VG_styletransfer_val",) 
     elif cfg.DATASETS.SELECT == 'default-styletransfer':
         #no subset filtering   
         cfg.DATASETS.TRAIN = ("VG_styletransfer_train",)
         cfg.DATASETS.TEST = ("VG_styletransfer_test",)
         cfg.DATASETS.VAL = ("VG_styletransfer_val",)
+        #additional: compare with reduced validation set annotations
+        cfg.DATASETS.VAL2 = ("VG_styletransfer_val_subset_val",)
     elif cfg.DATASETS.SELECT == 'default-vg':
         cfg.DATASETS.TRAIN = ("VG_stanford_filtered_with_attribute_train",)
         cfg.DATASETS.TEST = ("VG_stanford_filtered_with_attribute_test",)
         cfg.DATASETS.VAL = ("VG_stanford_filtered_with_attribute_val",)
+        #additional: compare with unreduced style-transfer validation set annotations
+        cfg.DATASETS.VAL2 = ("VG_styletransfer_val",)
     else: 
         raise ValueError()
+    #modified end
 
     #cfg.DATASETS.TRAIN = ("VG_stanford_filtered_with_attribute_train",)
     #cfg.DATASETS.TEST = ("VG_stanford_filtered_with_attribute_test",)
@@ -547,6 +602,42 @@ def main():
     #modified
     add_evalstats(cfg.OUTPUT_DIR)
     #modified end
+
+def savevalresult(val_results, iteration, outputdir, writer, suffix=None):
+    #log to tensorboard
+    if is_main_process():
+        #SGG eval:     R @ 20: 0.0000;     R @ 50: 0.0000;     R @ 100: 0.0000;  for mode=sgdet, type=Recall(Main).
+        #SGG eval:  ng-R @ 20: 0.0000;  ng-R @ 50: 0.0000;  ng-R @ 100: 0.0000;  for mode=sgdet, type=No Graph Constraint Recall(Main).
+        #SGG eval:    zR @ 20: 0.0000;    zR @ 50: 0.0000;    zR @ 100: 0.0000;  for mode=sgdet, type=Zero Shot Recall.
+        #SGG eval: ng-zR @ 20: 0.0000; ng-zR @ 50: 0.0000; ng-zR @ 100: 0.0000;  for mode=sgdet, type=No Graph Constraint Zero Shot Recall.
+        #SGG eval:    mR @ 20: 0.0000;    mR @ 50: 0.0000;    mR @ 100: 0.0000;  for mode=sgdet, type=Mean Recall.
+
+
+        for k, v in val_results['eval_recall'].result_dict['sgdet_recall'].items():
+            tag = 'recall/R@{}'.format(k) if suffix is None else 'recall{}/R@{}'.format(suffix, k)
+            writer.add_scalar(tag, np.mean(v), iteration)  
+            print("Added: ",tag , np.mean(v))
+        for k, v in val_results['eval_nog_recall'].result_dict['sgdet_recall_nogc'].items():
+            tag = 'recall_nogc/R@{}'.format(k) if suffix is None else 'recall_nogc{}/R@{}'.format(suffix, k)
+            writer.add_scalar(tag, np.mean(v), iteration) 
+            print("Added: ",tag , np.mean(v))
+        for k, v in val_results['eval_zeroshot_recall'].result_dict['sgdet_zeroshot_recall'].items():
+            tag = 'recall_zero/R@{}'.format(k) if suffix is None else 'recall_zero{}/R@{}'.format(suffix, k)
+            writer.add_scalar(tag, np.mean(v), iteration)
+            print("Added: ",tag , np.mean(v))
+        for k, v in val_results['eval_ng_zeroshot_recall'].result_dict['sgdet_ng_zeroshot_recall'].items():
+            tag = 'recall_ng_zero/R@{}'.format(k) if suffix is None else 'recall_ng_zero{}/R@{}'.format(suffix, k)
+            writer.add_scalar(tag, np.mean(v), iteration) 
+            print("Added: ",tag , np.mean(v))
+        for k, v in val_results['eval_mean_recall'].result_dict['sgdet_mean_recall'].items():
+            tag = 'recall_mean/R@{}'.format(k) if suffix is None else 'recall_mean{}/R@{}'.format(suffix, k)
+            writer.add_scalar(tag, float(v), iteration)
+            print("Added: ",tag , float(v))
+        for k, v in val_results['eval_ng_mean_recall'].result_dict['sgdet_ng_mean_recall'].items():
+            tag = 'recall_ng_mean/R@{}'.format(k) if suffix is None else 'recall_mean{}/R@{}'.format(suffix, k)
+            writer.add_scalar(tag, float(v), iteration) 
+            print("Added: ",tag , float(v))
+
 
 def getfirstimg_withann(images, targets):
     bboxes = targets[0].bbox

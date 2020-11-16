@@ -96,7 +96,7 @@ def main():
 
     # ---------------------------- DATASETS ------------------------------
     #Register to DatasetCatalog and MetadataCatalog
-    _DATASET_TYPE = 'medium'
+    _DATASET_TYPE = c_params['dataset']
     if _DATASET_TYPE == 'medium':
         train_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json"
         train_dir = "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer"

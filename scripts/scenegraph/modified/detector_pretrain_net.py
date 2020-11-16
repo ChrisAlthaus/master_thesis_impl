@@ -133,6 +133,7 @@ def train(cfg, local_rank, distributed, logger):
                 cv2.imwrite(os.path.join(cfg.OUTPUT_DIR, '.images', "validation_sample_%d.jpg"%i), imgwithann)
                 print("\tWrote image to tensorboard")
         print("Draw annotations for some sample validation images done.")
+
     if is_main_process():
         print("Val dataloaders: ",val_data_loaders)
         if not os.path.exists(os.path.join(cfg.OUTPUT_DIR,'.images')):
@@ -144,9 +145,9 @@ def train(cfg, local_rank, distributed, logger):
 
     if cfg.SOLVER.PRE_VAL:
         logger.info("Validate before training")
-        run_val(cfg, model, val_data_loaders, distributed)
-        savevalresult(val_result, arguments["iteration"], cfg.OUTPUT_DIR, writer)
-
+        val_results = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
+        savevalresult(val_results, arguments["iteration"], cfg.OUTPUT_DIR, writer)
+    
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
     max_iter = len(train_data_loader)
@@ -157,7 +158,6 @@ def train(cfg, local_rank, distributed, logger):
 
     for iteration, (images, targets, _) in enumerate(train_data_loader, start_iter):
         model.train()
-        
         #modified: don't stop when seeing a target without a box annotation (very rare)
         if any(len(target) < 1 for target in targets):
             logger.error(f"Iteration={iteration + 1} || Image Ids used for training {_} || targets Length={[len(target) for target in targets]}" )
@@ -183,7 +183,7 @@ def train(cfg, local_rank, distributed, logger):
         if iteration % cfg.SOLVER.IMG_AUGM_LOGPERIOD == 0 and is_main_process():
             imgwithann = getfirstimg_withann(images, targets)
             writer.add_image('Iteration %d Sample'%iteration, imgwithann, global_step=iteration, dataformats='HWC')
-            print("Wrote image to tensorboard")
+            print("Wrote image to tensorboard with imageid: ",_)
         #modified end
 
         data_time = time.time() - end
@@ -265,18 +265,14 @@ def train(cfg, local_rank, distributed, logger):
 
         if cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD == 0:
             logger.info("Start validating")
-            print(f'VAL: process {torch.distributed.get_rank()} start val')
-
             val_result = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
-            logger.info("Validation Result: %.4f" % val_result)
+            logger.info("Validation Result: {}".format(str(val_result)))
             savevalresult(val_result, iteration, cfg.OUTPUT_DIR, writer)
 
         if cfg.DATASETS.VAL2 and cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD * 2 == 0:
             logger.info("Start validating")
-            print(f'VAL: process {torch.distributed.get_rank()} start val')
-
             val_result = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed)
-            logger.info("Validation Result: %.4f" % val_result)
+            logger.info("Validation Result: {}".format(str(val_result)))
             savevalresult(val_result, iteration, cfg.OUTPUT_DIR, writer, suffix='(2)')
 
         if iteration % checkpoint_period == 0 and is_main_process(): #modified
@@ -313,9 +309,9 @@ def run_val(cfg, datasetname, model, val_data_loaders, distributed):
         iou_types = iou_types + ("attributes", )
         
     dataset_names = datasetname
-    val_result = []
+    val_results = []
     for dataset_name, val_data_loader in zip(dataset_names, val_data_loaders):
-        dataset_result = inference(
+        dataset_results = inference(
                             cfg,
                             model,
                             val_data_loader,
@@ -327,18 +323,16 @@ def run_val(cfg, datasetname, model, val_data_loaders, distributed):
                             expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
                             output_folder=None,
                         )
-        # MATTHIAS CHANGES
-        print(f'VAL: prozess {torch.distributed.get_rank()} reaches barrier')
-        synchronize()
-        val_result.append(dataset_result)
-        print("Validation result: {} Process {}".format(dataset_result,torch.distributed.get_rank()))
+        print(dataset_results)
+        synchronize()  
+        val_results.append(dataset_results)
     #modified    
-    gathered_result = all_gather(torch.tensor(dataset_result).cpu())
+    gathered_result = all_gather(torch.tensor(dataset_results).cpu())
     gathered_result = [t.view(-1) for t in gathered_result]
     gathered_result = torch.cat(gathered_result, dim=-1).view(-1)
-    valid_result = gathered_result[gathered_result>=0]
-    val_result = float(valid_result.mean())
-    del gathered_result, valid_result
+    val_result = gathered_result[gathered_result>=0].numpy()
+    #val_result = float(valid_result.mean())
+    del gathered_result#, valid_result
     torch.cuda.empty_cache()
     return val_result
     #modified end
@@ -439,7 +433,7 @@ def main():
     cfg.SOLVER.IMS_PER_BATCH = params['trainbatchsize']
     cfg.TEST.IMS_PER_BATCH = params['testbatchsize']
     cfg.DTYPE = params['dtype']
-    cfg.SOLVER.BASE_LR = params['lr']
+    #cfg.SOLVER.BASE_LR = params['lr']
     cfg.SOLVER.MAX_ITER = params['maxiterations']
     cfg.SOLVER.STEPS = tuple(params['steps'])
     cfg.SOLVER.VAL_PERIOD = params['valperiod']
@@ -456,6 +450,7 @@ def main():
     #modified: Set configs
     #cfg.SOLVER.GAMMA = 0.1 #0.3162 #0.1
     #cfg.SOLVER.STEPS = (30000,) #(30000,40000) #(30000,)
+    cfg.MODEL.WEIGHT = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-13_12-44-52/model_final.pth'
 
     #Entire backbone should be unfreezed
     cfg.MODEL.BACKBONE.FREEZE_CONV_BODY_AT = 0
@@ -532,18 +527,16 @@ def main():
         add_evalstats(cfg.OUTPUT_DIR)
     #modified end
 
-def savevalresult(val_result, iteration, outputdir, writer, suffix=None):
+def savevalresult(val_results, iteration, outputdir, writer, suffix=None):
     #log to tensorboard
-    scalarname = 'R@100' if suffix is None else 'R@100'+suffix
+    print("save: ",val_results)
+    scalars = ['bbox/AP', 'bbox/AP50', 'bbox/AP75', 'bbox/APl', 'bbox/APm', 'bbox/APs']
+    scalars = [s if suffix is None else s+suffix for s in scalars]
     if is_main_process():
-        print("added: ", scalarname, val_result, iteration)
-        writer.add_scalar(scalarname, val_result, iteration)
-    
-    #add metrics.dat for better summary of training process & read when finished
-    if is_main_process():
-        with open(os.path.join(outputdir, "metrics.dat"),"a+") as f:
-            json.dump({scalarname:val_result}, f)
-            f.write(os.linesep)
+        for i,scalar in enumerate(scalars):
+            writer.add_scalar(scalar, val_results[i], iteration)    
+            print("Added: ", scalar, val_results[i], iteration)
+        writer.add_scalar('R@100' if suffix is None else 'R@100'+suffix, val_results[0], iteration)  
 
 def getfirstimg_withann(images, targets):
     bboxes = targets[0].bbox

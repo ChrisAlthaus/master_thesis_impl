@@ -24,6 +24,7 @@ _IMSPERBATCH = [2, 4]
 _NUMGPUS = 1
 _RPN_POSITIVE_RATIOS = [0.33, 0.5]
 _GRADIENT_CLIP_VALUE = [1, 5]
+_DATASETS = ['medium', 'large']
 
 _ADD_NOTES = ''#'Continue 11-02_14-04-50_scratch/model_final.pth'
 
@@ -72,6 +73,7 @@ for i in range(0,_NUM_RUNS):
         gamma = 0.1
         steps = [0.76, 0.92]
         minkpts = 1 #? not stated
+        dataset = _DATASETS[0]
 
     elif _PARAM_MODE == 'detectrondefault':
         trainmode = 'ALL'
@@ -85,6 +87,7 @@ for i in range(0,_NUM_RUNS):
         minkpts = 1
         steps = [0.76, 0.92] 
         gamma = 0.1
+        dataset = _DATASETS[0]
 
     elif _PARAM_MODE == 'randomsearch':
         while True:
@@ -100,8 +103,10 @@ for i in range(0,_NUM_RUNS):
             minscales = random.choice(_MINSCALES)
             rpn_posratio = random.choice(_RPN_POSITIVE_RATIOS)
             gradient_clipvalue = 1 
+            dataset = _DATASETS[0]
+
             params = {'net':trainmode, 'dataaugm': dataaugm, 'batchsize': batchsize, 'lr':lr, 'bn':bn,
-                    'minkpts':minkpts, 'steps':steps, 'gamma': gamma, 'minscales': minscales}
+                    'minkpts':minkpts, 'steps':steps, 'gamma': gamma, 'minscales': minscales, 'dataset': dataset}
            
             if not paramsexist(params):
                 break  
@@ -121,6 +126,7 @@ for i in range(0,_NUM_RUNS):
         minscales = (640, 672, 704, 736, 768, 800) #(512,) #(640, 672, 704, 736, 768, 800) #(512,) #(512, 640)
         rpn_posratio = 0.5 #0.33
         gradient_clipvalue = 1
+        dataset = 'large'
 
     elif _PARAM_MODE == 'loadparams':
         parser = argparse.ArgumentParser()
@@ -131,10 +137,11 @@ for i in range(0,_NUM_RUNS):
         with open(args.paramsconfig, 'r') as f:
             params = json.load(f)
 
-        _ADD_NOTES = 'Same parameters as 11-02_14-04-50_scratch, but minkpts=7'
+        _ADD_NOTES = 'Rerun 11-02_14-04-50_scratch on larger dataset.'
         params.update({'addnotes': _ADD_NOTES})
-        params['minkpt'] = 7
+        #params['minkpt'] = 7
         #params['trainmode'] = 'ALL'
+        params['dataset'] = 'large'
 
     else:
         raise ValueError()
@@ -144,7 +151,7 @@ for i in range(0,_NUM_RUNS):
     print(" --------------------------- RUN %d ------------------------------ "%i)
     if _PARAM_MODE != _PARAM_MODES[4]:
         params = {'trainmode': trainmode, 'dataaugm': dataaugm, 'batchsize': batchsize, 'epochs': _NUMEPOCHS, 'lr': lr, 'bn': bn, 'minscales': minscales, 'rpn_posratio': rpn_posratio,
-                'gradient_clipvalue': gradient_clipvalue, 'steps': steps, 'gamma': gamma, 'minkpt': minkpts, 'addnotes': _ADD_NOTES}
+                'gradient_clipvalue': gradient_clipvalue, 'steps': steps, 'gamma': gamma, 'minkpt': minkpts, 'dataset': dataset, 'addnotes': _ADD_NOTES}
     print("Parameters: ",params)
     logdir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/checkpoints/trainconfigs_tmp', datetime.datetime.now().strftime('%m-%d_%H-%M-%S')+ '_%d'%i)
     os.makedirs(logdir)
