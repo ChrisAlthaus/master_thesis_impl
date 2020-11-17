@@ -1,4 +1,3 @@
-#Path: /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/gen_batch.py
 import os
 import os.path as osp
 import numpy as np
@@ -337,15 +336,18 @@ def synthesize_pose(joints, estimated_joints, near_joints, area, num_overlap):
 
 def generate_batch(d, stage='train'):
     #modified
+    #print("d[imagepath]= ",d) # error? always single image?
     if stage == 'train':
-        img = cv2.imread(os.path.join(cfg.img_path, d['imgpath']), cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
+        img = cv2.imread(os.path.join(cfg.train_img_path, d['imgpath']), cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
     else:
-        img = cv2.imread(os.path.join(cfg.img_path,'val2017', d['imgpath']), cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
+        #print("Loaded test_img_path: ", cfg.test_img_path)
+        img = cv2.imread(os.path.join(cfg.test_img_path, d['imgpath']), cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
     #modified end
     
     if img is None:
-        print(os.path.join(cfg.img_path,'val2017', d['imgpath']))
-        print('cannot read ' + os.path.join(cfg.img_path, d['imgpath']))
+        imgpath = cfg.train_img_path if stage == 'train' else cfg.test_img_path
+        print(os.path.join(imgpath, 'val2017', d['imgpath']))
+        print('cannot read ' + os.path.join(imgpath, d['imgpath']))
         assert 0
 
     bbox = np.array(d['bbox']).astype(np.float32)
@@ -452,6 +454,6 @@ def generate_batch(d, stage='train'):
         input_pose_score = d['estimated_score']
         crop_info = np.asarray([center[0]-scale[0]*0.5, center[1]-scale[1]*0.5, center[0]+scale[0]*0.5, center[1]+scale[1]*0.5])
 
-        return [cropped_img, input_pose_coord, input_pose_valid, input_pose_score, crop_info]
+        return [cropped_img, input_pose_coord, input_pose_valid, input_pose_score, crop_info, bbox] #modified: added bbox
 
 

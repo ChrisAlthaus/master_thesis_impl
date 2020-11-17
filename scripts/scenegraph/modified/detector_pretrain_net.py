@@ -94,6 +94,11 @@ def train(cfg, local_rank, distributed, logger):
     )
     extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT, update_schedule=cfg.SOLVER.UPDATE_SCHEDULE_DURING_LOAD)
     arguments.update(extra_checkpoint_data)
+    print("Arguments: ",arguments)
+    if cfg.MODEL.RESUME_TRAIN:
+        print("Resetting iteration number...")
+        arguments["iteration"] = 0
+    print("Arguments: ",arguments)
 
     #modified: important class for data loading: Scene-Graph-Benchmark.pytorch/build/lib.linux-x86_64-3.6/maskrcnn_benchmark/data/datasets/visual_genome.py
     train_data_loader = make_data_loader(
@@ -145,7 +150,7 @@ def train(cfg, local_rank, distributed, logger):
 
     if cfg.SOLVER.PRE_VAL:
         logger.info("Validate before training")
-        val_results = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
+        val_results, _ = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
         savevalresult(val_results, arguments["iteration"], cfg.OUTPUT_DIR, writer)
     
     logger.info("Start training")
@@ -265,13 +270,13 @@ def train(cfg, local_rank, distributed, logger):
 
         if cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD == 0:
             logger.info("Start validating")
-            val_result = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
+            val_result, _ = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
             logger.info("Validation Result: {}".format(str(val_result)))
             savevalresult(val_result, iteration, cfg.OUTPUT_DIR, writer)
 
         if cfg.DATASETS.VAL2 and cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD * 2 == 0:
             logger.info("Start validating")
-            val_result = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed)
+            val_result , _ = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed)
             logger.info("Validation Result: {}".format(str(val_result)))
             savevalresult(val_result, iteration, cfg.OUTPUT_DIR, writer, suffix='(2)')
 
@@ -326,15 +331,17 @@ def run_val(cfg, datasetname, model, val_data_loaders, distributed):
         print(dataset_results)
         synchronize()  
         val_results.append(dataset_results)
-    #modified    
-    gathered_result = all_gather(torch.tensor(dataset_results).cpu())
-    gathered_result = [t.view(-1) for t in gathered_result]
-    gathered_result = torch.cat(gathered_result, dim=-1).view(-1)
-    val_result = gathered_result[gathered_result>=0].numpy()
+    #modified
+    if not is_main_process():
+        return [], -1 #only main process used for logging results    
+    #gathered_result = all_gather(torch.tensor(dataset_results).cpu())
+    #gathered_result = [t.view(-1) for t in gathered_result]
+    #gathered_result = torch.cat(gathered_result, dim=-1).view(-1)
+    #val_result = gathered_result[gathered_result>=0].numpy()
     #val_result = float(valid_result.mean())
-    del gathered_result#, valid_result
+    #del gathered_result#, valid_result
     torch.cuda.empty_cache()
-    return val_result
+    return dataset_results, score
     #modified end
 
 def run_test(cfg, model, distributed):
@@ -442,6 +449,11 @@ def main():
     cfg.MODEL.RELATION_ON = params['relationon']
     cfg.SOLVER.PRE_VAL = params['preval']
     cfg.OUTPUT_DIR = params['outputdir']
+
+    if params['resumecpkt']:
+        cfg.MODEL.RESUME_TRAIN = True
+        cfg.MODEL.WEIGHT = params['resumecpkt']
+
     #Custom arguments setup
     print("Optional arguments: ",args.opts)
     cfg.merge_from_list(args.opts)
@@ -450,7 +462,7 @@ def main():
     #modified: Set configs
     #cfg.SOLVER.GAMMA = 0.1 #0.3162 #0.1
     #cfg.SOLVER.STEPS = (30000,) #(30000,40000) #(30000,)
-    cfg.MODEL.WEIGHT = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-13_12-44-52/model_final.pth'
+    #cfg.MODEL.WEIGHT = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-13_12-44-52/model_final.pth'
 
     #Entire backbone should be unfreezed
     cfg.MODEL.BACKBONE.FREEZE_CONV_BODY_AT = 0
@@ -522,9 +534,9 @@ def main():
     if not args.skip_test:
         run_test(cfg, model, args.distributed)
 
-    #modified
-    if is_main_process():
-        add_evalstats(cfg.OUTPUT_DIR)
+    #modified: deprecated
+    #if is_main_process():
+    #    add_evalstats(cfg.OUTPUT_DIR)
     #modified end
 
 def savevalresult(val_results, iteration, outputdir, writer, suffix=None):
@@ -537,6 +549,7 @@ def savevalresult(val_results, iteration, outputdir, writer, suffix=None):
             writer.add_scalar(scalar, val_results[i], iteration)    
             print("Added: ", scalar, val_results[i], iteration)
         writer.add_scalar('R@100' if suffix is None else 'R@100'+suffix, val_results[0], iteration)  
+
 
 def getfirstimg_withann(images, targets):
     bboxes = targets[0].bbox

@@ -52,7 +52,7 @@ print("Output Directory: %s\n"%out_dir)
 # ----------------- MASK-RCNN PREDICTIONS ---------------------
 print("MASK-RCNN PREDICTION:")
 maskrcnn_cp = "/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth" #debug, uncomment for usage os.path.join(outrun_dir, 'model_0214999.pth')  #Specify model checkpoint here
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh'
 img_dir = '/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer'  #Predictions used for later PoseFix training
 topk = 100 #20
 score_tresh = 0.8 #0.7
@@ -77,7 +77,7 @@ print("Output Directory: %s\n"%out_dir)
 
 # ---------- PREPROCESS PREDICTIONS ------------
 print("PREPROCESS MASK-RCNN PREDICTIONS FOR POSEFIX TRAINING:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh'
 predictionpath = os.path.join(outrun_dir, 'maskrcnn_predictions.json')
 annpath = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
 

@@ -35,6 +35,9 @@ _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer',
 _DATASET_SELECT = _DATASET_SELECTS[1]
 _ADD_NOTES = ''
 
+resume_cpkt = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-13_12-44-52/model_final.pth'
+resume = True
+
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
 jobname = 'scenegraph-train%s'%datetime.datetime.now().strftime('%d_%H-%M-%S')
 masterport = random.randint(10020, 10100)
@@ -57,7 +60,8 @@ params = {'datasetselect': _DATASET_SELECT,
 			'cpktperiod': int(_CPKT_PERIOD), 
 			'relationon': False, 
 			'preval': True, #False, 
-			'outputdir': out_dir, 
+			'outputdir': out_dir,
+			'resumecpkt': resume_cpkt if resume else '', 
 			'addnotes': _ADD_NOTES}
 
 paramconfig = os.path.join(logdir, 'paramsconfig.txt')

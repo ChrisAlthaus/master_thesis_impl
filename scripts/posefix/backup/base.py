@@ -192,6 +192,7 @@ class Base(object):
         if self._data_iter is None:
             raise ValueError('No input data.')
         feed_dict = dict()
+        self.logger.info('Prepare data')
         for inputs in self._input_list:
             blobs = next(self._data_iter)
             for i, inp in enumerate(inputs):
@@ -200,6 +201,7 @@ class Base(object):
                     feed_dict[inp] = blobs[i]
                 else:
                     feed_dict[inp] = blobs[i].reshape(*inp_shape)
+        self.logger.info('Prepare data ready')
         return feed_dict
 
 class Trainer(Base):
@@ -235,7 +237,15 @@ class Trainer(Base):
         from dataset import Dataset
         from gen_batch import generate_batch
 
-        d = Dataset()
+        #Two datasets used here:
+        # - train_data: groundtruth train annotations
+        # - test_on_trainset: input pose predictions
+
+        #Formats of Items:
+        # - train_data: {'image_id': 139081313, 'imgpath': 'train2017/000000000139_081313.jpg', 'bbox': [], 'joints': []}
+        # - test_on_trainset: {'image_id': 139081313, 'image_size': [], 'category_id': 1, 'bbox': [], 'keypoints': [], 'score': 0.9}
+
+        d = Dataset(self.cfg.predict_inputmodel_file)
         train_data = d.load_train_data()
         
         ## modify train_data to the result of the decoupled initial model
@@ -245,6 +255,11 @@ class Trainer(Base):
         # sort list by img_id
         train_data = sorted(train_data, key=lambda k: k['image_id']) 
         test_on_trainset = sorted(test_on_trainset, key=lambda k: k['image_id'])
+
+        #modified
+        print('Length of train_data: ', len(train_data))
+        print('Length of input pose file: ', len(test_on_trainset))
+        #modified end
         
         # cluster train_data and test_on_trainset by img_id
         cur_img_id = train_data[0]['image_id']
@@ -280,6 +295,7 @@ class Trainer(Base):
         while True:
             gt_img_id = data_gt[i][0]['image_id']
             out_img_id = data_out[j][0]['image_id']
+            #print(gt_img_id, out_img_id)
             
             if gt_img_id > out_img_id:
                 j = j + 1
@@ -363,9 +379,9 @@ class Trainer(Base):
 
         # flatten data_gt
         train_data = [y for x in data_gt for y in x]
-
+        print(train_data[:2])
         #modified
-        print("Number of images for training: ",len(train_data))
+        print("Number of images for training2: ",len(train_data))
         #modified end
 
         from tfflat.data_provider import DataFromList, MultiProcessMapDataZMQ, BatchData, MapData
@@ -449,29 +465,43 @@ class Trainer(Base):
         self.load_weights('last_epoch' if self.cfg.continue_train else self.cfg.init_model)
 
         #modified
-        train_summary_writer = tf.summary.create_file_writer(self.cfg.model_dump_dir)
+        print("Tensorflow version: ", tf.__version__)
+        #train_summary_writer = tf.summary.create_file_writer(self.cfg.model_dump_dir)
+        train_summary_writer = tf.compat.v2.summary.create_file_writer(self.cfg.model_dump_dir) #tf.train.SummaryWriter(self.cfg.model_dump_dir)
         #modified end
-
+        self.logger.info("0")
         self.logger.info('Start training ...')
+        self.logger.info("0")
         start_itr = self.cur_epoch * self.itr_per_epoch + 1
+        print("0")
         end_itr = self.itr_per_epoch * self.cfg.end_epoch + 1
+        print("0")
         for itr in range(start_itr, end_itr):
+            print("0")
             self.tot_timer.tic()
-
+            print("1")
+            self.logger.info("1")
             self.cur_epoch = itr // self.itr_per_epoch
             setproctitle.setproctitle('train epoch:' + str(self.cur_epoch))
-
+            print("2")
+            self.logger.info("2")
             # apply current learning policy
             cur_lr = self.cfg.get_lr(self.cur_epoch)
             if not approx_equal(cur_lr, self.lr_eval):
                 print(self.lr_eval, cur_lr)
+                print("3")
+                self.logger.info("3")
                 self.sess.run(tf.assign(self.lr, cur_lr))
+            print("4")
+            self.logger.info("4")
 
             # input data
             self.read_timer.tic()
             feed_dict = self.next_feed()
+            self.logger.info("feed_dict: ")
+            print("feed_dict: ",feed_dict)
             self.read_timer.toc()
-
+            exit(1)
             # train one step
             self.gpu_timer.tic()
             _, self.lr_eval, *summary_res = self.sess.run(
@@ -511,7 +541,7 @@ class Trainer(Base):
                 #modified end
             
             #modified
-            if self.cur_epoch % self.cfg.loss_to_config_period == 0 or itr % (end_itr-1) == 0:
+            if itr % (end_itr-1) == 0:
                 #Update CSV config
                 csvfile = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/run_configs.csv'
                 tempfile = NamedTemporaryFile('w+t', newline='', delete=False, dir='/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/tmp')

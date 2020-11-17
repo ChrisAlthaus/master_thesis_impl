@@ -1,7 +1,9 @@
+#Path: /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/maskrcnn_benchmark/engine/inference.py
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import logging
 import time
 import os
+import sys
 
 import json
 import torch
@@ -101,6 +103,7 @@ def inference(
         output_folder=None,
         logger=None,
 ):
+    print("Start inference")
     load_prediction_from_cache = cfg.TEST.ALLOW_LOAD_FROM_CACHE and output_folder is not None and os.path.exists(os.path.join(output_folder, "eval_results.pytorch"))
     # convert to a torch.device for efficiency
     device = torch.device(device)
@@ -138,7 +141,7 @@ def inference(
         predictions = _accumulate_predictions_from_multiple_gpus(predictions, synchronize_gather=cfg.TEST.RELATION.SYNC_GATHER)
 
     if not is_main_process():
-        return -1.0
+        return [], -1.0
 
     #if output_folder is not None and not load_prediction_from_cache:
     #    torch.save(predictions, os.path.join(output_folder, "predictions.pth"))
@@ -151,12 +154,12 @@ def inference(
     )
 
     if cfg.TEST.CUSTUM_EVAL:
-        detected_sgg = custom_sgg_post_precessing(predictions)
+        detected_sgg = custom_sgg_post_precessing(predictions, cfg)
         with open(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_prediction.json'), 'w') as outfile:  
             json.dump(detected_sgg, outfile)
         print('=====> ' + str(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_prediction.json')) + ' SAVED !')
-        return -1.0
-
+        return [], -1.0
+    print("End inference")
     return evaluate(cfg=cfg,
                     dataset=dataset,
                     predictions=predictions,
@@ -164,11 +167,18 @@ def inference(
                     logger=logger,
                     **extra_args)
 
+#modified
+filtermod_dir = '/home/althausc/master_thesis_impl/scripts/scenegraph'
+sys.path.insert(0,filtermod_dir)
+from filter_resultgraphs_modules import get_topkpredictions
+#modified end
 
+def custom_sgg_post_precessing(predictions, cfg):
 
-def custom_sgg_post_precessing(predictions):
-    _BBOX_TOPK = 100
-    _RELS_TOPK = 200
+    boxes_topk = cfg['topkboxes']
+    rels_topk = cfg['topkrels']
+    filtertresh_boxes = cfg['filtertresh_boxes']
+    filtertresh_rels = cfg['filtertresh_rels']
 
     output_dict = {}
     for idx, boxlist in enumerate(predictions):
@@ -185,9 +195,9 @@ def custom_sgg_post_precessing(predictions):
             bbox.append(xyxy_bbox[i].tolist())
             bbox_labels.append(boxlist.get_field('pred_labels')[i].item())
             bbox_scores.append(boxlist.get_field('pred_scores')[i].item())
-        current_dict['bbox'] = bbox[:_BBOX_TOPK]
-        current_dict['bbox_labels'] = bbox_labels[:_BBOX_TOPK]
-        current_dict['bbox_scores'] = bbox_scores[:_BBOX_TOPK]
+        current_dict['bbox'] = bbox
+        current_dict['bbox_labels'] = bbox_labels
+        current_dict['bbox_scores'] = bbox_scores
         # sorted relationships
         rel_sortedid, _ = get_sorted_bbox_mapping(boxlist.get_field('pred_rel_scores')[:,1:].max(1)[0].tolist())
         # sorted rel
@@ -201,11 +211,15 @@ def custom_sgg_post_precessing(predictions):
             rel_all_scores.append(boxlist.get_field('pred_rel_scores')[i].tolist())
             old_pair = boxlist.get_field('rel_pair_idxs')[i].tolist()
             rel_pairs.append([id2sorted[old_pair[0]], id2sorted[old_pair[1]]])
-        current_dict['rel_pairs'] = rel_pairs[:_RELS_TOPK]
-        current_dict['rel_labels'] = rel_labels[:_RELS_TOPK]
-        current_dict['rel_scores'] = rel_scores[:_RELS_TOPK]
-        current_dict['rel_all_scores'] = rel_all_scores[:_RELS_TOPK]
-        output_dict[idx] = current_dict
+        current_dict['rel_pairs'] = rel_pairs
+        current_dict['rel_labels'] = rel_labels
+        current_dict['rel_scores'] = rel_scores
+        current_dict['rel_all_scores'] = rel_all_scores
+        
+        #modified
+        #output_dict[idx] = current_dict
+        output_dict[idx] = get_topkpredictions(current_dict, boxes_topk, rels_topk, filtertresh_boxes, filtertresh_rels)
+        #modified end
     return output_dict
     
 def get_sorted_bbox_mapping(score_list):

@@ -158,17 +158,17 @@ def train(cfg, local_rank, distributed, logger):
     debug_print(logger, 'end dataloader')
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
 
-    if cfg.SOLVER.PRE_VAL:
-        logger.info("Validate before training")
-        val_results, _ = run_val(cfg, model, val_data_loaders, distributed, logger)
-        savevalresult(val_results, arguments["iteration"], cfg.OUTPUT_DIR, writer)
-
     #modified
     writer = None
     if is_main_process():
         writer = SummaryWriter(cfg.OUTPUT_DIR)
     c_target_empty = 0
     #modified end
+
+    if cfg.SOLVER.PRE_VAL:
+        logger.info("Validate before training")
+        val_results, _ = run_val(cfg, model, val_data_loaders, distributed, logger)
+        savevalresult(val_results, arguments["iteration"], cfg.OUTPUT_DIR, writer)
 
     #modified: illustrate annotations for some validation images
     def check_valannotations(dataloader, writer):
@@ -314,22 +314,13 @@ def train(cfg, local_rank, distributed, logger):
             print("Start Val: ", get_rank())
             logger.info("Start validating")
             val_results, rk_100 = run_val(cfg, model, val_data_loaders, distributed, logger)
-            logger.info("Validation Result: %.4f" % val_result)
+            logger.info("Validation Result: %.4f" % rk_100)
             savevalresult(val_results, iteration, cfg.OUTPUT_DIR, writer)
-            
-            #modified: add metrics.dat for better summary of training process & read when finished
-            if is_main_process():
-                with open(os.path.join(cfg.OUTPUT_DIR, "metrics.dat"),"a+") as f:
-                    json.dump(val_results, f)
-                    f.write(os.linesep)
-            #modified end
 
         if cfg.DATASETS.VAL2 and cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD * 2 == 0:
             logger.info("Start validating")
-            print(f'VAL: process {torch.distributed.get_rank()} start val')
-
-            val_results, _ = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed)
-            logger.info("Validation Result: %.4f" % val_result)
+            val_results, rk_100 = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed)
+            logger.info("Validation Result: %.4f" % rk_100)
             savevalresult(val_results, iteration, cfg.OUTPUT_DIR, writer, suffix='(2)')
 
         # scheduler should be called after optimizer.step() in pytorch>=1.1.0
@@ -377,31 +368,34 @@ def run_val(cfg, model, val_data_loaders, distributed, logger):
     dataset_names = cfg.DATASETS.VAL
     val_results = []
     for dataset_name, val_data_loader in zip(dataset_names, val_data_loaders):
-        dataset_results = inference(
-                            cfg,
-                            model,
-                            val_data_loader,
-                            dataset_name=dataset_name,
-                            iou_types=iou_types,
-                            box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
-                            device=cfg.MODEL.DEVICE,
-                            expected_results=cfg.TEST.EXPECTED_RESULTS,
-                            expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
-                            output_folder=None,
-                            logger=logger,
+        dataset_results, score = inference(
+                                    cfg,
+                                    model,
+                                    val_data_loader,
+                                    dataset_name=dataset_name,
+                                    iou_types=iou_types,
+                                    box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
+                                    device=cfg.MODEL.DEVICE,
+                                    expected_results=cfg.TEST.EXPECTED_RESULTS,
+                                    expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
+                                    output_folder=None,
+                                    logger=logger,
                         )
         synchronize()
-        val_results.append(dataset_results)
-
+        val_results.append([dataset_results, score])
+    
+    if not is_main_process():
+        return [], -1 #only main process used for logging results
     # support for multi gpu distributed testing
-    gathered_result = all_gather(torch.tensor(dataset_results).cpu())
-    gathered_result = [t.view(-1) for t in gathered_result]
-    gathered_result = torch.cat(gathered_result, dim=-1).view(-1)
-    valid_result = gathered_result[gathered_result>=0]
-    #val_result = float(valid_result.mean())
-    del gathered_result#, valid_result
+    #gathered_result = all_gather(torch.tensor(dataset_results).cpu())
+    #gathered_result = [t.view(-1) for t in gathered_result]
+    #gathered_result = torch.cat(gathered_result, dim=-1).view(-1)
+    #valid_result = gathered_result[gathered_result>=0]
+    ##val_result = float(valid_result.mean())
+    #del gathered_result#, valid_result
+
     torch.cuda.empty_cache()
-    return valid_result
+    return dataset_results, score
 
 def run_test(cfg, model, distributed, logger):
     if distributed:

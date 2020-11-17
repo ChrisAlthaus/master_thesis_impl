@@ -178,6 +178,7 @@ def main():
         #Writing config to file
         with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
             f.write("Src Image Folder: %s"%(args.image_folder if args.image_folder is not None else args.image_path) + os.linesep)
+            f.write("Model Checkpoint: %s"%args.model_cp + os.linesep)
             f.write("Topk: %d"%args.topk + os.linesep)
             f.write("Score Treshold: %f"%args.score_tresh + os.linesep)
             f.write("Number of images: %d"%len(image_paths) + os.linesep)
