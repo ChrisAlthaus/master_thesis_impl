@@ -23,22 +23,32 @@ def filewithname(dir, searchstr):
             return os.path.join(dir,item)
     return None
 
+_CREATE_FOLDERS = True
 
 # ----------------- EVALUATE MASK-RCNN PREDICTIONS WITH DETAILED EVALUATION ---------------------
 print("DETAILED MASK-RCNN EVALUATION:")
-predfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/10-22_13-25-10/maskrcnn_predictions.json'
+predfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/11-17_16-27-51/maskrcnn_predictions.json'
 gtannfile = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
 outdir = '/home/althausc/master_thesis_impl/results/posedetection/maskrcnn'
 teamname = 'artinfer'
 version = 1.0
 
-cmd = "python3.6 /home/althausc/master_thesis_impl/coco-analyze/run_analysis.py {} {} {} {} {}"\
-                                                .format(predfile, gtannfile, outdir, teamname, version)
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh'
+jobname = 'detailevaluation'
+logdir = '/home/althausc/master_thesis_impl/results/posedetection/maskrcnn/logs/%s'%datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
+if _CREATE_FOLDERS:
+    os.makedirs(logdir)
+logfile = os.path.join(logdir, 'log-detailed-eval.txt')
+
+cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
+       "{} python3.6 /home/althausc/master_thesis_impl/coco-analyze/run_analysis.py {} {} {} {} {}")\
+                                                .format(jobname, logfile, gpu_cmd, gtannfile, predfile, outdir, teamname, version)
 print(cmd)
+os.system(cmd)
 
 outrun_dir = latestdir(outdir)
 print("Output Directory: %s\n"%outdir)
-
+exit(1)
 
 # ----------------- EVALUATE POSEFIX PREDICTIONS WITH DETAILED EVALUATION ---------------------
 print("DETAILED POSEFIX EVALUATION:")
@@ -48,8 +58,16 @@ outdir = '/home/althausc/master_thesis_impl/results/posedetection/posefix'
 teamname = 'artinfer'
 version = 1.0
 
-cmd = "python3.6 /home/althausc/master_thesis_impl/coco-analyze/run_analysis.py {} {} {} {} {}"\
-                                                .format(predfile, gtannfile, outdir, teamname, version)
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh'
+jobname = 'detailevaluation'
+logdir = '/home/althausc/master_thesis_impl/results/posedetection/posefix/logs/%s'%datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
+if _CREATE_FOLDERS:
+    os.makedirs(logdir)
+logfile = os.path.join(logdir, 'log-detailed-eval.txt')
+
+cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
+    "{} python3.6 /home/althausc/master_thesis_impl/coco-analyze/run_analysis.py {} {} {} {} {}")\
+                                                .format(jobname, logdir, gpu_cmd, gtannfile, predfile, outdir, teamname, version)
 print(cmd)
 
 outrun_dir = latestdir(outdir)

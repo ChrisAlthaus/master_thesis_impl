@@ -11,12 +11,12 @@ def normalizevec(featurevector, rangemin=0, rangemax=1, mask=False):
                 maskvalid.append(False)
             else:
                 maskvalid.append(True)
-        subvec = [n for n,l in zip(featurevector, maskvalid) if l=='True']
-        normsubvec = [ (x-min(featurevector)) * (rangemax - rangemin)/(max(featurevector) - min(featurevector)) + rangemin for x in subvec]
+        subvec = [n for n,l in zip(featurevector, maskvalid) if l is True]
+        normsubvec = [ (x-min(subvec)) * (rangemax - rangemin)/(max(subvec) - min(subvec)) + rangemin for x in subvec]
         normvec = []
         c_valid = 0
         for l in maskvalid:
-            if l=='True':
+            if l is True:
                 normvec.append(normsubvec[c_valid])
                 c_valid += 1
             else:

@@ -108,11 +108,11 @@ def main():
             #    print(person['keypoints'][2::3], isvalid, person['score'])
             #logging.debug("LATER:",person['keypoints'])
             metadata = {'imagesize': person['image_size']}
-            keypoint_descriptor, confidences = calculateGPD(person['keypoints'], args.mode, metadata)
+            keypoint_descriptor, confidences, mask = calculateGPD(person['keypoints'], args.mode, metadata)
             if args.gtAnn:
-                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': [1]*len(keypoint_descriptor), 'confidences': confidences})
+                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, "mask": mask, 'score': [1]*len(keypoint_descriptor), 'confidences': confidences})
             else:
-                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, 'score': person['score'], 'confidences': confidences})
+                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, "mask": mask, 'score': person['score'], 'confidences': confidences})
             c = c + 1
         if i%1000 == 0 and i!=0:
             print("Processed %d elements."%i)
@@ -329,7 +329,9 @@ def calculateGPD(keypoints, mode, metadata):
 
     _NOTESFLAG = False
 
-    return pose_descriptor, cs
+    mask = ''.join(['1' if entry!=-1 else '0' for entry in pose_descriptor])
+
+    return pose_descriptor, cs, mask
 
 # ------------------------------------- DESCRIPTORS OF DIFFERENT TYPES ------------------------------------- 
 
@@ -353,29 +355,26 @@ def joint_coordinates_rel(keypoints, kptsvalid, imagesize, addconfidences = None
     joint_coordinates = []
     for i,k in enumerate(keypoints):
         if not kptsvalid[i]:
-            joint_coordinates.append((-1,-1))
+            joint_coordinates.extend([-1,-1])
         else:
-            joint_coordinates.append(k)
+            joint_coordinates.extend(k)
     #Normalization allows for scale invariance
     #Only normalize valid entries, since -1 entries would falsify the normalization result  
     if _NORM:      
         joint_coordinates = normalizevec(joint_coordinates, mask=True)
-
+    
     #Add relative position of pose to descriptor
     height, width = imagesize[0], imagesize[1]
     relative_refpoint = [pmid[0]/width, pmid[1]/height]
     print(pmid[0], width, pmid[1], height ,pmid[0]/width, pmid[1]/height)
-    joint_coordinates.extend([relative_refpoint])
+    joint_coordinates.extend(relative_refpoint)
 
     if addconfidences is not None:
         #Clip values bcose sometime very large
         #Lower clip value if too much effect on search result
         confs = map(lambda y: max(y,1), addconfidences)
         joint_coordinates.extend(confs)
-    
-    #Flatten result
     print(joint_coordinates)
-    joint_coordinates = [item for sublist in joint_coordinates for item in sublist] 
     logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
     return joint_coordinates
 
@@ -514,7 +513,7 @@ def line_line_angles(lines, kptsvalid, line_line_mapping = None):
     else:
         k = 0
         for (k11,k12),[(k21,k22),label] in dict_to_item_list(line_line_mapping):
-            if not kpts_valid[k11] or not kpts_valid[k12] or not kpts_valid[k21] or not kpts_valid[k22]:
+            if not kptsvalid[k11] or not kptsvalid[k12] or not kptsvalid[k21] or not kptsvalid[k22]:
                 line_line_angles.append(-1)
                 continue
             l1 = lines[(k11,k12)] if (k11,k12) in lines.keys() else lines[(k12,k11)]
@@ -536,9 +535,9 @@ def line_line_angles(lines, kptsvalid, line_line_mapping = None):
             #k += 1
 
     logging.debug("Dimension line line angles: {}".format(len(line_line_angles)) )
-    if _NORM:
-        #line_line_angles = normalizevec(line_line_angles, rangemin=0, rangemax=math.pi)
-        line_line_angles = normalizevec(line_line_angles)
+    #if _NORM: #not reasonable for angle vector
+    #    #line_line_angles = normalizevec(line_line_angles, rangemin=0, rangemax=math.pi)
+    #    line_line_angles = normalizevec(line_line_angles, mask=True)
     return line_line_angles
 
 def joint_plane_distances(keypoints,planes):

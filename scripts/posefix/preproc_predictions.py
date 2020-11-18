@@ -15,7 +15,7 @@ import numpy as np
 from shapely.geometry import Polygon
 import sys
 
-visualize_dir = '/home/althausc/master_thesis_impl/scripts/utils'
+visualize_dir = '/home/althausc/master_thesis_impl/scripts/detectron2/utils'
 sys.path.insert(0,visualize_dir) 
 
 import visualizekpts as vkpts

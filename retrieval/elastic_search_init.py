@@ -18,6 +18,14 @@ import logging
 import ast
 import csv
 
+#import logging
+
+# Set up the logging in some way. If you don't have logging
+# set up, you can set it up like this.
+#logging.basicConfig()
+#logging.getLogger('elasticsearch').setLevel(logging.DEBUG)
+#logging.getLogger('urllib3').setLevel(logging.DEBUG)
+
 #Setup of elasticsearch server and performing read/write on database indices.
 #Different input data types are supported:
 #   -GPD type: geometric pose descriptor type
@@ -76,6 +84,7 @@ _METHODS_SEARCH = ['CLUSTER-COSSIM', 'RAW-COSSIM']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
 
 _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
+_INDEX = 'test2'
 _INDEX = _INDEX.lower()
 #_INDEX = 'imgid_gpdcluster' #test index
 print("Current index: ",_INDEX)
@@ -103,7 +112,7 @@ def main():
         with open (args.file, "r") as f:
             data = f.read()
         data = eval(data)  
-
+    print(data)
     output_dir = None
     if args.search_data:
         output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/humanposes', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
@@ -128,6 +137,7 @@ def main():
             createIndex(es, len(list(data.keys())[0]), _METHODS_INS[0], _SRCIMG_DIR)
             insertdata_cluster(args, data, es)
         elif args.method_insert == _METHODS_INS[1]:
+            print(data[0])
             createIndex(es, len(data[0]['gpd']), _METHODS_INS[1], _SRCIMG_DIR)
             insertdata_raw(args, data, es)
 
@@ -144,7 +154,7 @@ def main():
             #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_COS
             for img_descriptor in data:
                 print(img_descriptor)
-                image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_COS, args.method_search)
+                image_ids, scores = query(es, img_descriptor, _ELEMNUM_COS, args.method_search)
                 results.append(list(zip(image_ids,scores)))
             print("Searching image descriptors done.")
             print("QUERY RESULTS: ",results)
@@ -161,7 +171,7 @@ def main():
 
             #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_DIST
             for img_descriptor in data:
-                image_ids, scores = query(es, img_descriptor['gpd'], _ELEMNUM_DIST, args.method_search)
+                image_ids, scores = query(es, img_descriptor, _ELEMNUM_DIST, args.method_search)
                 results.append(list(zip(image_ids,scores)))
             print("Searching image descriptors done.")
             
@@ -262,7 +272,13 @@ def createIndex(es, dim, mode, imgdir):
                 varname: {
                     "type": "dense_vector",
                     "dims": dim
+                },
+                "mask": {
+                    "type" : "keyword",
+                    "index" : False
                 }
+
+                
             }               
         }
     }
@@ -290,7 +306,10 @@ def insertdoc(es, feature, metadata, id, featurelabel):
     if res['result'] != 'created':
         raise ValueError("Document not created.")
 
-def query(es, featurevector, size, method):
+def query(es, descriptor, size, method):
+    featurevector = descriptor['gpd']
+    maskstr = descriptor['mask']
+
     if method == _METHODS_SEARCH[0]:
         request = { "size": size,
                     "min_score": _SIMILARITY_TRESH + 1, 
@@ -323,10 +342,24 @@ def query(es, featurevector, size, method):
                                 "match_all": {}
                             },
                             "script": {
-                                "source": "gpd1 =doc['gpd'] + doc['gpd']; cosineSimilarity(params.queryVector, gpd1) + 1.0",
+                                "lang":"painless",
+                                "source": """
+                                    def m1 = doc['mask'].value;
+                                    def m2 = params.queryMask;
+                                    int[] x = new int[m1.length]; 
+                                    for(int i; i < m1.length; i++) {
+                                        if (m1.charAt(i) == '1' && m2.charAt(i) == '1') {
+                                            x[i] = 1;
+                                        }
+                                    Debug.explain(x);
+                                    def vec1 = params.queryVector * x;
+                                    def vec2 = doc['gpd'] * x;
+                                    return cosineSimilarity(vec1, vec2) + 1.0;
+                                """,
                                 "params": {
-                                    "queryVector": list(featurevector)  
-                                }
+                                    "queryVector": list(featurevector),
+                                    "queryMask": maskstr
+                                }    
                             }
                         }
                     }
@@ -338,7 +371,26 @@ def query(es, featurevector, size, method):
                         body=request)
     except elasticsearch.ElasticsearchException as es1:  
         print("Error when querying for feature vector ",featurevector)
-        print(es1,es1.info)
+        def recursive_print_dict( d, indent = 0 ):
+            if isinstance(d, str):
+                print("\t" * (indent+1), d)
+                return
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    print("\t" * indent, f"{k}:")
+                    recursive_print_dict(v, indent+1)
+                elif isinstance(v, list):
+                    print("\t" * indent, f"{k}")
+                    for item in v:
+                        recursive_print_dict(item, indent)
+                else:
+                    print("\t" * indent, f"{k}:{v}")
+        print(es1)
+        print("---------------------------------")
+        print(es1.info)
+        print("---------------------------------")
+        recursive_print_dict(es1.info)
+        print("---------------------------------")
 
     logger.debug("Query returned {} results stated.".format(res['hits']['total']['value'])) 
     logger.debug("Query returned {} results actual.".format(len(res['hits']['hits']))) 
