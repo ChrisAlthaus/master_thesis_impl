@@ -10,12 +10,12 @@ _NUMGPUS = 2 #default parameters for 4 GPUs
 _IMS_PER_BATCH = 2 #default: 8
 #scalefactor to get right learning rate & keep same number of epochs
 scalefactor = 8/_IMS_PER_BATCH 
-_LR = 0.001 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
+_LR = 0.001 #0.0005 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
 _ADD_ITER = 25000
 _MAX_ITER = (50000 + _ADD_ITER) * scalefactor
 _STEPS = ((30000 + _ADD_ITER)* scalefactor, (45000 + _ADD_ITER)* scalefactor) 
-_VAL_PERIOD = 100 #4000 * scalefactor
-_CPKT_PERIOD = 4000 * scalefactor
+_VAL_PERIOD = 6000 * scalefactor
+_CPKT_PERIOD = 6000 * scalefactor
 
 # Default Training Command:
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --master_port 10001 --nproc_per_node=4 
@@ -32,11 +32,11 @@ _CPKT_PERIOD = 4000 * scalefactor
 # SOLVER.PRE_VAL False
 
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
-_DATASET_SELECT = _DATASET_SELECTS[1]
-_ADD_NOTES = ''
+_DATASET_SELECT = _DATASET_SELECTS[2]
+_ADD_NOTES = 'Other config file: R-101-FPN'
 
 resume_cpkt = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-13_12-44-52/model_final.pth'
-resume = True
+resume = False#True
 
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
 jobname = 'scenegraph-train%s'%datetime.datetime.now().strftime('%d_%H-%M-%S')
@@ -59,7 +59,7 @@ params = {'datasetselect': _DATASET_SELECT,
 			'valperiod': int(_VAL_PERIOD), 
 			'cpktperiod': int(_CPKT_PERIOD), 
 			'relationon': False, 
-			'preval': True, #False, 
+			'preval': False, 
 			'outputdir': out_dir,
 			'resumecpkt': resume_cpkt if resume else '', 
 			'addnotes': _ADD_NOTES}
@@ -68,13 +68,14 @@ paramconfig = os.path.join(logdir, 'paramsconfig.txt')
 with open(paramconfig, 'w') as f:
         json.dump(params, f)
 
-
+configfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_R_101_FPN_1x.yaml'
+				#'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_X_101_32_8_FPN_1x.yaml'
 cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
     "{} python3.6 -m torch.distributed.launch --master_port {} --nproc_per_node={} "+\
 	"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/detector_pretrain_net.py \t"+\
-	"--config-file \"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_X_101_32_8_FPN_1x.yaml\" \t"+\
+	"--config-file {} \t"+\
 	"--paramsconfig {}")\
-		.format(jobname, logfile, gpu_cmd, masterport, _NUMGPUS, paramconfig)
+		.format(jobname, logfile, gpu_cmd, masterport, _NUMGPUS, configfile, paramconfig)
 print(cmd)
 os.system(cmd)
 time.sleep(10)

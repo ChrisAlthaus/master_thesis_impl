@@ -18,13 +18,15 @@ import logging
 import ast
 import csv
 
-#import logging
+from utils import recursive_print_dict
+
+import logging
 
 # Set up the logging in some way. If you don't have logging
 # set up, you can set it up like this.
-#logging.basicConfig()
-#logging.getLogger('elasticsearch').setLevel(logging.DEBUG)
-#logging.getLogger('urllib3').setLevel(logging.DEBUG)
+logging.basicConfig()
+logging.getLogger('elasticsearch').setLevel(logging.DEBUG)
+logging.getLogger('urllib3').setLevel(logging.DEBUG)
 
 #Setup of elasticsearch server and performing read/write on database indices.
 #Different input data types are supported:
@@ -59,6 +61,8 @@ parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
 parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
 parser.add_argument('-delindex', type=str, help='Delete an index by name.')
+parser.add_argument('-indexstats', type=str, help='Selects an index for debugging.')
+parser.add_argument('-firstn', type=int, default=10, help='Gets firstn documents of the given index.')
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
 
@@ -83,7 +87,9 @@ _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['CLUSTER-COSSIM', 'RAW-COSSIM']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
 
-_INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
+if args.method_insert and args.gpd_type:
+    global _INDEX
+    _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
 _INDEX = 'test2'
 _INDEX = _INDEX.lower()
 #_INDEX = 'imgid_gpdcluster' #test index
@@ -127,12 +133,18 @@ def main():
                        verify_certs=False)
     _INDICES_ALL = es.indices.get_alias("*").keys()
     print("Existing Indices: ", _INDICES_ALL)
+    
+    if args.indexstats:
+        global _INDEX
+        _INDEX = args.indexstats
+        show_docs(es, args.firstn)
+        return
 
     _SRCIMG_DIR = getimgdir(_INDEX, imgdir=args.imgdir, es=es)
     print("Source image folder: ",_SRCIMG_DIR)
 
+    
     if args.insert_data:
-        
         if args.method_insert == _METHODS_INS[0]:
             createIndex(es, len(list(data.keys())[0]), _METHODS_INS[0], _SRCIMG_DIR)
             insertdata_cluster(args, data, es)
@@ -228,7 +240,9 @@ def insertdata_raw(args, data ,es):
     id = 0
     print("Inserting image descriptors from %s ..."%args.file)
     for item in data:
-        insertdoc(es, item['gpd'], {'image_id': item['image_id'], 'score': item['score']}, id, 'gpd')
+        d = {'gpd': item['gpd'], 'mask': item['mask']}
+        metadata ={'image_id': item['image_id'], 'score': item['score']}
+        insertdoc(es, d, metadata, id, 'gpd')
         id = id + 1
         if id%100 == 0 and id != 0:
             logger.debug("{} image descriptors were inserted so far.".format(id))
@@ -242,7 +256,7 @@ def insertdata_cluster(args, data, es):
     print("Inserting image descriptors from %s ..."%args.file)
     for gpdcluster, imgs_metadata in data.items():
         for metadata in imgs_metadata:
-            insertdoc(es, gpdcluster, metadata, id, 'gpdcluster')
+            insertdoc(es, gpdcluster, metadata, id, 'gpdcluster')   #TODO: error? items?
             id = id + 1
             if id%100 == 0 and id != 0:
                 logger.debug("{} image descriptors were inserted so far.".format(id))
@@ -295,11 +309,12 @@ def createIndex(es, dim, mode, imgdir):
         raise ValueError('Index was not created')
     print("Successfully created index: %s"%_INDEX)
 
-def insertdoc(es, feature, metadata, id, featurelabel):
+def insertdoc(es, data, metadata, id, featurelabel):
     doc = {
     'imageid': metadata['image_id'],
     'score': metadata['score'],
-    featurelabel: list(feature)
+    featurelabel: list(data[featurelabel]),
+    'mask': data['mask']
     }
 
     res = es.index(index=_INDEX, id=id, body=doc) 
@@ -346,15 +361,117 @@ def query(es, descriptor, size, method):
                                 "source": """
                                     def m1 = doc['mask'].value;
                                     def m2 = params.queryMask;
-                                    int[] x = new int[m1.length]; 
-                                    for(int i; i < m1.length; i++) {
+                                    int[] x = new int[m1.length()]; 
+                                    def dbvector = doc['gpd'];
+                                    for(int i; i < m1.length(); i++) {
                                         if (m1.charAt(i) == '1' && m2.charAt(i) == '1') {
-                                            x[i] = 1;
+                                            params.queryVector[i] = 0;
+                                            dbvector[i] = 0;
                                         }
-                                    Debug.explain(x);
-                                    def vec1 = params.queryVector * x;
-                                    def vec2 = doc['gpd'] * x;
-                                    return cosineSimilarity(vec1, vec2) + 1.0;
+                                    }
+                                    Debug.explain(dbvector);
+                                    return cosineSimilarity(params.queryVector, dbvector) + 1.0;
+                                """,
+                                "params": {
+                                    "queryVector": list(featurevector),
+                                    "queryMask": maskstr
+                                }    
+                            }
+                        }
+                    }
+                  }
+
+        request = { "query": {
+                        "script": {
+                           "script": {
+                                "lang":"painless",
+                                "source": """
+                                    def m1 = doc['mask'].value;
+                                    def m2 = params.queryMask;
+                                    int[] x = new int[m1.length()]; 
+                                    def dbvector = doc['gpd'];
+                                    for(int i; i < m1.length(); i++) {
+                                        if (m1.charAt(i) == '1' && m2.charAt(i) == '1') {
+                                            params.queryVector[i] = 0;
+                                            dbvector[i] = 0;
+                                        }
+                                    }
+                                    return dbvector.toArray();
+                                """,
+                                "params": {
+                                    "queryVector": list(featurevector),
+                                    "queryMask": maskstr
+                                }   
+                            }  
+                        }
+                        
+                    }
+                  }
+
+        request = { "script_fields": {
+                        "some_scores": {
+                           "script": {
+                                "lang":"painless",
+                                "source": """
+                                    def m1 = doc['mask'].value;
+                                    def m2 = params.queryMask;
+                                    int[] x = new int[m1.length()]; 
+                                    int[] y = new int[m1.length()]; 
+
+                                    def d = cosineSimilarity(x, y) + 1.0
+
+                                    //def dbvector = doc['gpd'];
+                                    //def qvector = params.queryVector;
+                                    for(int i; i < m1.length(); i++) {
+                                        if (m1.charAt(i) == '1' && m2.charAt(i) == '1') {
+                                            x[i] = 0;
+                                            y[i] = 0;
+                                        }
+                                        else{
+                                            x[i] = doc['gpd'][i];
+                                            y[i] = params.queryVector[i];
+                                        }
+                                    }
+
+                                    return x;
+                                """,
+                                "params": {
+                                    "queryVector": list(featurevector),
+                                    "queryMask": maskstr
+                                }   
+                            }  
+                        }
+                        
+                    }
+                }
+
+        request = { "size": size,
+                    "query": {
+                        "script_score": {
+                            "query": {
+                                "match_all": {}
+                            },
+                            "script": {
+                                "lang":"painless",
+                                "source": """
+                                    def m1 = doc['mask'].value;
+                                    def m2 = params.queryMask;
+                                    ArrayList x = new ArrayList();
+                                    ArrayList y = new ArrayList(); 
+                                    for(int i; i < m1.length(); i++) {
+                                        if (m1.charAt(i) == '1'.charAt(0) && m2.charAt(i) == '1'.charAt(0)) {
+                                            //Debug.explain(m2);
+                                            x.add(doc['gpd'][i]);
+                                            y.add(params.queryVector[i]);
+                                        }
+                                        else{
+                                                x.add(0);
+                                                y.add(0);  
+                                            }
+                                    }
+
+                                    def d = cosineSimilarity(x, y) + 1.0;
+                                    return d;
                                 """,
                                 "params": {
                                     "queryVector": list(featurevector),
@@ -371,20 +488,7 @@ def query(es, descriptor, size, method):
                         body=request)
     except elasticsearch.ElasticsearchException as es1:  
         print("Error when querying for feature vector ",featurevector)
-        def recursive_print_dict( d, indent = 0 ):
-            if isinstance(d, str):
-                print("\t" * (indent+1), d)
-                return
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    print("\t" * indent, f"{k}:")
-                    recursive_print_dict(v, indent+1)
-                elif isinstance(v, list):
-                    print("\t" * indent, f"{k}")
-                    for item in v:
-                        recursive_print_dict(item, indent)
-                else:
-                    print("\t" * indent, f"{k}:{v}")
+       
         print(es1)
         print("---------------------------------")
         print(es1.info)
@@ -397,9 +501,13 @@ def query(es, descriptor, size, method):
     
     print("Query returned {} results stated.".format(res['hits']['total']['value']))
     print("Query returned {} results actual.".format(len(res['hits']['hits'])))
-    docs = res['hits']['hits']
-    imageids = [item['_source']['imageid'] for item in docs]
-    scores = [item['_score'] for item in docs] 
+    print("-------------------------------------")
+    print(res)
+    print("-------------------------------------")
+    recursive_print_dict(res)
+    #docs = res['hits']['hits']
+    #imageids = [item['_source']['imageid'] for item in docs]
+    #scores = [item['_score'] for item in docs] 
     #print('docs: ',docs)
      
     return imageids, scores
@@ -488,6 +596,12 @@ def bestmatching_cluster(image_scoring, k):
     bestk = list(zip(imageids, scoring))[:k]
     return bestk
 
+def show_docs(es, firstn):
+    print("Getting first {} documents of index {} ...".format(firstn, _INDEX))
+    es.indices.refresh(index=_INDEX)
+    response = scan(es, index=_INDEX, query={"query": { "match_all" : {}}}, size=firstn)
+
+    print(list(response))
 
 def get_alldocs(es):
     es.indices.refresh(index=_INDEX)
