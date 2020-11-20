@@ -22,16 +22,17 @@ _IMS_PER_BATCH = 12
 scalefactor = 12/_IMS_PER_BATCH 
 _ADD_ITER = 25000
 _MAX_ITER = (50000 + _ADD_ITER) * scalefactor
-_STEPS = ((10000 + _ADD_ITER)* scalefactor, (16000 + _ADD_ITER)* scalefactor) 
-_GAMMA = 0.1 #0.1
-_VAL_PERIOD = 4000 * scalefactor
-_CPKT_PERIOD = 4000 * scalefactor
+_STEPS = ((10000 + _ADD_ITER)* scalefactor, (16000 + _ADD_ITER)* scalefactor) #not used
+_GAMMA = 0.75 #original: 0.1
+_VAL_PERIOD = 5000 * scalefactor
+_CPKT_PERIOD = 20000 * scalefactor
+_MINSIZES_TRAIN = (640, 672, 704, 736, 768, 800) #detectron2: (640, 672, 704, 736, 768, 800), original: (600,)
 
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
-_DATASET_SELECT = _DATASET_SELECTS[1]
+_DATASET_SELECT = _DATASET_SELECTS[2]
 
 _ATTRIBUTE_ON = False
-_ADD_NOTES = ''
+_ADD_NOTES = 'Additional multiple minscales like detectron2, higher gamma & data augmentation (color)'
 
 def paramsexist(predictor, fusiontype, contextlayer, lr):
     #Look in the overview csv file containing all done training runs if random params exists
@@ -96,6 +97,8 @@ for i in range(0, _NUMRUNS):
 			'testbatchsize': 2, 
 			'lr': lr, 
 			'steps': tuple(map(int,_STEPS)), 
+            'gamma': _GAMMA,
+            'minscales': _MINSIZES_TRAIN,
 			'maxiterations': int(_MAX_ITER), 
 			'dtype': 'float16', 
 			'valperiod': int(_VAL_PERIOD), 

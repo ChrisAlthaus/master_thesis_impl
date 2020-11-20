@@ -70,6 +70,7 @@ def main():
     
     cfg = get_cfg()
     # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
+    #Path to config file: /home/althausc/.local/lib/python3.6/site-packages/detectron2/model_zoo/configs/COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) #"COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml"
     
     # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
@@ -105,8 +106,11 @@ def main():
     elif _DATASET_TYPE == 'large':
         train_ann = "/home/althausc/nfs/data/coco_17_large/annotations_styletransfer/person_keypoints_train2017_stAPI.json"
         train_dir = "/home/althausc/nfs/data/coco_17_large/train2017_styletransfer"
-        val_ann = "/home/althausc/nfs/data/coco_17_large/annotations_styletransfer/person_keypoints_val2017_stAPI.json"
-        val_dir = "/home/althausc/nfs/data/coco_17_large/val2017_styletransfer"
+        #val_ann = "/home/althausc/nfs/data/coco_17_large/annotations_styletransfer/person_keypoints_val2017_stAPI.json" 
+        #val_dir = "/home/althausc/nfs/data/coco_17_large/val2017_styletransfer"
+        #Use smaller validation set because of runtime
+        val_ann = "/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json"
+        val_dir = "/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer"
     else:
         raise ValueError()
     
@@ -154,7 +158,8 @@ def main():
     
     max_iter, epoch_iter = get_iterations_for_epochs(dataset, c_params['epochs'], cfg.SOLVER.IMS_PER_BATCH, cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE)
     cfg.SOLVER.MAX_ITER = max_iter
-    cfg.TEST.EVAL_PERIOD = int(epoch_iter/2)   #Evaluation once at the end of each epoch, Set to 0 to disable.
+    cfg.SOLVER.CHECKPOINT_PERIOD = int(epoch_iter)
+    cfg.TEST.EVAL_PERIOD = int(epoch_iter)   #Evaluation once at the end of each epoch, Set to 0 to disable.
     cfg.TEST.PLOT_PERIOD = int(epoch_iter) # Plot val & train loss curves at every second iteration 
                                                 # and save as image in checkpoint folder. Disable: -1
     cfg.SOLVER.EARLYSTOPPING_PERIOD = int(epoch_iter * 1) #window size
@@ -281,7 +286,7 @@ def setupLayersAndBN(cfg, trainmode, batchnorm=False):
     
     #Unfreeze batch normalization layers of ResNet
     if batchnorm:
-        cfg.MODEL.RESNETS.NORM = "BN"
+        cfg.MODEL.RESNETS.NORM = "FrozenBN" #"FrozenBN", "GN", "SyncBN", "BN"
 
 
 def get_checkparams(model):

@@ -9,7 +9,7 @@ import argparse
 
 #Perform random search over the hyper-parameters
 _PARAM_MODES = ['originalpaper', 'detectrondefault', 'randomsearch', 'custom', 'loadparams']
-_PARAM_MODE = _PARAM_MODES[4]
+_PARAM_MODE = _PARAM_MODES[3]
 _NUM_RUNS = 1
 
 _TRAINMODES = ["ALL", "RESNETF", "RESNETL", "HEADSALL", 'SCRATCH']
@@ -114,19 +114,20 @@ for i in range(0,_NUM_RUNS):
     elif _PARAM_MODE == 'custom':
         trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
         dataaugm = True
-        batchsize = 2
-        lr = 0.0035 #0.00185 #0.0005 #0.005/2 #0.0035 #0.01
+        batchsize = 16 #2 #original: 16
+        lr = 0.0035 #0.00185 #0.0005 #0.005/2 #0.0035 #original: 0.001
         bn = True
-        minkpts = 4 
+        minkpts = 4 #original: 1
         #steps = np.linspace(0.7, 1, 10).tolist()
         #gamma = 0.75  #0.75 ^ 10 = 0.05
-        steps = [0.3, 0.6, 0.8, 0.9] #[0.4, 0.6, 0.8, 0.9]#[0.25, 0.5, 0.75, 0.9]#[0.4, 0.6, 0.8, 0.9] #[0.76, 0.92]
-        gamma =  getgammas(lr, [0.0025, 0.0015, 0.001, 0.0001])#getgammas(lr, [0.001, 0.00075, 0.00025, 0.0001]) #getgammas(lr, [0.00025, 0.00015, 0.0001, 0.000075]) #getgammas(lr, [0.0025/2, 0.001/2, 0.0005/2, 0.0001/2]) #getgammas(lr, [0.0025, 0.001])
+        steps = [0.3, 0.6, 0.8, 0.9] #[0.4, 0.6, 0.8, 0.9]#[0.25, 0.5, 0.75, 0.9]#[0.4, 0.6, 0.8, 0.9] #original: [0.76, 0.92]
+        gamma =  getgammas(lr, [0.0025, 0.0015, 0.001, 0.0001]) #original: 0.1 #getgammas(lr, [0.001, 0.00075, 0.00025, 0.0001]) #getgammas(lr, [0.00025, 0.00015, 0.0001, 0.000075]) #getgammas(lr, [0.0025/2, 0.001/2, 0.0005/2, 0.0001/2]) #getgammas(lr, [0.0025, 0.001])
 
         minscales = (640, 672, 704, 736, 768, 800) #(512,) #(640, 672, 704, 736, 768, 800) #(512,) #(512, 640)
         rpn_posratio = 0.5 #0.33
-        gradient_clipvalue = 1
+        gradient_clipvalue = 1 #default: 1
         dataset = 'large'
+        _ADD_NOTES = 'Larger train dataset & Small validation dataset & FrozenBatchNorm.'
 
     elif _PARAM_MODE == 'loadparams':
         parser = argparse.ArgumentParser()
@@ -137,10 +138,11 @@ for i in range(0,_NUM_RUNS):
         with open(args.paramsconfig, 'r') as f:
             params = json.load(f)
 
-        _ADD_NOTES = 'Rerun 11-02_14-04-50_scratch on larger dataset.'
+        _ADD_NOTES = 'Rerun 11-02_14-04-50_scratch with Larger train dataset, Small validation dataset & FrozenBatchNorm + smaller lr.'
         params.update({'addnotes': _ADD_NOTES})
         #params['minkpt'] = 7
         #params['trainmode'] = 'ALL'
+        params['lr'] = 0.003
         params['dataset'] = 'large'
 
     else:
@@ -172,7 +174,7 @@ for i in range(0,_NUM_RUNS):
     print(cmd)
 
     #Start sbatch training
-    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh'
+    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1-qrtx8000.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh'
     jobname = "maskrcnn-train-%s"%datetime.datetime.now().strftime('%d_%H-%M-%S')
     logfile = os.path.join(logdir, 'train.log')
 

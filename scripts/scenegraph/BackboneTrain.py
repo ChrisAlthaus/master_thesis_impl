@@ -6,16 +6,19 @@ import os
 import time
 import csv
 
-_NUMGPUS = 2 #default parameters for 4 GPUs
-_IMS_PER_BATCH = 2 #default: 8
+_NUMGPUS = 1 #default parameters for 4 GPUs
+_IMS_PER_BATCH = 8 #2 #default: 8
 #scalefactor to get right learning rate & keep same number of epochs
 scalefactor = 8/_IMS_PER_BATCH 
-_LR = 0.001 #0.0005 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
+_LR = 0.00125 #0.0005 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
 _ADD_ITER = 25000
 _MAX_ITER = (50000 + _ADD_ITER) * scalefactor
-_STEPS = ((30000 + _ADD_ITER)* scalefactor, (45000 + _ADD_ITER)* scalefactor) 
-_VAL_PERIOD = 6000 * scalefactor
-_CPKT_PERIOD = 6000 * scalefactor
+_STEPS_PERC = [0.4, 0.6, 0.8, 0.9, 0.95]#original: [0.6, 0.9]
+_STEPS = [(perc * _MAX_ITER + _ADD_ITER)* scalefactor for perc in _STEPS_PERC]
+_GAMMA = 0.5 #original: 0.1
+_VAL_PERIOD = 7500 * scalefactor
+_CPKT_PERIOD = 7500 * scalefactor
+_MINSIZES_TRAIN = (640, 672, 704, 736, 768, 800) #detectron2: (640, 672, 704, 736, 768, 800), original: (600,)
 
 # Default Training Command:
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --master_port 10001 --nproc_per_node=4 
@@ -33,12 +36,12 @@ _CPKT_PERIOD = 6000 * scalefactor
 
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
 _DATASET_SELECT = _DATASET_SELECTS[2]
-_ADD_NOTES = 'Other config file: R-101-FPN'
+_ADD_NOTES = 'Other config file: R-101-FPN & More steps & Highest lr so far & Min scale tuples like detectron2'
 
-resume_cpkt = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-13_12-44-52/model_final.pth'
-resume = False#True
+resume_cpkt = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-12_19-22-41/model_final.pth'
+resume = False #True #False
 
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-2-qrtx8000.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
 jobname = 'scenegraph-train%s'%datetime.datetime.now().strftime('%d_%H-%M-%S')
 masterport = random.randint(10020, 10100)
 
@@ -54,6 +57,8 @@ params = {'datasetselect': _DATASET_SELECT,
 			'testbatchsize': 4, 
 			'lr': _LR, 
 			'steps': tuple(map(int,_STEPS)), 
+			'gamma': _GAMMA,
+			'minscales': _MINSIZES_TRAIN,
 			'maxiterations': int(_MAX_ITER), 
 			'dtype': 'float16', 
 			'valperiod': int(_VAL_PERIOD), 
