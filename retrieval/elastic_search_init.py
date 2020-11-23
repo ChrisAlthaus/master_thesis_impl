@@ -69,10 +69,6 @@ if _DEBUG:
     logging.getLogger('elasticsearch').setLevel(logging.DEBUG)
     logging.getLogger('urllib3').setLevel(logging.DEBUG)
 
-
-#logging.basicConfig(level=logging.DEBUG, format='%(message)s')
-
-
 #Min score used for cossim
 if args.tresh is None:
     _SIMILARITY_TRESH = 0.95
@@ -289,6 +285,7 @@ def createIndex(es, dim, mode, imgdir):
                     "type": "dense_vector",
                     "dims": dim
                 },
+                #Used to get the descriptor values in the script
                 '{}-array'.format(varname): {
                     "type": "half_float"
                 },
@@ -330,7 +327,15 @@ def insertdoc(es, data, metadata, id, featurelabel):
 def query(es, descriptor, size, method):
     featurevector = descriptor['gpd']
     maskstr = descriptor['mask']
-
+    
+    #Notes to querying in elasticsearch
+    #   - params._source['gpd-array'] prevents es to sort the array (vs. params['gpd-array'])
+    #   - cosineSimilarity(x,y) is only defined for y being a dense vector
+    #       -> dense_vector cannot be modified or accessed in the script directly (not supported yet by es)
+    #           ->can only be used as input to vectorscore functions
+    #           ->therefore to mask/don't count -1 entries in the descriptors, the queryvector indices which shall be masked are set to the value of the dense_vector 
+    #           ->for this, the array copy of the dense_vector is used to access the items
+    
     if method == _METHODS_SEARCH[0]:
         request = { "size": size,
                     "query": {
@@ -343,7 +348,7 @@ def query(es, descriptor, size, method):
                                 "source": """
                                     def m1 = doc['mask'].value;
                                     def m2 = params.queryMask;
-                                    
+
                                     for(int i; i < m1.length(); i++) {
                                         if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
                                             params.queryVector[i] = params._source['gpd-array'][i];
@@ -374,149 +379,15 @@ def query(es, descriptor, size, method):
                                 "source": """
                                     def m1 = doc['mask'].value;
                                     def m2 = params.queryMask;
-                                    int[] x = new int[m1.length()]; 
-                                    def dbvector = doc['gpd'];
-                                    for(int i; i < m1.length(); i++) {
-                                        if (m1.charAt(i) == '1' && m2.charAt(i) == '1') {
-                                            params.queryVector[i] = 0;
-                                            dbvector[i] = 0;
-                                        }
-                                    }
-                                    Debug.explain(dbvector);
-                                    return cosineSimilarity(params.queryVector, dbvector) + 1.0;
-                                """,
-                                "params": {
-                                    "queryVector": list(featurevector),
-                                    "queryMask": maskstr
-                                }    
-                            }
-                        }
-                    }
-                  }
-
-        request = { "query": {
-                        "script": {
-                           "script": {
-                                "lang":"painless",
-                                "source": """
-                                    def m1 = doc['mask'].value;
-                                    def m2 = params.queryMask;
-                                    int[] x = new int[m1.length()]; 
-                                    def dbvector = doc['gpd'];
-                                    for(int i; i < m1.length(); i++) {
-                                        if (m1.charAt(i) == '1' && m2.charAt(i) == '1') {
-                                            params.queryVector[i] = 0;
-                                            dbvector[i] = 0;
-                                        }
-                                    }
-                                    return dbvector.toArray();
-                                """,
-                                "params": {
-                                    "queryVector": list(featurevector),
-                                    "queryMask": maskstr
-                                }   
-                            }  
-                        }
-                        
-                    }
-                  }
-
-        request = { "script_fields": {
-                        "some_scores": {
-                           "script": {
-                                "lang":"painless",
-                                "source": """
-                                    def m1 = doc['mask'].value;
-                                    def m2 = params.queryMask;
-                                    int[] x = new int[m1.length()]; 
-                                    int[] y = new int[m1.length()]; 
-
-                                    def d = cosineSimilarity(x, y) + 1.0
-
-                                    //def dbvector = doc['gpd'];
-                                    //def qvector = params.queryVector;
-                                    for(int i; i < m1.length(); i++) {
-                                        if (m1.charAt(i) == '1' && m2.charAt(i) == '1') {
-                                            x[i] = 0;
-                                            y[i] = 0;
-                                        }
-                                        else{
-                                            x[i] = doc['gpd'][i];
-                                            y[i] = params.queryVector[i];
-                                        }
-                                    }
-
-                                    return x;
-                                """,
-                                "params": {
-                                    "queryVector": list(featurevector),
-                                    "queryMask": maskstr
-                                }   
-                            }  
-                        }
-                        
-                    }
-                }
-
-        request = { "size": size,
-                    "query": {
-                        "script_score": {
-                            "query": {
-                                "match_all": {}
-                            },
-                            "script": {
-                                "lang":"painless",
-                                "source": """
-                                    def m1 = doc['mask'].value;
-                                    def m2 = params.queryMask;
-                                    ArrayList x = new ArrayList();
-                                    ArrayList y = new ArrayList(); 
-                                    for(int i; i < m1.length(); i++) {
-                                        if (m1.charAt(i) == '1'.charAt(0) && m2.charAt(i) == '1'.charAt(0)) {
-                                            //Debug.explain(m2);
-                                            x.add(doc['gpd'][i]);
-                                            y.add(params.queryVector[i]);
-                                        }
-                                        else{
-                                                x.add(0);
-                                                y.add(0);  
-                                            }
-                                    }
-
-                                    def d = cosineSimilarity(x, y) + 1.0;
-                                    return d;
-                                """,
-                                "params": {
-                                    "queryVector": list(featurevector),
-                                    "queryMask": maskstr
-                                }    
-                            }
-                        }
-                    }
-                  }
-
-        request = { "size": size,
-                    "query": {
-                        "script_score": {
-                            "query": {
-                                "match_all": {}
-                            },
-                            "script": {
-                                "lang":"painless",
-                                "source": """
-                                    def m1 = doc['mask'].value;
-                                    def m2 = params.queryMask;
                                     //Debug.explain(params.queryVector);
                                     //Debug.explain(params._source['gpd-array']);
-                                    //Debug.explain(doc['gpd-array']);
                                     //Debug.explain(doc['gpd']);
                                     //Debug.explain(m2);
                                     for(int i; i < m1.length(); i++) {
                                         if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                                            params.queryVector[i] = params._source['gpd-array'][i];
+                                            params.queryVector[i] = params._source['gpd-array'][i]; 
                                         }
                                     }
-                                    //Debug.explain(params.queryVector);
                                     //Debug.explain(params.queryVector);
                                     //Debug.explain(doc['gpd']);
                                     def d = cosineSimilarity(params.queryVector, 'gpd') + 1.0;

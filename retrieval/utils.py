@@ -1,9 +1,6 @@
  
 def recursive_print_dict( d, indent = 0 ):
-    if isinstance(d, str):
-        print("\t" * (indent+1), d)
-        return
-    if isinstance(d, list):
+    if not isinstance(d, list) and not isinstance(d, dict):
         print("\t" * (indent+1), d)
         return
         
@@ -13,7 +10,14 @@ def recursive_print_dict( d, indent = 0 ):
             recursive_print_dict(v, indent+1)
         elif isinstance(v, list):
             print("\t" * indent, f"{k}")
+            allsingle = True
             for item in v:
-                recursive_print_dict(item, indent)
+                if isinstance(item, list) or isinstance(item, dict):
+                    allsingle = False
+            if allsingle:
+                print("\t" * indent, v)
+            else:
+                for item in v:
+                    recursive_print_dict(item, indent)
         else:
             print("\t" * indent, f"{k}:{v}")
