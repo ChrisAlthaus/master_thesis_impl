@@ -22,12 +22,6 @@ from utils import recursive_print_dict
 
 import logging
 
-# Set up the logging in some way. If you don't have logging
-# set up, you can set it up like this.
-logging.basicConfig()
-logging.getLogger('elasticsearch').setLevel(logging.DEBUG)
-logging.getLogger('urllib3').setLevel(logging.DEBUG)
-
 #Setup of elasticsearch server and performing read/write on database indices.
 #Different input data types are supported:
 #   -GPD type: geometric pose descriptor type
@@ -63,14 +57,19 @@ parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim r
 parser.add_argument('-delindex', type=str, help='Delete an index by name.')
 parser.add_argument('-indexstats', type=str, help='Selects an index for debugging.')
 parser.add_argument('-firstn', type=int, default=10, help='Gets firstn documents of the given index.')
-parser.add_argument("-v", "--verbose", help="increase output verbosity",
-                    action="store_true")
 
 args = parser.parse_args()
 
 logger = logging.getLogger('elasticsearch-db')
-if args.verbose:
+_DEBUG = False #True #False
+if _DEBUG:
     logger.setLevel(logging.DEBUG)
+    # Setup ElasticSearch server & client logging
+    logging.basicConfig()
+    logging.getLogger('elasticsearch').setLevel(logging.DEBUG)
+    logging.getLogger('urllib3').setLevel(logging.DEBUG)
+
+
 #logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 
 
@@ -90,7 +89,7 @@ _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
 if args.method_insert and args.gpd_type:
     global _INDEX
     _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
-_INDEX = 'test2'
+_INDEX = 'test3'
 _INDEX = _INDEX.lower()
 #_INDEX = 'imgid_gpdcluster' #test index
 print("Current index: ",_INDEX)
@@ -186,7 +185,7 @@ def main():
                 image_ids, scores = query(es, img_descriptor, _ELEMNUM_DIST, args.method_search)
                 results.append(list(zip(image_ids,scores)))
             print("Searching image descriptors done.")
-            
+            exit(1)
             #Flattening list of indiv feature vector results
             results = [item for sublist in results for item in sublist]
             imgids_final = bestmatching_sumdist(results, _NUMRES)
@@ -276,6 +275,9 @@ def createIndex(es, dim, mode, imgdir):
             "_meta": { 
                 "imagedir": imgdir
             },
+            "_source": {
+                "enabled": True
+            },
             "properties": {
                 "imageid": {
                     "type": "text"
@@ -286,6 +288,9 @@ def createIndex(es, dim, mode, imgdir):
                 varname: {
                     "type": "dense_vector",
                     "dims": dim
+                },
+                '{}-array'.format(varname): {
+                    "type": "half_float"
                 },
                 "mask": {
                     "type" : "keyword",
@@ -314,6 +319,7 @@ def insertdoc(es, data, metadata, id, featurelabel):
     'imageid': metadata['image_id'],
     'score': metadata['score'],
     featurelabel: list(data[featurelabel]),
+    '{}-array'.format(featurelabel): list(data[featurelabel]),
     'mask': data['mask']
     }
 
@@ -327,7 +333,6 @@ def query(es, descriptor, size, method):
 
     if method == _METHODS_SEARCH[0]:
         request = { "size": size,
-                    "min_score": _SIMILARITY_TRESH + 1, 
                     "query": {
                         "script_score": {
                             "query": {
@@ -336,19 +341,27 @@ def query(es, descriptor, size, method):
                             "script": {
                                 "lang":"painless",
                                 "source": """
-                                return cosineSimilarity(params.queryVector, gpd1) + 1.0
+                                    def m1 = doc['mask'].value;
+                                    def m2 = params.queryMask;
+                                    
+                                    for(int i; i < m1.length(); i++) {
+                                        if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
+                                            params.queryVector[i] = params._source['gpd-array'][i];
+                                        }
+                                    }
+
+                                    def d = cosineSimilarity(params.queryVector, 'gpdcluster') + 1.0;
+                                    return d;
                                 """,
                                 "params": {
-                                    "queryVector": list(featurevector)
+                                    "queryVector": list(featurevector),
+                                    "queryMask": maskstr
                                 }    
                             }
                         }
                     }
                   }
-                  
-                  #"source": "gpd1 =doc['gpdcluster'] + doc['gpdcluster']; cosineSimilarity(params.queryVector, gpd1) + 1.0", #add *score?!
-                                #"params": {
-                                #"queryVector": list(featurevector)  
+
     elif method == _METHODS_SEARCH[1]:
         request = { "size": size,
                     "query": {
@@ -481,6 +494,42 @@ def query(es, descriptor, size, method):
                         }
                     }
                   }
+
+        request = { "size": size,
+                    "query": {
+                        "script_score": {
+                            "query": {
+                                "match_all": {}
+                            },
+                            "script": {
+                                "lang":"painless",
+                                "source": """
+                                    def m1 = doc['mask'].value;
+                                    def m2 = params.queryMask;
+                                    //Debug.explain(params.queryVector);
+                                    //Debug.explain(params._source['gpd-array']);
+                                    //Debug.explain(doc['gpd-array']);
+                                    //Debug.explain(doc['gpd']);
+                                    //Debug.explain(m2);
+                                    for(int i; i < m1.length(); i++) {
+                                        if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
+                                            params.queryVector[i] = params._source['gpd-array'][i];
+                                        }
+                                    }
+                                    //Debug.explain(params.queryVector);
+                                    //Debug.explain(params.queryVector);
+                                    //Debug.explain(doc['gpd']);
+                                    def d = cosineSimilarity(params.queryVector, 'gpd') + 1.0;
+                                    return d;
+                                """,
+                                "params": {
+                                    "queryVector": list(featurevector),
+                                    "queryMask": maskstr
+                                }    
+                            }
+                        }
+                    }
+                  }
     else:
         raise ValueError()
     try :
@@ -496,20 +545,19 @@ def query(es, descriptor, size, method):
         recursive_print_dict(es1.info)
         print("---------------------------------")
 
-    logger.debug("Query returned {} results stated.".format(res['hits']['total']['value'])) 
-    logger.debug("Query returned {} results actual.".format(len(res['hits']['hits']))) 
+    if _DEBUG:
+        print("Query returned {} results stated.".format(res['hits']['total']['value']))
+        print("Query returned {} results actual.".format(len(res['hits']['hits'])))
+        print("-------------------------------------")
+        print("Raw result output \n:", res)
+        print("-------------------------------------")
+        recursive_print_dict(res)
+        print("Query descriptor: ", descriptor)
+        print("Result: ",imageids ,scores)
     
-    print("Query returned {} results stated.".format(res['hits']['total']['value']))
-    print("Query returned {} results actual.".format(len(res['hits']['hits'])))
-    print("-------------------------------------")
-    print(res)
-    print("-------------------------------------")
-    recursive_print_dict(res)
-    #docs = res['hits']['hits']
-    #imageids = [item['_source']['imageid'] for item in docs]
-    #scores = [item['_score'] for item in docs] 
-    #print('docs: ',docs)
-     
+    docs = res['hits']['hits']
+    imageids = [item['_source']['imageid'] for item in docs]
+    scores = [item['_score'] for item in docs] 
     return imageids, scores
 
 def logscorestats(scores):
