@@ -35,8 +35,7 @@ parser.add_argument("-mode", type=str, help="Specify types of features which wil
 parser.add_argument("-pca", type=int, help="Specify dimensions of pca vector.")
 parser.add_argument("-pcamodel", type=str, help="Specify pca model file for prediction.")
 parser.add_argument("-target", type=str, help="If purpose is for inserting or query db. Used for output folder selection.")
-parser.add_argument("-v", "--verbose", help="increase output verbosity",
-                    action="store_true")
+
 args = parser.parse_args()
 
 #test_entry = {'image_id': 23899057496, 'category_id': 1, 'bbox': [211.99081420898438, 139.43743896484375, 425.96087646484375, 355.24871826171875], 'keypoints': [334.2212219238281, 201.67015075683594, 1.079627275466919, 331.54656982421875, 189.38385009765625, 1.7378227710723877, 312.2892761230469, 192.58897399902344, 1.028214931488037, 334.7561340332031, 202.20433044433594, 0.08344336599111557, 269.4952697753906, 213.9564208984375, 0.38487914204597473, 346.5245056152344, 262.033203125, 0.13131119310855865, 288.2176513671875, 285.5373840332031, 0.10808556526899338, 425.1584777832031, 354.4474182128906, 0.020250316709280014, 383.434326171875, 328.8064880371094, 0.012223891913890839, 276.44927978515625, 354.4474182128906, 0.01989334262907505, 425.1584777832031, 354.4474182128906, 0.020259613171219826, 425.1584777832031, 354.4474182128906, 0.02405051700770855, 403.761474609375, 354.4474182128906, 0.02277219668030739, 425.1584777832031, 354.4474182128906, 0.03073735162615776, 425.1584777832031, 354.4474182128906, 0.03939764201641083, 425.1584777832031, 354.4474182128906, 0.02348250150680542, 425.1584777832031, 354.4474182128906, 0.03718782961368561], 'score': 0.9582511186599731}
@@ -60,9 +59,10 @@ _KPTS_THRESHOLD = 0.05 #same as in detectron2/utils/visualizer.py
 
 _NORM = True
 
+_DEBUG = False
 if not os.path.isfile(args.inputFile):
     raise ValueError("No valid input file.")
-if args.verbose:
+if _DEBUG:
     logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 if args.mode not in _MODES:
     raise ValueError("No valid mode number.")
@@ -203,11 +203,12 @@ def calculateGPD(keypoints, mode, metadata):
     l_all.update(l_endjoints)
     l_all.update(l_custom)
     
-    print("l_direct_adjacent:", l_direct_adjacent)
-    print("l_end_depth2:", l_end_depth2)
-    print("line_endjoints:",l_endjoints)
-    print("l_custom:", l_custom)
-    print("l_custom_all:",len(l_all))
+    if _DEBUG:
+        print("l_direct_adjacent:", l_direct_adjacent)
+        print("l_end_depth2:", l_end_depth2)
+        print("line_endjoints:",l_endjoints)
+        print("l_custom:", l_custom)
+        print("l_custom_all:",len(l_all))
 
     pose_descriptor = []
     global _NOTESFLAG
@@ -306,7 +307,8 @@ def calculateGPD(keypoints, mode, metadata):
 
     #planes = get_planes(plane_points)
     #JP_d = joint_plane_distances(keypoints, planes)
-    print(pose_descriptor)
+    if _DEBUG:
+        print(pose_descriptor)
     pose_descriptor = [item for sublist in pose_descriptor for item in sublist]
     for v in pose_descriptor:
         if math.isnan(v):
@@ -366,7 +368,7 @@ def joint_coordinates_rel(keypoints, kptsvalid, imagesize, addconfidences = None
     #Add relative position of pose to descriptor
     height, width = imagesize[0], imagesize[1]
     relative_refpoint = [pmid[0]/width, pmid[1]/height]
-    print(pmid[0], width, pmid[1], height ,pmid[0]/width, pmid[1]/height)
+    #print(pmid[0], width, pmid[1], height ,pmid[0]/width, pmid[1]/height)
     joint_coordinates.extend(relative_refpoint)
 
     if addconfidences is not None:
@@ -374,7 +376,8 @@ def joint_coordinates_rel(keypoints, kptsvalid, imagesize, addconfidences = None
         #Lower clip value if too much effect on search result
         confs = map(lambda y: max(y,1), addconfidences)
         joint_coordinates.extend(confs)
-    print(joint_coordinates)
+    if _DEBUG:
+        print(joint_coordinates)
     logging.debug("Dimension joint coordinates: {}".format(len(joint_coordinates))) 
     return joint_coordinates
 
@@ -474,16 +477,18 @@ def joint_line_distances(keypoints, lines, kptsvalid, kpt_line_mapping = None):
                     joint_line_distances.append(Point(joint).distance(l))           
     else:
         for k, [(k1,k2),label] in dict_to_item_list(kpt_line_mapping):
-            print('%s->(%s,%s)'%(_BODY_PART_MAPPING[k],_BODY_PART_MAPPING[k1],_BODY_PART_MAPPING[k2]))
+            if _DEBUG:
+                print('%s->(%s,%s)'%(_BODY_PART_MAPPING[k],_BODY_PART_MAPPING[k1],_BODY_PART_MAPPING[k2]))
+
             if not kptsvalid[k] or not kptsvalid[k1] or not kptsvalid[k2]:
                 joint_line_distances.append(-1)
                 continue                
             if (k1,k2) in lines.keys():
                 joint_line_distances.append(Point(keypoints[k]).distance(lines[(k1,k2)]))
-                print(Point(keypoints[k]).distance(lines[(k1,k2)]))
+                #print(Point(keypoints[k]).distance(lines[(k1,k2)]))
             elif (k2,k1) in lines.keys():
                 joint_line_distances.append(Point(keypoints[k]).distance(lines[(k2,k1)]))
-                print(Point(keypoints[k]).distance(lines[(k2,k1)]))
+                #print(Point(keypoints[k]).distance(lines[(k2,k1)]))
             else:
                 logging.debug("Not found line: {}{}".format(k1,k2))
                 print("Not found")
@@ -569,7 +574,8 @@ def filterKeypoints(pose_keypoints, mode):
     c = 0
     for idx in range(0,_NUMKPTS):
         x, y, prob = pose_keypoints[idx*3:idx*3+3]
-        if prob <= _KPTS_THRESHOLD:
+        #prob: 0 (no keypoint) or low value (not sure)
+        if prob <= _KPTS_THRESHOLD: 
             pose_keypoints[idx*3:idx*3+3] = [-1,-1,-1]
         else:
             c = c + 1

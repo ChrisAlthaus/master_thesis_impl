@@ -252,7 +252,7 @@ def get_iterations_for_epochs(dataset, num_epochs, batch_size, min_kpts):
     return max_iter,one_epoch
 
 
-def setupLayersAndBN(cfg, trainmode, batchnorm=False):
+def setupLayersAndBN(cfg, trainmode, batchnorm="FrozenBN"):
     #Freeze specific layers which should not be trained according to trainmode
     #Additional set BN of ResNet
 
@@ -286,7 +286,7 @@ def setupLayersAndBN(cfg, trainmode, batchnorm=False):
     
     #Unfreeze batch normalization layers of ResNet
     if batchnorm:
-        cfg.MODEL.RESNETS.NORM = "FrozenBN" #"FrozenBN", "GN", "SyncBN", "BN"
+        cfg.MODEL.RESNETS.NORM = batchnorm #"FrozenBN", "GN", "SyncBN", "BN"
 
 
 def get_checkparams(model):

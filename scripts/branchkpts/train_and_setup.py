@@ -150,17 +150,22 @@ pca_on = True
 pca_dim = 64
 target = 'insert'
 
-if pca_on:
-    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -pca {} -target {}".format(inputfile, methodgpd, pca_dim, target)
-else:
-    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -target {}".format(inputfile, methodgpd, target)
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh'
+
+jobname = 'gpddescriptors'
+logfile = '/home/althausc/master_thesis_impl/posedescriptors/out/%s/logs/%s.txt'%(target, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+
+
+cmd =  ("sbatch -w devbox4 -J {} -o {} "+ \
+           "{} python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} {} -target {}")\
+                                                .format(jobname, logfile, gpu_cmd, inputfile, methodgpd, '-pca {}'.format(pca_dim) if pca_on else '', target)
 
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
     os.system(cmd)
 
-out_dir = '/home/althausc/master_thesis_impl/posedescriptors/out/09'
+out_dir = '/home/althausc/master_thesis_impl/posedescriptors/out/%s'%target
 outrun_dir = latestdir(out_dir)
 print("Output Directory: %s\n"%out_dir)
 

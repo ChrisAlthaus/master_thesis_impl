@@ -1,5 +1,8 @@
 import numpy as np
 from sklearn.decomposition import PCA
+import warnings
+import matplotlib.pyplot as plt
+np.seterr(all = "raise")
 
 def normalizevec(featurevector, rangemin=0, rangemax=1, mask=False):
     if mask:
@@ -97,12 +100,22 @@ def angle(l1,l2):
         #Don't using shapely cause no extended lines
         intersect = line_intersection(l1.coords, l2.coords)
         if intersect == -1: #parallel lines
+            print("return 0.0")
             return 0.0
         j1 = np.subtract(p12,intersect)
         j2 = np.subtract(p22,intersect)
     
-    #plt.plot([0,j1[0]], [0,j1[1]], 'g-', lw=1)
-    #plt.plot([0,j2[0]], [0,j2[1]], 'g-', lw=1)
-    j1_norm = j1/np.linalg.norm(j1)
-    j2_norm = j2/np.linalg.norm(j2)
+    
+    print(l1,list(l1.coords),l2,list(l2.coords))
+    print(j1,j2)
+    try:
+        j1_norm = j1/np.linalg.norm(j1)
+        j2_norm = j2/np.linalg.norm(j2)
+    except:
+        plt.plot([0,j1[0]], [0,j1[1]], 'g-', lw=1)
+        plt.plot([0,j2[0]], [0,j2[1]], 'g-', lw=1)
+        plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/debugging/error_calcangle.jpg")
+        exit(1)
+    #python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/11-24_15-33-23/maskrcnn_predictions.json -mode JcJLdLLa_reduced -target insert
+
     return np.arccos(np.clip(np.dot(j1_norm, j2_norm), -1.0, 1.0))

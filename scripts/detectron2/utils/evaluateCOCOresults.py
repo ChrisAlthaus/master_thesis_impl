@@ -7,6 +7,10 @@ import time
 
 import argparse
 
+import sys
+sys.path.append('/home/althausc/.local/lib/python3.6/site-packages/detectron2/evaluation')
+from fast_eval_api import COCOeval_opt
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-predictions', '-preds',  help='Path to a prediction json file in coco format.')
 parser.add_argument('-gt_annotations', '-gt_ann', help='Path to gt annotation json file in coco format.')
@@ -30,7 +34,7 @@ if args.model_cp:
     print("MASK-RCNN PREDICTION:")
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
     topk = 100 #20
-    score_tresh = 0.8 #0.7
+    score_tresh = 0.0 #For evaluation use all predictions
     styletransfered = True
 
     cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target train {} -visrandom"\
@@ -73,7 +77,7 @@ evalstr = ''
 evalstr = evalstr + "----------- EVALUATION FOR KEYPOINTS -------------" + os.linesep
 # running evaluation
 #Path of Cocoeval: .local/lib64/python3.6/site-packages/pycocotools/cocoeval.py
-cocoEval = COCOeval(cocoGt,cocoDt,'keypoints')
+cocoEval = COCOeval_opt(cocoGt,cocoDt,'keypoints')
 cocoEval.params.imgIds  = imgIds
 cocoEval.evaluate()
 cocoEval.accumulate()
@@ -82,7 +86,7 @@ evalstr = evalstr + cocoEval.evalresults + os.linesep
 
 evalstr = evalstr + "-------------- EVALUATION FOR BBOX ----------------" + os.linesep
 # running evaluation
-cocoEval = COCOeval(cocoGt,cocoDt,'bbox')
+cocoEval = COCOeval_opt(cocoGt,cocoDt,'bbox')
 cocoEval.params.imgIds  = imgIds
 cocoEval.evaluate()
 cocoEval.accumulate()

@@ -92,13 +92,17 @@ def train(cfg, local_rank, distributed, logger):
     checkpointer = DetectronCheckpointer(
         cfg, model, optimizer, scheduler, output_dir, save_to_disk
     )
-    extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT, update_schedule=cfg.SOLVER.UPDATE_SCHEDULE_DURING_LOAD)
+
+    #modified: no optimizer
+    extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT, with_optim=not cfg.MODEL.RESUME_TRAIN, update_schedule=cfg.SOLVER.UPDATE_SCHEDULE_DURING_LOAD)
     arguments.update(extra_checkpoint_data)
-    print("Arguments: ",arguments)
+    #modified end
+
+    #print("Arguments: ",arguments)
     if cfg.MODEL.RESUME_TRAIN:
         print("Resetting iteration number...")
         arguments["iteration"] = 0
-    print("Arguments: ",arguments)
+    #print("Arguments: ",arguments)
 
     #modified: important class for data loading: Scene-Graph-Benchmark.pytorch/build/lib.linux-x86_64-3.6/maskrcnn_benchmark/data/datasets/visual_genome.py
     train_data_loader = make_data_loader(
@@ -148,10 +152,10 @@ def train(cfg, local_rank, distributed, logger):
 
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
 
-    if cfg.SOLVER.PRE_VAL:
-        logger.info("Validate before training")
-        val_results, _ = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
-        savevalresult(val_results, arguments["iteration"], cfg.OUTPUT_DIR, writer)
+    #if cfg.SOLVER.PRE_VAL:
+    #    logger.info("Validate before training")
+    #    val_results, _ = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed)
+    #    savevalresult(val_results, arguments["iteration"], cfg.OUTPUT_DIR, writer)
     
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
@@ -162,6 +166,7 @@ def train(cfg, local_rank, distributed, logger):
     print("Max Iterations: ",max_iter)
 
     for iteration, (images, targets, _) in enumerate(train_data_loader, start_iter):
+
         model.train()
         #modified: don't stop when seeing a target without a box annotation (very rare)
         if any(len(target) < 1 for target in targets):
@@ -316,7 +321,7 @@ def run_val(cfg, datasetname, model, val_data_loaders, distributed):
     dataset_names = datasetname
     val_results = []
     for dataset_name, val_data_loader in zip(dataset_names, val_data_loaders):
-        dataset_results = inference(
+        dataset_results, score = inference(
                             cfg,
                             model,
                             val_data_loader,
@@ -440,9 +445,11 @@ def main():
     cfg.SOLVER.IMS_PER_BATCH = params['trainbatchsize']
     cfg.TEST.IMS_PER_BATCH = params['testbatchsize']
     cfg.DTYPE = params['dtype']
-    #cfg.SOLVER.BASE_LR = params['lr']
+    cfg.SOLVER.BASE_LR = params['lr']
+    cfg.INPUT.MIN_SIZE_TRAIN = params['minscales']
     cfg.SOLVER.MAX_ITER = params['maxiterations']
     cfg.SOLVER.STEPS = tuple(params['steps'])
+    cfg.SOLVER.GAMMA = params['gamma']
     cfg.SOLVER.VAL_PERIOD = params['valperiod']
     cfg.SOLVER.CHECKPOINT_PERIOD = params['cpktperiod']
     cfg.DATASETS.SELECT = params['datasetselect']
@@ -459,11 +466,18 @@ def main():
     cfg.merge_from_list(args.opts)
     #modified end
 
-    #modified: Set configs
-    #cfg.SOLVER.GAMMA = 0.1 #0.3162 #0.1
-    #cfg.SOLVER.STEPS = (30000,) #(30000,40000) #(30000,)
-    #cfg.MODEL.WEIGHT = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-13_12-44-52/model_final.pth'
+    #Additional param settings
+    #Data Augmentations
+    cfg.INPUT.BRIGHTNESS = 0.1 #default: 0.0
+    cfg.INPUT.CONTRAST = 0.1 #default: 0.0
+    cfg.INPUT.SATURATION = 0.1 #default: 0.0
+    cfg.INPUT.HUE = 0.1 #default: 0.0
 
+    cfg.MODEL.RESNETS.STEM_FUNC = "StemWithGN" #StemWithFixedBatchNorm,
+    cfg.MODEL.RESNETS.TRANS_FUNC = "BottleneckWithGN" #BottleneckWithFixedBatchNorm
+    cfg.MODEL.FPN.USE_GN = True
+    cfg.SOLVER.GRAD_NORM_CLIP = 5.0 #default: 5.0
+    
     #Entire backbone should be unfreezed
     cfg.MODEL.BACKBONE.FREEZE_CONV_BODY_AT = 0
 
@@ -484,6 +498,8 @@ def main():
         cfg.DATASETS.TRAIN = ("VG_styletransfer_train",)
         cfg.DATASETS.TEST = ("VG_styletransfer_test",)
         cfg.DATASETS.VAL = ("VG_styletransfer_val",)
+        #additional: compare with reduced validation set annotations
+        cfg.DATASETS.VAL2 = ("VG_styletransfer_val_subset_val",)
     elif cfg.DATASETS.SELECT == 'default-vg':
         cfg.DATASETS.TRAIN = ("VG_stanford_filtered_with_attribute_train",)
         cfg.DATASETS.TEST = ("VG_stanford_filtered_with_attribute_test",)

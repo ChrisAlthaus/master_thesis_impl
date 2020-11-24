@@ -167,7 +167,7 @@ def train(cfg, local_rank, distributed, logger):
 
     if cfg.SOLVER.PRE_VAL:
         logger.info("Validate before training")
-        val_results, _ = run_val(cfg, model, val_data_loaders, distributed, logger)
+        val_results, _ = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed, logger)
         savevalresult(val_results, arguments["iteration"], cfg.OUTPUT_DIR, writer)
 
     #modified: illustrate annotations for some validation images
@@ -195,6 +195,10 @@ def train(cfg, local_rank, distributed, logger):
 
     print_first_grad = True
     for iteration, (images, targets, _) in enumerate(train_data_loader, start_iter):
+        print(get_rank())
+        print("images: ",images)
+        print("targets: ",targets)
+        exit(1)
         
         #modified: don't stop when seeing a target without a box annotation (very rare)
         if any(len(target) < 1 for target in targets):
@@ -313,13 +317,13 @@ def train(cfg, local_rank, distributed, logger):
         if cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD == 0:
             print("Start Val: ", get_rank())
             logger.info("Start validating")
-            val_results, rk_100 = run_val(cfg, model, val_data_loaders, distributed, logger)
+            val_results, rk_100 = run_val(cfg, cfg.DATASETS.VAL, model, val_data_loaders, distributed, logger)
             logger.info("Validation Result: %.4f" % rk_100)
             savevalresult(val_results, iteration, cfg.OUTPUT_DIR, writer)
 
         if cfg.DATASETS.VAL2 and cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD * 2 == 0:
             logger.info("Start validating")
-            val_results, rk_100 = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed)
+            val_results, rk_100 = run_val(cfg, cfg.DATASETS.VAL2, model, val_data_loaders2, distributed, logger)
             logger.info("Validation Result: %.4f" % rk_100)
             savevalresult(val_results, iteration, cfg.OUTPUT_DIR, writer, suffix='(2)')
 
@@ -351,7 +355,7 @@ def fix_eval_modules(eval_modules):
             param.requires_grad = False
         # DO NOT use module.eval(), otherwise the module will be in the test mode, i.e., all self.training condition is set to False
 
-def run_val(cfg, model, val_data_loaders, distributed, logger):
+def run_val(cfg, datasetname, model, val_data_loaders, distributed, logger):
     if distributed:
         model = model.module
     torch.cuda.empty_cache()
@@ -365,7 +369,7 @@ def run_val(cfg, model, val_data_loaders, distributed, logger):
     if cfg.MODEL.ATTRIBUTE_ON:
         iou_types = iou_types + ("attributes", )
 
-    dataset_names = cfg.DATASETS.VAL
+    dataset_names = datasetname
     val_results = []
     for dataset_name, val_data_loader in zip(dataset_names, val_data_loaders):
         dataset_results, score = inference(
@@ -500,13 +504,23 @@ def main():
     cfg.DTYPE = params['dtype']
     cfg.SOLVER.MAX_ITER = params['maxiterations']
     cfg.SOLVER.VAL_PERIOD = params['valperiod']
-    cfg.SOLVER.STEPS = tuple(params['steps'])
+    cfg.SOLVER.BASE_LR = params['lr']
+    cfg.SOLVER.STEPS = tuple(params['steps']) #not used
+    cfg.SOLVER.SCHEDULE.FACTOR = params['gamma']
+    cfg.INPUT.MIN_SIZE_TRAIN = params['minscales']
     cfg.SOLVER.CHECKPOINT_PERIOD = params['cpktperiod']
     cfg.SOLVER.PRE_VAL = params['preval']
     cfg.DATASETS.SELECT = params['datasetselect']
     cfg.GLOVE_DIR = params['glovedir']
     cfg.MODEL.PRETRAINED_DETECTOR_CKPT = params['pretrainedcpkt']
     cfg.OUTPUT_DIR = params['outputdir']
+
+    #Additional param settings
+    #Data Augmentations
+    cfg.INPUT.BRIGHTNESS = 0.1 #default: 0.0
+    cfg.INPUT.CONTRAST = 0.1 #default: 0.0
+    cfg.INPUT.SATURATION = 0.1 #default: 0.0
+    cfg.INPUT.HUE = 0.1 #default: 0.0
 
     #Custom arguments setup
     print("Optional arguments: ",args.opts)

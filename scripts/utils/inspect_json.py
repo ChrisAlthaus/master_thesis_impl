@@ -75,6 +75,16 @@ if args.mode == 'coco-ann-images-number':
     print("Length of image field: ", len(json_file['images']))
     exit(1)
 
+if args.mode == 'anns-per-imageid-stats':
+    json_file.sort(key=lambda x: x['image_id'])
+    from itertools import groupby
+    sorted_by_imagids = groupby(json_file ,key=lambda x: x['image_id'])
+    lens = [len(list(v)) for k,v in sorted_by_imagids]
+    print("Average number of annotations/imagid: ", np.mean(lens))
+    print("Min number of annotations/imagid: ", min(lens))
+    print("Max number of annotations/imagid: ", max(lens))
+    exit(1)
+
 #List of dicts
 if isinstance(json_file,list):
     print("Number of elements: ",len(json_file))

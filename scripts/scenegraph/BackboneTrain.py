@@ -9,8 +9,8 @@ import csv
 _NUMGPUS = 2#1 #default parameters for 4 GPUs
 _IMS_PER_BATCH = 4#8 #2 #default: 8
 #scalefactor to get right learning rate & keep same number of epochs
-scalefactor = 4#8/_IMS_PER_BATCH 
-_LR = 0.001 #0.00125 #0.0005 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
+scalefactor = 2#8/_IMS_PER_BATCH 
+_LR = 0.002/_IMS_PER_BATCH #0.00125 #0.0005 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
 _ADD_ITER = 25000
 _MAX_ITER = (50000 + _ADD_ITER) * scalefactor
 _STEPS_PERC = [0.5, 0.7, 0.8, 0.9, 0.95] #[0.4, 0.6, 0.8, 0.9, 0.95]#original: [0.6, 0.9]
@@ -36,7 +36,7 @@ _MINSIZES_TRAIN = (600,) #(640, 672, 704, 736, 768, 800) #detectron2: (640, 672,
 
 _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer', 'default-vg']
 _DATASET_SELECT = _DATASET_SELECTS[1]
-_ADD_NOTES = 'X-101-FPN-32-8 (like cpkt) & More LR-steps with gamma(0.5) & Like /faster_rcnn_training/11-12_19-22-41 (Default MinSize-Step because of low validation acc on multiple, ...)'
+_ADD_NOTES = 'X-101-FPN-32-8 (like cpkt) & Lr now really like previous run & More LR-steps with gamma(0.5) & GN enabled! & Like /faster_rcnn_training/11-12_19-22-41 (Default MinSize-Step because of low validation acc on multiple, ...) & Right Scale factor(not like last run before='
 
 resume_cpkt = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-12_19-22-41/model_final.pth'
 resume = False #True #False

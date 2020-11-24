@@ -13,7 +13,7 @@ from detectron2.data.samplers import InferenceSampler
 import itertools, copy
 from detectron2.data.build import build_detection_test_loader
 from detectron2.structures import Instances
-from detectron2.structures.boxes import Boxes
+from detectron2.structures import Boxes, BoxMode
 
 from detectron2.data.datasets import register_coco_instances
 import torch
@@ -85,9 +85,8 @@ def main():
     #cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml") 
     cfg.MODEL.WEIGHTS = args.model_cp #uncomment for default checkpoint provided by authors
 
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
+    #cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
     cfg.MODEL.DEVICE= 'cuda' #'cpu'
-    cfg.MIN_SIZE_TRAIN= 512 #necessary?
 
 
     #Set necessary flags for freezing net
@@ -104,11 +103,13 @@ def main():
     outputs = []
     outputs_raw = []
     predictor = DefaultPredictor(cfg)
+    print(cfg)
+    print("SCORE TRESHOLD: ",_SCORE_TRESH)
 
     with torch.no_grad():
         print("START PREDICTION")
         #Providing prediction for single and multiple images
-        batchsize = 10
+        batchsize = 10#2#10
         #Percent of predictions not used
         notused = []
         #Number of images with no predictions
@@ -123,6 +124,9 @@ def main():
                 img = cv2.imread(img_path)
                 inputs.append(img)
 
+            #Prediction output:
+            #For each image theres an instance-class, which format is:
+            #   {'instances': Instances(num_instances=X, image_height=h, image_width=w, fields=[pred_boxes, scores, pred_classes, pred_keypoints])}
             preds = predictor(inputs)
 
             for img_path,pred in zip(image_paths[i:i+batchsize],preds):
@@ -138,9 +142,10 @@ def main():
                 added = False
                 for bbox, keypoints ,score in zip(pred["instances"].pred_boxes, pred["instances"].pred_keypoints, pred["instances"].scores.cpu().numpy()):
                     if score.astype("float") >= _SCORE_TRESH:
-                        outputs.append({'image_id': image_id, 'image_size': pred["instances"]._image_size,  "category_id": 1, "bbox": bbox.tolist(), "keypoints":keypoints.flatten().tolist(), "score": score.astype("float")})
+                        bbox = BoxMode.convert(bbox.tolist(), BoxMode.XYXY_ABS, BoxMode.XYWH_ABS) #Since coco-evaluation works with XYWH format
+                        outputs.append({'image_id': image_id, 'image_size': pred["instances"]._image_size,  "category_id": 1, "bbox": bbox, "keypoints":keypoints.flatten().tolist(), "score": score.astype("float")})
                         added = True
-                    if c >= _TOPK - 1:
+                    if c >= _TOPK:
                         break
                     c = c + 1
 
@@ -150,9 +155,13 @@ def main():
                     nopreds.append(img_path)
 
                 outputs_raw.append(pred)
+                #print(pred["instances"].scores)
+                #print("original num of predictions: ",image_id, len(pred["instances"].pred_boxes), c)
+                assert len(pred["instances"].pred_boxes) == c, print(len(pred["instances"].pred_boxes), c)
 
-            if i%100 == 0 and i!=0:
+            if i%1000 == 0 and i!=0:
                 print("Processed %d images."%(i+batchsize))
+                #break
         print("PREDICTION FINISHED")
         print("Percentage of not used predictions (averaged): ", np.mean(notused))
         print("Number of images with no predictions: ", len(nopreds))
