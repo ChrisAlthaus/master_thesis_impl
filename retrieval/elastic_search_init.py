@@ -82,13 +82,15 @@ _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['CLUSTER-COSSIM', 'RAW-COSSIM']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
 
+_INDEX = ''
 if args.method_insert and args.gpd_type:
-    global _INDEX
     _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
-_INDEX = 'test3'
-_INDEX = _INDEX.lower()
-#_INDEX = 'imgid_gpdcluster' #test index
-print("Current index: ",_INDEX)
+    _INDEX = _INDEX +'_pbn10k'
+    _INDEX = _INDEX.lower()
+    #_INDEX = 'imgid_gpdcluster' #test index
+    print("Current index: ",_INDEX)
+if args.method_search:
+    _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
 
 _ELEMNUM_COS = 100
 _ELEMNUM_DIST = 1000 #bigger because relative score computation
@@ -181,7 +183,7 @@ def main():
                 image_ids, scores = query(es, img_descriptor, _ELEMNUM_DIST, args.method_search)
                 results.append(list(zip(image_ids,scores)))
             print("Searching image descriptors done.")
-            exit(1)
+           
             #Flattening list of indiv feature vector results
             results = [item for sublist in results for item in sublist]
             imgids_final = bestmatching_sumdist(results, _NUMRES)
@@ -368,6 +370,7 @@ def query(es, descriptor, size, method):
                   }
 
     elif method == _METHODS_SEARCH[1]:
+        print("TEST")
         request = { "size": size,
                     "query": {
                         "script_score": {
@@ -379,18 +382,16 @@ def query(es, descriptor, size, method):
                                 "source": """
                                     def m1 = doc['mask'].value;
                                     def m2 = params.queryMask;
-                                    //Debug.explain(params.queryVector);
-                                    //Debug.explain(params._source['gpd-array']);
-                                    //Debug.explain(doc['gpd']);
-                                    //Debug.explain(m2);
+                                    def c = 0;
                                     for(int i; i < m1.length(); i++) {
                                         if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
                                             params.queryVector[i] = params._source['gpd-array'][i]; 
+                                            c = c + 1;
                                         }
                                     }
-                                    //Debug.explain(params.queryVector);
-                                    //Debug.explain(doc['gpd']);
-                                    def d = cosineSimilarity(params.queryVector, 'gpd') + 1.0;
+
+                                    c = params.queryVector.size() - c + 1;
+                                    def d = cosineSimilarity(params.queryVector, 'gpd')/c + 1.0;
                                     return d;
                                 """,
                                 "params": {
@@ -467,19 +468,20 @@ def bestmatching_sumdist(image_scoring, k):
             score_sums[imageid] = score_sums[imageid] + score
     print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
     print("Number of unreduced (without topk) unique imagids: ",len(score_sums))
-    print("Raw sumdistances statistics:", logscorestats(score_sums.values()))
+    print("Raw sumdistances statistics:", logscorestats(list(score_sums.values())))
     
     bestk = sorted(score_sums.items(), key=lambda x: x[1])[:k]
     #Apply normalization to intervall [0,1] & then apply exponential function, used for later comparison score in search results display
     if max(score_sums.values()) != min(score_sums.values()):
         lin_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())))
-        bestk = map(lin_norm, bestk)
-        print("Linear Normalization statistics:", logscorestats(bestk))
-    exp_norm = lambda x: (x[0], np.exp(-10* x[1]))
-    bestk = map(exp_norm, bestk)
-    print("Exponential Normalization statistics:", logscorestats(bestk))
+        bestk = list(map(lin_norm, bestk))
 
-    return list(bestk)
+        print("Linear Normalization statistics:", logscorestats([s for id,s in bestk]))
+    exp_norm = lambda x: (x[0], np.exp(-10* x[1]))
+    bestk = list(map(exp_norm, bestk))
+    print("Exponential Normalization statistics:", logscorestats([s for id,s in bestk]))
+
+    return bestk
 
 
 def bestmatching_cluster(image_scoring, k):
@@ -520,7 +522,7 @@ def show_docs(es, firstn):
     es.indices.refresh(index=_INDEX)
     response = scan(es, index=_INDEX, query={"query": { "match_all" : {}}}, size=firstn)
 
-    print(list(response))
+    print(list(response)[:firstn])
 
 def get_alldocs(es):
     es.indices.refresh(index=_INDEX)

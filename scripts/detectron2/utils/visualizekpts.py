@@ -33,7 +33,7 @@ def main():
 
     grouped_by_imageid = [{k: list(g)} for k, g in itertools.groupby(sorted(data, key=lambda x:x['image_id']), lambda x: x['image_id'])]
     print("Visualize the predictions onto the original image(s) ...")
-    visualize(grouped_by_imageid, args.imagespath, args.vistresh, args.outputdir)
+    visualize(grouped_by_imageid, args.imagespath,args.outputdir, vistresh=args.vistresh, transformid=args.transformid)
     print("Visualize done.")
     print("Wrote images to path: ",args.outputdir)
 

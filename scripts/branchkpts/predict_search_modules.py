@@ -35,22 +35,23 @@ def test():
 
 def is_styletranfered_img(imgpath):
     imgname = os.path.splitext(os.path.basename(imgpath))[0]
-    imgname = imgname.replace("_","")
     
-    if imgname.isdigit() and len(imgname)<=18:
-        return True
-    else:
-        return False
+    if "_" in imgname:
+        imgname = imgname.replace("_","")
+        if imgname.isdigit() and len(imgname)<=18:
+            return True
+    return False
 
 _PRINT_CMDS = True #False
+_PREDICT_POSEFIX = False
 
 def predict(imgpath):
     # ----------------- MASK-RCNN PREDICTIONS ---------------------
     print("MASK-RCNN PREDICTION ...")
-    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/08/07_12-40-41_all/model_0214999.pth'
+    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch/model_final.pth'
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
     out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query'
-    transform_arg = "-transformid" if is_styletranfered_img(imgpath) else ""
+    transform_arg = "-styletransfered" if is_styletranfered_img(imgpath) else ""
     target = 'query'
     topk = 10
     score_tresh = 0.7
@@ -68,43 +69,49 @@ def predict(imgpath):
     print("MASK-RCNN PREDICTION DONE.")
 
     # ----------------- POSEFIX PREDICTIONS ---------------------
-    print("POSEFIX PREDICTION ...")
-    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
-    #model_dir = latestdir('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO')
-    model_dir = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/MSCOCO-pretrained'
-    model_epoch = 140
-    inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
-    image_dir = os.path.dirname(imgpath)
-    target = 'query'
-    logfile = os.path.join(logpath, '2-posefix.txt')
+    if _PREDICT_POSEFIX:
+        print("POSEFIX PREDICTION ...")
+        gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
+        #model_dir = latestdir('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO')
+        model_dir = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/model_dump/COCO/MSCOCO-pretrained'
+        model_epoch = 140
+        inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
+        image_dir = os.path.dirname(imgpath)
+        target = 'query'
+        logfile = os.path.join(logpath, '2-posefix.txt')
 
-    if _PRINT_CMDS: 
-        print("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} -imagefolder {} -target {} {} &> {}"\
-                                                                                    .format(gpu_cmd, model_epoch, model_dir, inputfile, image_dir, target, transform_arg, logfile))                                                                                  
-    
-    #-gpu argument not used
-    if os.system("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} -imagefolder {} -target {} {} &> {}"\
-                                                                                    .format(gpu_cmd, model_epoch, model_dir, inputfile, image_dir, target, transform_arg, logfile)):
-        raise RuntimeError('PoseFix Prediction failed.')
+        if _PRINT_CMDS: 
+            print("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} -imagefolder {} -target {} {} &> {}"\
+                                                                                        .format(gpu_cmd, model_epoch, model_dir, inputfile, image_dir, target, transform_arg, logfile))                                                                                  
+        
+        #-gpu argument not used
+        if os.system("{} python3.6 /home/althausc/master_thesis_impl/PoseFix_RELEASE/main/test.py --gpu 1 --test_epoch {} -modelfolder {} -inputs {} -imagefolder {} -target {} {} &> {}"\
+                                                                                        .format(gpu_cmd, model_epoch, model_dir, inputfile, image_dir, target, transform_arg, logfile)):
+            raise RuntimeError('PoseFix Prediction failed.')
 
-    out_dir = os.path.join('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/', target)
-    outrun_dir = latestdir(out_dir)
-    print("POSEFIX PREDICTION DONE.")
+        out_dir = os.path.join('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/', target)
+        outrun_dir = latestdir(out_dir)
+        print("POSEFIX PREDICTION DONE.")
 
     # --------------------- Visualize PoseFix predictions --------------------------
     print("VISUALIZE POSEFIX PREDICTIONS ...")
     ubuntu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run.sh'
-    inputfile = os.path.join(outrun_dir,"resultfinal.json")
+    if _PREDICT_POSEFIX:
+        inputfile = os.path.join(outrun_dir,"resultfinal.json")
+    else:
+        inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
+
     imagespath = os.path.dirname(imgpath) #'/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer'
+    transform_arg = "-transformid" if is_styletranfered_img(imgpath) else ""
     tresh = 0.1
     #Save visualization image in dir from which the script is started
-    outputdir = os.path.dirname(os.path.join(os.path.realpath(__file__), '.images'))
+    outputdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '.images')
     logfile = os.path.join(logpath, '3-visualize.txt')
 
     if _PRINT_CMDS:
-        print("{} python3.6 /home/althausc/master_thesis_impl/scripts/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -vistresh {} {} &> {}"\
+        print("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -vistresh {} {} &> {}"\
                                                                         .format(ubuntu_cmd, inputfile, imagespath, outputdir, tresh, transform_arg, logfile))
-    if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -vistresh {} {} &> {}"\
+    if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -vistresh {} {} &> {}"\
                                                                         .format(ubuntu_cmd, inputfile, imagespath, outputdir, tresh, transform_arg, logfile)):
         raise RuntimeError('Visualize prediction failed.')
     print("VISUALIZE POSEFIX PREDICTIONS DONE.")
@@ -153,7 +160,7 @@ def search(gpdfile, method_search, gpdtype, method_insert, tresh=None):
     inputfile = gpdfile
     logfile = os.path.join(logpath, '5-search.txt')
     print("GPD file: ",inputfile)
-    _METHODS_SEARCH = ['COSSIM', 'DISTSUM']
+    _METHODS_SEARCH = ['CLUSTER-COSSIM', 'RAW-COSSIM']
     _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
     _METHODS_INSERT = ['CLUSTER', 'RAW']
 

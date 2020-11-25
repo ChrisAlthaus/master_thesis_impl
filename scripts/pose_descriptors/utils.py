@@ -15,7 +15,13 @@ def normalizevec(featurevector, rangemin=0, rangemax=1, mask=False):
             else:
                 maskvalid.append(True)
         subvec = [n for n,l in zip(featurevector, maskvalid) if l is True]
-        normsubvec = [ (x-min(subvec)) * (rangemax - rangemin)/(max(subvec) - min(subvec)) + rangemin for x in subvec]
+        if max(subvec) != min(subvec):
+            normsubvec = [ (x-min(subvec)) * (rangemax - rangemin)/(max(subvec) - min(subvec)) + rangemin for x in subvec]
+        else:
+            #relation description not possible when same values or just on entry
+            print("Info: relation description not possible")
+            normsubvec = [-1 for _ in subvec]
+
         normvec = []
         c_valid = 0
         for l in maskvalid:
@@ -73,12 +79,26 @@ def line_intersection(line1, line2):
     y = det(d, ydiff) / div
     return [x, y]
 
+_COUNTER = 0
+def plotsave_linesintersect(l1, l2, l3, l4, points):
+        plt.plot([l1[0], l1[2]], [l1[1], l1[3]], 'g-', lw=1)
+        plt.plot([l2[0], l2[2]], [l2[1], l2[3]], 'g-', lw=1)
+
+        plt.plot([l3[0], l3[2]], [l3[1], l3[3]], 'r-', lw=1)
+        plt.plot([l4[0], l4[2]], [l4[1], l4[3]], 'r-', lw=1)
+        for p in points:
+            plt.plot(p[0],p[1], marker='o', markersize=3, color="blue")
+        global _COUNTER
+        plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/debugging/error_calcangle%d.jpg"%_COUNTER)
+        _COUNTER = _COUNTER + 1
+        plt.clf()
+
 def angle(l1,l2):
     [p11,p12] = list(l1.coords)
     [p21,p22] = list(l2.coords)
     #print("coords1: ", list(l1.coords))
     #print("coords2: ", list(l2.coords))
-    
+    intersect = None
     #When line is a point (due to prediction overlay kpts) return 0
     if (p11[0] == p12[0] and p11[1] == p12[1]) or (p21[0] == p22[0] and p21[1] == p22[1]):
         return 0
@@ -100,22 +120,36 @@ def angle(l1,l2):
         #Don't using shapely cause no extended lines
         intersect = line_intersection(l1.coords, l2.coords)
         if intersect == -1: #parallel lines
-            print("return 0.0")
             return 0.0
+        #print("1:",p12, intersect)
+        #print("2:",p22, intersect)
+
         j1 = np.subtract(p12,intersect)
         j2 = np.subtract(p22,intersect)
+
+        #If intersection is the endpoint, take the startpoint
+        if np.linalg.norm(j1) < 10e-4:
+            j1 = np.subtract(p11,intersect)
+            print("Info: intersection is exactly on the line endpoint")
+            plotsave_linesintersect([0,0,j1[0],j1[1]], [0,0,j2[0],j2[1]], [p11[0],p11[1],p12[0],p12[1]], [p21[0],p21[1],p22[0],p22[1]], [intersect])
+            assert np.linalg.norm(j1) > 10e-4
+        if np.linalg.norm(j2) < 10e-4:
+            j2 = np.subtract(p21,intersect)
+            print("Info: intersection is exactly on the line endpoint")
+            plotsave_linesintersect([0,0,j1[0],j1[1]], [0,0,j2[0],j2[1]], [p11[0],p11[1],p12[0],p12[1]], [p21[0],p21[1],p22[0],p22[1]], [intersect])
+            assert np.linalg.norm(j2) > 10e-4
     
-    
-    print(l1,list(l1.coords),l2,list(l2.coords))
-    print(j1,j2)
+    #print(l1,list(l1.coords),l2,list(l2.coords))
+    #print(j1,j2)
     try:
         j1_norm = j1/np.linalg.norm(j1)
         j2_norm = j2/np.linalg.norm(j2)
     except:
-        plt.plot([0,j1[0]], [0,j1[1]], 'g-', lw=1)
-        plt.plot([0,j2[0]], [0,j2[1]], 'g-', lw=1)
-        plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/debugging/error_calcangle.jpg")
-        exit(1)
+        plotsave_linesintersect([0,0,j1[0],j1[1]], [0,0,j2[0],j2[1]], [p11[0],p11[1],p12[0],p12[1]], [p21[0],p21[1],p22[0],p22[1]], [intersect])
+        raise ValueError()
     #python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/11-24_15-33-23/maskrcnn_predictions.json -mode JcJLdLLa_reduced -target insert
 
     return np.arccos(np.clip(np.dot(j1_norm, j2_norm), -1.0, 1.0))
+
+
+   

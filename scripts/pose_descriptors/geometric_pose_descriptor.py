@@ -95,13 +95,15 @@ def main():
     prevImgId = None
     #json_data = [test_entry for i in range(0,100)]
     start_time = time.time()
-
+    
+    fc = 0 #filter counter
     c = 0
     i = 0
     for i,person in enumerate(json_data):
         if "keypoints" in person:
             #Decide based on confidence score weather to process this prediction
             if not filterKeypoints(person['keypoints'], args.mode):
+                fc = fc + 1
                 continue
 
             #if person['score'] >= 0.9:
@@ -142,6 +144,7 @@ def main():
         f.write("PCA dimension: %s"%(str(args.pca) if args.pca is not None else 'not used')+ os.linesep)
         f.write("Number input predictions: %d"%len(json_data) + os.linesep)
         f.write("Number calculated descriptors: %d"%c + os.linesep)
+        f.write("Number of input prediction filtered out: %d"%fc + os.linesep)
         f.write("Dimension of descriptor: %d"%len(json_out[0]['gpd']) + os.linesep)
         f.write(_ADDNOTES)
 
@@ -322,14 +325,14 @@ def calculateGPD(keypoints, mode, metadata):
     logging.debug("Dimension of pose descriptor flattened: {}".format(len(pose_descriptor)))
     logging.debug("\n")
 
+    if _NOTESFLAG:
+        _ADDNOTES += 'Lines directly adjacent: %d \n'%len(l_direct_adjacent)
+        _ADDNOTES += 'Lines endjoints depth 2: %d \n'%len(l_end_depth2)
+        _ADDNOTES += 'Lines endjoint connections: %d \n'%len(l_endjoints)
+        _ADDNOTES += 'Lines custom: %d \n'%len(l_custom)
+        _ADDNOTES += 'Lines together: %d \n'%len(l_all)
 
-    _ADDNOTES += 'Lines directly adjacent: %d \n'%len(l_direct_adjacent)
-    _ADDNOTES += 'Lines endjoints depth 2: %d \n'%len(l_end_depth2)
-    _ADDNOTES += 'Lines endjoint connections: %d \n'%len(l_endjoints)
-    _ADDNOTES += 'Lines custom: %d \n'%len(l_custom)
-    _ADDNOTES += 'Lines together: %d \n'%len(l_all)
-
-    _NOTESFLAG = False
+        _NOTESFLAG = False
 
     mask = ''.join(['1' if entry!=-1 else '0' for entry in pose_descriptor])
 
@@ -561,7 +564,6 @@ def joint_plane_distances(keypoints,planes):
 
 
 # ------------------------------------ HELPER FUNCTIONS -----------------------------------
-
 def filterKeypoints(pose_keypoints, mode):
     #Filter out keypoints above a treshold
     #Skip pose if too few keypoints or reference point is not contained (for keypoint coordinate descriptor)

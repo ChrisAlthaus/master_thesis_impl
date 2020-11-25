@@ -473,9 +473,9 @@ def main():
     cfg.INPUT.SATURATION = 0.1 #default: 0.0
     cfg.INPUT.HUE = 0.1 #default: 0.0
 
-    cfg.MODEL.RESNETS.STEM_FUNC = "StemWithGN" #StemWithFixedBatchNorm,
-    cfg.MODEL.RESNETS.TRANS_FUNC = "BottleneckWithGN" #BottleneckWithFixedBatchNorm
-    cfg.MODEL.FPN.USE_GN = True
+    #cfg.MODEL.RESNETS.STEM_FUNC = "StemWithGN" #StemWithFixedBatchNorm,
+    #cfg.MODEL.RESNETS.TRANS_FUNC = "BottleneckWithGN" #BottleneckWithFixedBatchNorm
+    #cfg.MODEL.FPN.USE_GN = True
     cfg.SOLVER.GRAD_NORM_CLIP = 5.0 #default: 5.0
     
     #Entire backbone should be unfreezed
@@ -564,7 +564,8 @@ def savevalresult(val_results, iteration, outputdir, writer, suffix=None):
         for i,scalar in enumerate(scalars):
             writer.add_scalar(scalar, val_results[i], iteration)    
             print("Added: ", scalar, val_results[i], iteration)
-        writer.add_scalar('R@100' if suffix is None else 'R@100'+suffix, val_results[0], iteration)  
+        #Actually mAP50 but for comparison of old runs keep this tagname
+        writer.add_scalar('R@100' if suffix is None else 'R@100'+suffix, val_results[1], iteration)  
 
 
 def getfirstimg_withann(images, targets):

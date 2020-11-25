@@ -82,6 +82,7 @@ def main():
             cfg.MODEL.WEIGHTS = args.resume
     else:
         cfg.MODEL.WEIGHTS = ""
+    cfg.RESUME_CPKT = args.resume
 
     cfg.MODEL.DEVICE='cuda' #'cpu'   
 
@@ -183,12 +184,24 @@ def main():
     # -------------------------- BATCH NORMALIZATION SETUP ------------------------
     setupLayersAndBN(cfg, trainmode, batchnorm= c_params['bn'])
     cfg.freeze()
+
     
 
     # ------------------------- APPLY CONFIG & GET MODEL ------------------------
     trainer = COCOTrainer(cfg)    
     model = trainer.model
     
+    # -------------------- RESUME MODEL ON/OFF ---------------------
+  
+    if args.resume is not None:
+        print("Resuming training from checkpoint %s."%args.resume)
+        #DetectionCheckpointer(trainer.model).load(args.resume)
+        print("Copy checkpoint {} into current run directory {}".format(args.resume, cfg.OUTPUT_DIR))
+        shutil.copy2(args.resume, cfg.OUTPUT_DIR)
+        with open(os.path.join(cfg.OUTPUT_DIR, 'last_checkpoint'), 'a') as f: 
+            f.write(os.path.basename(args.resume))
+        trainer.resume_or_load()
+
 
     # ----------------------------- SAVING CONFIGS -------------------------------
     if args.addconfig:
@@ -213,13 +226,6 @@ def main():
         print(cfg,file=f)
         
 
-    # -------------------- RESUME MODEL ON/OFF ---------------------
-  
-    if args.resume is not None:
-        print("Resuming training from checkpoint %s."%args.resume)
-        DetectionCheckpointer(trainer.model).load(args.resume)
-    
-    #trainer.resume_or_load(resume=False)
 
     # --------------------- TRAIN MODEL ----------------------------------
     checkparams = get_checkparams(model)
