@@ -1,4 +1,6 @@
- 
+import numpy as np
+import ipyplot
+
 def recursive_print_dict( d, indent = 0 ):
     if not isinstance(d, list) and not isinstance(d, dict):
         print("\t" * (indent+1), d)
@@ -21,3 +23,24 @@ def recursive_print_dict( d, indent = 0 ):
                     recursive_print_dict(item, indent)
         else:
             print("\t" * indent, f"{k}:{v}")
+
+def logscorestats(scores):
+    #Computes the box-plot whiskers values.
+    #Computed values: min, low_whiskers, Q1, median, Q3, high_whiskers, max
+    #Ordering differs from whiskers plot ordering.
+    Q1, median, Q3 = np.percentile(np.asarray(scores), [25, 50, 75])
+    IQR = Q3 - Q1
+
+    loval = Q1 - 1.5 * IQR
+    hival = Q3 + 1.5 * IQR
+
+    wiskhi = np.compress(scores <= hival, scores)
+    wisklo = np.compress(scores >= loval, scores)
+    actual_hival = np.max(wiskhi)
+    actual_loval = np.min(wisklo)
+
+    Qs = [Q1, median, Q3, loval, hival, actual_loval, actual_hival]
+    Qname = ["Q1", "median", "Q3", "Q1-1.5xIQR", "Q3+1.5xIQR", 
+            "Actual LO", "Actual HI"]
+    logstr = ''.join(["{}:{} ".format(a,b) for a,b in zip(Qname,Qs)])
+    return logstr

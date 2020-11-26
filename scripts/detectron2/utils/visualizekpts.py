@@ -33,11 +33,11 @@ def main():
 
     grouped_by_imageid = [{k: list(g)} for k, g in itertools.groupby(sorted(data, key=lambda x:x['image_id']), lambda x: x['image_id'])]
     print("Visualize the predictions onto the original image(s) ...")
-    visualize(grouped_by_imageid, args.imagespath,args.outputdir, vistresh=args.vistresh, transformid=args.transformid)
+    visualize(grouped_by_imageid, args.imagespath,args.outputdir, vistresh=args.vistresh, transformid=args.transformid, drawbboxes=True)
     print("Visualize done.")
     print("Wrote images to path: ",args.outputdir)
 
-def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid=False, suffix='overlay'):
+def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid=False, drawbboxes = True, suffix='overlay'):
     #Grouped imageid input: [{imageid1 : [{imageid1,...},...,{imageid1,...}], ... , {imageidn :[{imageidn,...},...,{imageidn,...}]}]
     
     MetadataCatalog.get("my_dataset_val").set(keypoint_names=COCO_PERSON_KEYPOINT_NAMES,
@@ -45,6 +45,7 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
                                               keypoint_connection_rules=KEYPOINT_CONNECTION_RULES)
 
     for pred_group in grouped_by_imageid:
+        print(pred_group)
         imgid = str(list(pred_group.keys())[0])
         preds = list(pred_group.values())[0]
 
@@ -76,10 +77,13 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
                 scores.append(1.0)
             kpts = list(zip(pred['keypoints'][::3], pred['keypoints'][1::3], pred['keypoints'][2::3]))
             keypoints.append(kpts)
+            boxes.append(pred["bbox"])
     
         instances.scores = torch.Tensor(scores)
         instances.pred_classes = torch.Tensor(classes)
         instances.pred_keypoints = torch.Tensor(keypoints)
+        if drawbboxes:
+            instances.pred_boxes = torch.Tensor(boxes)
 
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(instances, vistresh)

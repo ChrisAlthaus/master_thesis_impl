@@ -18,7 +18,7 @@ import logging
 import ast
 import csv
 
-from utils import recursive_print_dict
+from utils import recursive_print_dict, logscorestats
 
 import logging
 
@@ -35,9 +35,9 @@ import logging
 #                        > Number of result pairs (imgid, cos-score) = #input descriptors * _ELEMNUM_COS
 #                        > ranking of imgids by: count(imgid)*meanscore(cossim-value-imgid)
 #                        > linear norm to [0,1] for better differentiation, since often very similar ranking score
-#   2. Raw feature database: > idea: for each input descriptor get _ELEMNUM_DIST closest imgid entries, then take sum over all retrieval scores
+#   2. Raw feature database: > idea: for each input descriptor get _ELEMNUM_QUERYRESULT closest imgid entries, then take sum over all retrieval scores
 #                            > ranking of imgids by: sum(L2-distance-imgid) 
-#                            > Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_DIST #TODO: Implement cossim
+#                            > Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_QUERYRESULT #TODO: Implement cossim
 #                            > linear norm to [0,1] and then exponential norm
 
 
@@ -53,6 +53,7 @@ parser.add_argument('-method_insert', help='Select method for insert data.')
 parser.add_argument('-imgdir', help='Image directory the descriptors refer to (insert or search).')
 parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
+parser.add_argument('-rankingtype', help='Select method for ranking found descriptors.')
 parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
 parser.add_argument('-delindex', type=str, help='Delete an index by name.')
 parser.add_argument('-indexstats', type=str, help='Selects an index for debugging.')
@@ -61,7 +62,7 @@ parser.add_argument('-firstn', type=int, default=10, help='Gets firstn documents
 args = parser.parse_args()
 
 logger = logging.getLogger('elasticsearch-db')
-_DEBUG = False #True #False
+_DEBUG = False#True#False#True#False #True #False
 if _DEBUG:
     logger.setLevel(logging.DEBUG)
     # Setup ElasticSearch server & client logging
@@ -69,7 +70,7 @@ if _DEBUG:
     logging.getLogger('elasticsearch').setLevel(logging.DEBUG)
     logging.getLogger('urllib3').setLevel(logging.DEBUG)
 
-#Min score used for cossim
+#Min score used for cossim #deprecated?
 if args.tresh is None:
     _SIMILARITY_TRESH = 0.95
 else:
@@ -79,10 +80,11 @@ else:
 #Method 2 uses a Distance-Measure to compute the sum of L2-distances between input features 
 #       and raw features stored in the db (each similarity counts). The image with smallest distance is selected
 _METHODS_INS = ['CLUSTER', 'RAW']
-_METHODS_SEARCH = ['CLUSTER-COSSIM', 'RAW-COSSIM']
+_METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
+_RANKING_TYPES = ['average', 'max', 'querymultiple']
 
-_INDEX = ''
+_INDEX = 'cossim-test' #debug
 if args.method_insert and args.gpd_type:
     _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
     _INDEX = _INDEX +'_pbn10k'
@@ -92,20 +94,22 @@ if args.method_insert and args.gpd_type:
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
 
-_ELEMNUM_COS = 100
-_ELEMNUM_DIST = 1000 #bigger because relative score computation
+
+_ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation
 _NUMRES = 100 #adjust for only take topk 
 
 _CONFIGDIR = '/home/althausc/master_thesis_impl/retrieval/out/configs'
 
-if args.method_search is not None:
+if args.method_search:
     if args.method_search not in _METHODS_SEARCH:
         raise ValueError("Please specify a valid search method.") 
-if args.method_insert is not None:
+if args.method_insert:
     if args.method_insert not in _METHODS_INS:
         raise ValueError("Please specify a valid insert method.")
-if args.gpd_type is not None:
+if args.gpd_type:
     assert args.gpd_type in _GPD_TYPES
+if args.rankingtype:
+    assert rankingtype in _RANKING_TYPES
 
 
 def main(): 
@@ -150,14 +154,31 @@ def main():
             createIndex(es, len(data[0]['gpd']), _METHODS_INS[1], _SRCIMG_DIR)
             insertdata_raw(args, data, es)
 
-        saveconfig(_INDEX, len(data), args.file, _SRCIMG_DIR)
+        saveconfiginsert(_INDEX, len(data), args.file, _SRCIMG_DIR)
 
     elif args.search_data:
         assert _INDEX in _INDICES_ALL, "Index %s not found."%_INDEX
         es.indices.refresh(index=_INDEX)
         #data format: {'1': [featurevector], ... , 'n': [featurevector]}
         imgids_final = []
-        if args.method_search == _METHODS_SEARCH[0]:
+        
+        results = []
+        numElemAll = es.cat.count(_INDEX, params={"format": "json"})[0]['count']
+        print("Total documents in the index: %d."%int(numElemAll))
+        print("Searching image descriptors from %s ..."%args.file)
+        #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_QUERYRESULT
+        for k,img_descriptor in enumerate(data):
+            image_ids, scores = query(es, img_descriptor, _ELEMNUM_QUERYRESULT, args.method_search)
+            results.append(list(zip(image_ids,scores)))
+            print("Number of results for GPD {} = {}".format(k,len(image_ids)))
+        print("Searching image descriptors done.")
+        
+        querynums = len(data)
+       
+        imgids_final = bestmatching(results, args.rankingtype, len(data), _NUMRES)
+        #imgids_final = bestmatching_sumdist(results, _NUMRES)
+
+        """elif args.method_search == _METHODS_SEARCH[2]:
             results = []
             print("Searching image descriptors from %s ..."%args.file)
             #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_COS
@@ -170,25 +191,11 @@ def main():
         
             #Flattening list of indiv feature vector results
             results = [item for sublist in results for item in sublist]
-            imgids_final = bestmatching_cluster(results, _NUMRES)
+            imgids_final = bestmatching_cluster(results, _NUMRES)"""
         
-        elif args.method_search == _METHODS_SEARCH[1]:
-            results = []
-            numElemAll = es.cat.count(_INDEX, params={"format": "json"})[0]['count']
-            print("Total documents in the index: %d."%int(numElemAll))
-            print("Searching image descriptors from %s ..."%args.file)
-
-            #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_DIST
-            for img_descriptor in data:
-                image_ids, scores = query(es, img_descriptor, _ELEMNUM_DIST, args.method_search)
-                results.append(list(zip(image_ids,scores)))
-            print("Searching image descriptors done.")
-           
-            #Flattening list of indiv feature vector results
-            results = [item for sublist in results for item in sublist]
-            imgids_final = bestmatching_sumdist(results, _NUMRES)
         print("Best matched images: ", imgids_final)
 
+        saveconfigsearch(output_dir, args, _INDEX, len(imgids_final), len(data))
 
         if isinstance(imgids_final[0], tuple):
             [image_ids, rel_scores] = zip(*imgids_final)
@@ -204,7 +211,7 @@ def main():
         else:
             print("Deleting index with name: %s done."%args.delindex)
 
-def saveconfig(indexname, numdocs, descriptorfile, imgdir):
+def saveconfiginsert(indexname, numdocs, descriptorfile, imgdir):
     if not os.path.exists(os.path.join(_CONFIGDIR, 'elastic_config.csv')):
         with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'w') as f:
             writer = csv.writer(f, delimiter='\t')
@@ -215,6 +222,16 @@ def saveconfig(indexname, numdocs, descriptorfile, imgdir):
     with open(os.path.join(_CONFIGDIR, 'elastic_config.csv'), 'a') as f:
         writer = csv.writer(f, delimiter='\t')
         writer.writerow([indexname, numdocs, descriptorfile, imgdir])
+
+def saveconfigsearch(output_dir, args, searchindex, numresults, numdescriptors):
+     with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
+            f.write("Search Index: %s"%searchindex + os.linesep)
+            f.write("GPD File: %s"%args.file + os.linesep)
+            f.write("Search Method: %s"%args.method_search + os.linesep)
+            f.write("Ranking Type: %s"%args.rankingtype + os.linesep)
+            f.write("Number of Search Descriptors: %d"%numdescriptors + os.linesep)
+            f.write("Number of Results: %d"%numresults + os.linesep)
+            
 
 def get_indexconfigs(indexname):
     with open(os.path.join(_CONFIGDIR, 'elastic_config.csv')) as f:
@@ -337,8 +354,11 @@ def query(es, descriptor, size, method):
     #           ->can only be used as input to vectorscore functions
     #           ->therefore to mask/don't count -1 entries in the descriptors, the queryvector indices which shall be masked are set to the value of the dense_vector 
     #           ->for this, the array copy of the dense_vector is used to access the items
+
+    #Metrics:
+    #   1. Cos-Similarity Score: higher value means closer/better match (unlike cossim defined normaly)!
     
-    if method == _METHODS_SEARCH[0]:
+    if method == _METHODS_SEARCH[0]: #COSSIM
         request = { "size": size,
                     "query": {
                         "script_score": {
@@ -350,14 +370,17 @@ def query(es, descriptor, size, method):
                                 "source": """
                                     def m1 = doc['mask'].value;
                                     def m2 = params.queryMask;
+                                    def c = 1;
+                                    def penalty = 1.0/params.queryVector.size(); //TODO: finetune penalty
 
                                     for(int i; i < m1.length(); i++) {
                                         if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                                            params.queryVector[i] = params._source['gpd-array'][i];
+                                            params.queryVector[i] = params._source['gpd-array'][i]; 
+                                            c = c + penalty;
                                         }
                                     }
 
-                                    def d = cosineSimilarity(params.queryVector, 'gpdcluster') + 1.0;
+                                    def d = cosineSimilarity(params.queryVector, 'gpd')/c + 1.0;
                                     return d;
                                 """,
                                 "params": {
@@ -369,7 +392,7 @@ def query(es, descriptor, size, method):
                     }
                   }
 
-    elif method == _METHODS_SEARCH[1]:
+    elif method == _METHODS_SEARCH[1]: #L1-distance
         print("TEST")
         request = { "size": size,
                     "query": {
@@ -382,16 +405,18 @@ def query(es, descriptor, size, method):
                                 "source": """
                                     def m1 = doc['mask'].value;
                                     def m2 = params.queryMask;
-                                    def c = 0;
+                                    def c = 1;
+                                    def penalty = 0.5; //Since normalization of descriptor mainly to [0,1], therefore 'maybe' good value
+
                                     for(int i; i < m1.length(); i++) {
                                         if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
                                             params.queryVector[i] = params._source['gpd-array'][i]; 
-                                            c = c + 1;
+                                            c = c + penalty;
                                         }
                                     }
 
-                                    c = params.queryVector.size() - c + 1;
-                                    def d = cosineSimilarity(params.queryVector, 'gpd')/c + 1.0;
+                                    //l1norm value range from testrun: [20,90]
+                                    def d = 1 / (1 + l1norm(params.queryVector, 'gpd') + c);
                                     return d;
                                 """,
                                 "params": {
@@ -402,6 +427,8 @@ def query(es, descriptor, size, method):
                         }
                     }
                   }
+                  #Debug descriptors: - insert: /home/althausc/master_thesis_impl/posedescriptors/out/query/11-25_18-18-11/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt10n1.json
+                  #             -query: /home/althausc/master_thesis_impl/posedescriptors/out/query/11-13_13-35-19/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt10n1.json
     else:
         raise ValueError()
     try :
@@ -421,38 +448,96 @@ def query(es, descriptor, size, method):
         print("Query returned {} results stated.".format(res['hits']['total']['value']))
         print("Query returned {} results actual.".format(len(res['hits']['hits'])))
         print("-------------------------------------")
-        print("Raw result output \n:", res)
-        print("-------------------------------------")
+        #print("Raw result output \n:", res)
+        #print("-------------------------------------")
         recursive_print_dict(res)
+        docs = res['hits']['hits']
+        imageids = [item['_source']['imageid'] for item in docs]
+        scores = [item['_score'] for item in docs]
         print("Query descriptor: ", descriptor)
         print("Result: ",imageids ,scores)
+        exit(1)
     
     docs = res['hits']['hits']
     imageids = [item['_source']['imageid'] for item in docs]
     scores = [item['_score'] for item in docs] 
+
     return imageids, scores
 
-def logscorestats(scores):
-    #Computes the box-plot whiskers values.
-    #Computed values: min, low_whiskers, Q1, median, Q3, high_whiskers, max
-    #Ordering differs from whiskers plot ordering.
-    Q1, median, Q3 = np.percentile(np.asarray(scores), [25, 50, 75])
-    IQR = Q3 - Q1
+def bestmatching(image_scoring, rankingtype, querynums, k):
+    #Scoring should contain for each imageid the accumulated scores between query features and db entries  
+    score_sums = {}
+    #Number of iterations: number of query features * number of db entries (each-by-each)
+    start_time = time.time()
+    
+    if querynums>1:
+        rankingtype = 'querymultiple'
+        print("Choosing rankingtpye = {}, because {} search descriptors.".format(rankingtype, querynums))
+        #Only take best matched pose for each image(-id) for each query descriptor
+        #To prevent to ranking images high with only 1 query descriptor seeing mulitple times
+        #Each query descriptor should be have equal influence on ranking
+        r_bestperid = []
+        c_gpds = 0
+        for qresult in image_scoring:
+            groupbyid = itertools.groupby(sorted(qresult, key=lambda x:x[0]), lambda x: x[0])
+            for id, group in groupbyid:
+                scores = [s for id,s in group]
+                r_bestperid.append((id, max(scores)))
+                c_gpds = c_gpds + len(scores)
+        image_scoring = r_bestperid
+        print("Original number of gpds: ", c_gpds)
+    else:
+        #Flattening list of indiv feature vector results
+        image_scoring = [item for sublist in image_scoring for item in sublist]
+    
+    print("Ranking query results with average score over unique imageids ...")
+    image_scoring = sorted(image_scoring, key=lambda x:x[0])
+    grouped_by_imageid = itertools.groupby(image_scoring, lambda x: x[0])
+    #for k,v in grouped_by_imageid:
+    #    print(k, v,list(v))
+    #exit(1)
+    c_ids = 0
+    c_gpds = 0
+    for imageid, group in grouped_by_imageid:
+        if rankingtype == 'average':
+            score_sums[imageid] = np.mean([s for id,s in group])#TODO: single/multiple pose switch? maybe
+        elif rankingtype == 'max':
+            score_sums[imageid] = np.max([s for id,s in group])
+        elif rankingtype == 'querymultiple':
+            scores = [s for id,s in group]
+            c_gpds = c_gpds + len(scores)
+            c_ids = c_ids + 1
+            print(scores)
+            #Get up to number of query descriptor search results
+            scores = scores[:querynums]
+            scores.sort(reverse=True)
+            score_sums[imageid] = scores[0] + sum([s/querynums for s in scores[1:]]) if len(scores)>1 else 0
+            print(score_sums[imageid])
+            print("----------------------------")
+    print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
 
-    loval = Q1 - 1.5 * IQR
-    hival = Q3 + 1.5 * IQR
+    print("Number of processed search result gpds: ", c_gpds)
+    print("Number of unreduced (without topk) unique imagids: ",len(score_sums), c_ids)
+    print("Raw averagescore statistics:", logscorestats(list(score_sums.values())))
+    print(score_sums)
+    bestk = sorted(score_sums.items(), key=lambda x: x[1], reverse=True)[:k]
+    #print(bestk)
+    #exit(1)
+    #Apply normalization to intervall [0,1] & then apply exponential function, used for later comparison score in search results display
+    if max(score_sums.values()) != min(score_sums.values()):
+        lin_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())))
+        bestk = list(map(lin_norm, bestk))
+        print(bestk)
 
-    wiskhi = np.compress(scores <= hival, scores)
-    wisklo = np.compress(scores >= loval, scores)
-    actual_hival = np.max(wiskhi)
-    actual_loval = np.min(wisklo)
+        print("Linear Normalization statistics:", logscorestats([s for id,s in bestk]))
+    #log_norm = lambda x: (x[0], np.log2(x[1]+1)) 
+    #bestk = list(map(exp_norm, bestk))
+    #print("Logarithmic Normalization statistics:", logscorestats([s for id,s in bestk]))
+    print("Best k: ", bestk)
+    #exit(1)
+    return bestk
 
-    Qs = [Q1, median, Q3, loval, hival, actual_loval, actual_hival]
-    Qname = ["Q1", "median", "Q3", "Q1-1.5xIQR", "Q3+1.5xIQR", 
-            "Actual LO", "Actual HI"]
-    logstr = ''.join(["{}:{} ".format(a,b) for a,b in zip(Qname,Qs)])
-    return logstr
-
+#deprecated   
 def bestmatching_sumdist(image_scoring, k):
     #Scoring should contain for each imageid the accumulated scores between query features and db entries  
     score_sums = {}
@@ -483,7 +568,7 @@ def bestmatching_sumdist(image_scoring, k):
 
     return bestk
 
-
+#deprecated
 def bestmatching_cluster(image_scoring, k):
     grouped_by_imageid = [list(g) for k, g in itertools.groupby(sorted(image_scoring, key=lambda x:x[0]), lambda x: x[0])]
     print("Raw group meanscore statistics:", logscorestats([np.mean([s[1] for s in e]) for e in grouped_by_imageid]))

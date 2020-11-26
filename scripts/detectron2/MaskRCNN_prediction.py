@@ -157,7 +157,7 @@ def main():
                 outputs_raw.append(pred)
                 #print(pred["instances"].scores)
                 #print("original num of predictions: ",image_id, len(pred["instances"].pred_boxes), c)
-                assert len(pred["instances"].pred_boxes) == c, print(len(pred["instances"].pred_boxes), c)
+                #assert len(pred["instances"].pred_boxes) == c, print(len(pred["instances"].pred_boxes), c)
 
             if i%1000 == 0 and i!=0:
                 print("Processed %d images."%(i+batchsize))

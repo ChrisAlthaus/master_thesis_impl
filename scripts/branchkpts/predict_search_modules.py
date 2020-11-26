@@ -54,7 +54,7 @@ def predict(imgpath):
     transform_arg = "-styletransfered" if is_styletranfered_img(imgpath) else ""
     target = 'query'
     topk = 10
-    score_tresh = 0.7
+    score_tresh = 0.90
     logfile = os.path.join(logpath, '1-maskrcnn.txt')
 
     if _PRINT_CMDS:
@@ -153,20 +153,22 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None):
     gpdfile = filewithname(outrun_dir, 'geometric_pose_descriptor')
     return gpdfile
 
-def search(gpdfile, method_search, gpdtype, method_insert, tresh=None):
+def search(gpdfile, method_search, rankingtype, gpdtype, method_insert, tresh=None):
     # -------------------------- ELASTIC SEARCH -----------------------------
     print("SEARCH FOR GPD IN DATABASE:")
 
     inputfile = gpdfile
     logfile = os.path.join(logpath, '5-search.txt')
     print("GPD file: ",inputfile)
-    _METHODS_SEARCH = ['CLUSTER-COSSIM', 'RAW-COSSIM']
+    _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
     _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
     _METHODS_INSERT = ['CLUSTER', 'RAW']
+    _RANKING_TYPES = ['average', 'max', 'querymultiple']
 
     assert method_search in _METHODS_SEARCH
     assert gpdtype in _GPD_TYPES
     assert method_insert in _METHODS_INSERT
+    assert rankingtype in _RANKING_TYPES
 
     #method_search = 'COSSIM' #['COSSIM', 'DISTSUM'] #testing
 
@@ -181,22 +183,19 @@ def search(gpdfile, method_search, gpdtype, method_insert, tresh=None):
         if tresh is None:
             tresh = float(input("Please specify a similarity treshold for cossim result list: "))
         
+        cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -rankingtype {} "+ \
+                                                                                            "-gpd_type {} -method_insert {} -tresh {} &> {}")\
+                                                                                                .format(inputfile, method_search, rankingtype, gpdtype, method_insert, tresh, logfile)
         if _PRINT_CMDS:
-            print("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
-                                                                                            -gpd_type {} -method_insert {} -tresh {} &> {}"\
-                                                                                                .format(inputfile, method_search, gpdtype, method_insert, tresh, logfile))
-        
-        os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
-                                                                                            -gpd_type {} -method_insert {} -tresh {} &> {}"\
-                                                                                                .format(inputfile, method_search, gpdtype, method_insert, tresh, logfile))
+            print(cmd)
+        os.system(cmd)
     else:
+        cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -rankingtype {} "+ \
+                                                                                            "-gpd_type {} -method_insert {} &> {}")\
+                                                                                                .format(inputfile, method_search, rankingtype, gpdtype, method_insert, logfile)
         if _PRINT_CMDS:
-            print("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
-                                                                                             -gpd_type {} -method_insert {} &> {}"\
-                                                                                                .format(inputfile, method_search, gpdtype, method_insert, logfile))
-        os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} \
-                                                                                             -gpd_type {} -method_insert {} &> {}"\
-                                                                                                .format(inputfile, method_search, gpdtype, method_insert, logfile))
+            print(cmd)
+        os.system(cmd)
     print('\n\n')
 
     outrun_dir = latestdir('/home/althausc/master_thesis_impl/retrieval/out/humanposes')
