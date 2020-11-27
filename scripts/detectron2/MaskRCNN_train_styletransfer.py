@@ -200,7 +200,7 @@ def main():
         shutil.copy2(args.resume, cfg.OUTPUT_DIR)
         with open(os.path.join(cfg.OUTPUT_DIR, 'last_checkpoint'), 'a') as f: 
             f.write(os.path.basename(args.resume))
-        trainer.resume_or_load()
+        trainer.resume_or_load(resume=True)
 
 
     # ----------------------------- SAVING CONFIGS -------------------------------

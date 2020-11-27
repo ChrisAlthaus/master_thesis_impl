@@ -54,7 +54,7 @@ def predict(imgpath):
     transform_arg = "-styletransfered" if is_styletranfered_img(imgpath) else ""
     target = 'query'
     topk = 10
-    score_tresh = 0.90
+    score_tresh = 0.95
     logfile = os.path.join(logpath, '1-maskrcnn.txt')
 
     if _PRINT_CMDS:
@@ -164,7 +164,7 @@ def search(gpdfile, method_search, rankingtype, gpdtype, method_insert, tresh=No
     _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
     _METHODS_INSERT = ['CLUSTER', 'RAW']
     _RANKING_TYPES = ['average', 'max', 'querymultiple']
-
+    print(gpdtype)
     assert method_search in _METHODS_SEARCH
     assert gpdtype in _GPD_TYPES
     assert method_insert in _METHODS_INSERT
@@ -211,7 +211,7 @@ def getImgs(rankingfile):
 
     imagedir = json_data['imagedir']
     del json_data['imagedir']
-    print(json_data)
+    #print(json_data)
 
     rankedlist = sorted(json_data.items(), key= lambda x: int(x[0])) 
     imgs = []
@@ -266,6 +266,28 @@ def drawborder(imgpath):
     img_pil = Image.fromarray(img)
 
     return img_pil
+
+def cropImage(imagepath, p1, p2, resize=True):
+    outfile = os.path.join('.images', os.path.splitext(imagepath)[0] + "_transformed.jpg")
+    img = Image.open(imagepath)
+    area = (p1[0], p1[1], p2[0], p2[1])
+    cropped_img = img.crop(area)
+    width, height = cropped_img.size
+    if resize:
+        maxwidth, maxheight = 512,512
+       
+        ratio = min(maxwidth/width, maxheight/height)
+        newsize = np.asarray(cropped_img.size) * ratio
+        newsize = tuple(newsize.astype(int))
+        
+        cropped_img = cropped_img.resize(newsize, Image.ANTIALIAS)
+        cropped_img.save(outfile, "JPEG")
+        print("Cropped & Resized image to file: ",outfile)
+    else:
+        cropped_img.save(outfile, "JPEG")
+        print("Cropped image to file: ",outfile)
+
+    return outfile
 
 if __name__=="__main__":
    #test()

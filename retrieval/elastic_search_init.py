@@ -109,7 +109,7 @@ if args.method_insert:
 if args.gpd_type:
     assert args.gpd_type in _GPD_TYPES
 if args.rankingtype:
-    assert rankingtype in _RANKING_TYPES
+    assert args.rankingtype in _RANKING_TYPES
 
 
 def main(): 
@@ -381,6 +381,7 @@ def query(es, descriptor, size, method):
                                     }
 
                                     def d = cosineSimilarity(params.queryVector, 'gpd')/c + 1.0;
+                                    d = d * doc['score'].value;
                                     return d;
                                 """,
                                 "params": {
@@ -417,6 +418,7 @@ def query(es, descriptor, size, method):
 
                                     //l1norm value range from testrun: [20,90]
                                     def d = 1 / (1 + l1norm(params.queryVector, 'gpd') + c);
+                                    d = d * doc['score'].value;
                                     return d;
                                 """,
                                 "params": {
@@ -429,6 +431,42 @@ def query(es, descriptor, size, method):
                   }
                   #Debug descriptors: - insert: /home/althausc/master_thesis_impl/posedescriptors/out/query/11-25_18-18-11/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt10n1.json
                   #             -query: /home/althausc/master_thesis_impl/posedescriptors/out/query/11-13_13-35-19/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt10n1.json
+                  
+    elif method == _METHODS_SEARCH[2]: #L2-distance
+         request = { "size": size,
+                    "query": {
+                        "script_score": {
+                            "query": {
+                                "match_all": {}
+                            },
+                            "script": {
+                                "lang":"painless",
+                                "source": """
+                                    def m1 = doc['mask'].value;
+                                    def m2 = params.queryMask;
+                                    def c = 1;
+                                    def penalty = 0.5; //Since normalization of descriptor mainly to [0,1], therefore 'maybe' good value
+
+                                    for(int i; i < m1.length(); i++) {
+                                        if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
+                                            params.queryVector[i] = params._source['gpd-array'][i]; 
+                                            c = c + penalty;
+                                        }
+                                    }
+
+                                    //l1norm value range from testrun: [20,90]
+                                    def d = 1 / (1 + l2norm(params.queryVector, 'gpd') + c);
+                                    d = d * doc['score'].value;
+                                    return d;
+                                """,
+                                "params": {
+                                    "queryVector": list(featurevector),
+                                    "queryMask": maskstr
+                                }    
+                            }
+                        }
+                    }
+                  }
     else:
         raise ValueError()
     try :
@@ -469,7 +507,8 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
     score_sums = {}
     #Number of iterations: number of query features * number of db entries (each-by-each)
     start_time = time.time()
-    
+
+    c_gpds = 0
     if querynums>1:
         rankingtype = 'querymultiple'
         print("Choosing rankingtpye = {}, because {} search descriptors.".format(rankingtype, querynums))
@@ -477,7 +516,6 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
         #To prevent to ranking images high with only 1 query descriptor seeing mulitple times
         #Each query descriptor should be have equal influence on ranking
         r_bestperid = []
-        c_gpds = 0
         for qresult in image_scoring:
             groupbyid = itertools.groupby(sorted(qresult, key=lambda x:x[0]), lambda x: x[0])
             for id, group in groupbyid:
@@ -485,10 +523,12 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
                 r_bestperid.append((id, max(scores)))
                 c_gpds = c_gpds + len(scores)
         image_scoring = r_bestperid
-        print("Original number of gpds: ", c_gpds)
+        print("Reduced,because of multiple query descriptors: \n {} -> {} ".format(c_gpds, len(image_scoring)))
+
     else:
         #Flattening list of indiv feature vector results
         image_scoring = [item for sublist in image_scoring for item in sublist]
+        c_gpds = len(image_scoring)
     
     print("Ranking query results with average score over unique imageids ...")
     image_scoring = sorted(image_scoring, key=lambda x:x[0])
@@ -496,8 +536,8 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
     #for k,v in grouped_by_imageid:
     #    print(k, v,list(v))
     #exit(1)
+    
     c_ids = 0
-    c_gpds = 0
     for imageid, group in grouped_by_imageid:
         if rankingtype == 'average':
             score_sums[imageid] = np.mean([s for id,s in group])#TODO: single/multiple pose switch? maybe
@@ -505,21 +545,22 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
             score_sums[imageid] = np.max([s for id,s in group])
         elif rankingtype == 'querymultiple':
             scores = [s for id,s in group]
-            c_gpds = c_gpds + len(scores)
-            c_ids = c_ids + 1
-            print(scores)
+            #print(scores)
             #Get up to number of query descriptor search results
             scores = scores[:querynums]
             scores.sort(reverse=True)
             score_sums[imageid] = scores[0] + sum([s/querynums for s in scores[1:]]) if len(scores)>1 else 0
-            print(score_sums[imageid])
-            print("----------------------------")
+            #print(score_sums[imageid])
+            #print("----------------------------")
+        c_ids = c_ids + 1
+    
     print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
-
+    assert c_ids == len(score_sums)
     print("Number of processed search result gpds: ", c_gpds)
-    print("Number of unreduced (without topk) unique imagids: ",len(score_sums), c_ids)
+    print("Number of unique imagids: ",len(score_sums))
+    print("Every imgid has in average {} returned descriptors".format(c_gpds/len(score_sums)))
     print("Raw averagescore statistics:", logscorestats(list(score_sums.values())))
-    print(score_sums)
+    #print(score_sums)
     bestk = sorted(score_sums.items(), key=lambda x: x[1], reverse=True)[:k]
     #print(bestk)
     #exit(1)

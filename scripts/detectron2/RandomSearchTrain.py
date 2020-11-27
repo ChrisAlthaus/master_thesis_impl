@@ -162,7 +162,7 @@ for i in range(0,_NUM_RUNS):
     paramconfig = os.path.join(logdir, 'paramsconfig.txt')
 
     with open(paramconfig, 'w') as f:
-        json.dump(params, f)
+        json.dump(params, f, indent=4)
 
     #Normal run command, Print for eventually debugging
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
