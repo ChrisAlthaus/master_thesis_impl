@@ -17,7 +17,7 @@ _FUSION_TYPES = ['sum', 'gate']
 _CONTEXTLAYER_TYPES = ['motifs', 'vctree', 'vtranse']
 _LR = [0.01, 0.001, 0.005] #original: 0.01
 
-_IMS_PER_BATCH = 8
+_IMS_PER_BATCH = 4#8
 #scalefactor to keep same number of epochs -> ~15 Epochs
 scalefactor = 12/_IMS_PER_BATCH 
 _ADD_ITER = 25000
@@ -79,7 +79,7 @@ for i in range(0, _NUMRUNS):
         predictor = _PREDICTOR[4]
         fusiontype = 'sum'
         contextlayer = 'motifs'
-        lr = 0.01
+        lr = 0.01 / (_NUMGPUS/2)
 
 
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
@@ -115,7 +115,7 @@ for i in range(0, _NUMRUNS):
             'require_bboxoverlap': True,
             'attribute_on': _ATTRIBUTE_ON,
 			'trainbatchsize': int(_IMS_PER_BATCH), 
-			'testbatchsize': 1* _NUMGPUS, 
+			'testbatchsize': 2#1* _NUMGPUS, 
             'lrscheduler': _LR_SCHEDULER,
 			'lr': lr, 
 			'steps': tuple(map(int,_STEPS)), 
