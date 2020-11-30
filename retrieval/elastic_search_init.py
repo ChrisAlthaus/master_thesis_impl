@@ -82,18 +82,18 @@ else:
 _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
-_RANKING_TYPES = ['average', 'max', 'querymultiple']
+#For multiple search descriptor always rankingtype querymuliple* will be selected 
+_RANKING_TYPES = ['average', 'max']
 
 _INDEX = 'cossim-test' #debug
 if args.method_insert and args.gpd_type:
     _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
     _INDEX = _INDEX +'_pbn10k'
     _INDEX = _INDEX.lower()
-    #_INDEX = 'imgid_gpdcluster' #test index
-    print("Current index: ",_INDEX)
+    _INDEX = 'patchesindex'    
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
-
+print("Current index: ",_INDEX)
 
 _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation
 _NUMRES = 100 #adjust for only take topk 
@@ -510,7 +510,7 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
 
     c_gpds = 0
     if querynums>1:
-        rankingtype = 'querymultiple'
+        rankingtype = 'querymultiple-firstn' #'querymultiple-average'
         print("Choosing rankingtpye = {}, because {} search descriptors.".format(rankingtype, querynums))
         #Only take best matched pose for each image(-id) for each query descriptor
         #To prevent to ranking images high with only 1 query descriptor seeing mulitple times
@@ -543,7 +543,7 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
             score_sums[imageid] = np.mean([s for id,s in group])#TODO: single/multiple pose switch? maybe
         elif rankingtype == 'max':
             score_sums[imageid] = np.max([s for id,s in group])
-        elif rankingtype == 'querymultiple':
+        elif rankingtype == 'querymultiple-firstn':
             scores = [s for id,s in group]
             #print(scores)
             #Get up to number of query descriptor search results
@@ -552,6 +552,10 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
             score_sums[imageid] = scores[0] + sum([s/querynums for s in scores[1:]]) if len(scores)>1 else 0
             #print(score_sums[imageid])
             #print("----------------------------")
+        elif rankingtype == 'querymultiple-average':
+            score_sums[imageid] = np.mean([s for id,s in group])
+        else:
+            raise ValueError()
         c_ids = c_ids + 1
     
     print("Ranking query results done. Took %s seconds."%(time.time() - start_time))

@@ -35,6 +35,7 @@ parser.add_argument("-mode", type=str, help="Specify types of features which wil
 parser.add_argument("-pca", type=int, help="Specify dimensions of pca vector.")
 parser.add_argument("-pcamodel", type=str, help="Specify pca model file for prediction.")
 parser.add_argument("-target", type=str, help="If purpose is for inserting or query db. Used for output folder selection.")
+parser.add_argument("-flip", action='store_true', help="Weather to flip the input predictions. Only for query mode.")
 
 args = parser.parse_args()
 
@@ -66,7 +67,7 @@ if _DEBUG:
     logging.basicConfig(level=logging.DEBUG, format='%(message)s')
 if args.mode not in _MODES:
     raise ValueError("No valid mode number.")
-if args.target not in ['query', 'insert']:
+if args.target not in ['query', 'insert', 'eval']:
     raise ValueError("No valid purpose.")
 
 _ADDNOTES = ''
@@ -89,6 +90,10 @@ def main():
     if args.gtAnn:
         json_data = json_data['annotations']
     json_data = sorted(json_data, key=lambda k: k['image_id']) 
+
+    #Flip keypoints vertically to add an additional descriptor, only for target = query
+    if args.flip and args.target == 'query':
+        addflippedpredictions(json_data)
 
     #Output format: [{image_id, [gpd1,...,gpdn]}, ... ,{image_id, [gpd1,...,gpdm]}]
     json_out = []
@@ -145,7 +150,9 @@ def main():
         f.write("Number input predictions: %d"%len(json_data) + os.linesep)
         f.write("Number calculated descriptors: %d"%c + os.linesep)
         f.write("Number of input prediction filtered out: %d"%fc + os.linesep)
-        f.write("Dimension of descriptor: %d"%len(json_out[0]['gpd']) + os.linesep)
+        f.write("Dimension of descriptor: %d"%len(json_out[0]['gpd']) + os.linesep) 
+        if args.flip:
+            f.write("Flip: %s"%args.flip + os.linesep)
         f.write(_ADDNOTES)
 
     json_file = 'geometric_pose_descriptor_c_%d_m%s_t%.2f_f%d_mkpt%dn%d'%(c,args.mode, _KPTS_THRESHOLD, _FILTER, _MINKPTs, _NORM)
@@ -586,6 +593,30 @@ def filterKeypoints(pose_keypoints, mode):
         return True
     else:
         return False
+
+def addflippedpredictions(preds):
+    print("Adding flipped keypoint predictions ...")
+    c_flip = 0
+    for i,pred in enumerate(preds):
+        predflipped = copy.deepcopy(pred)
+        refs = _REFs.values()
+        #supports more than 2 keypoints
+        refpointx = sum([ predflipped['keypoints'][k*3] for k in refs])/len(refs)
+        refpointy = sum([ predflipped['keypoints'][k*3+1] for k in refs])/len(refs)
+
+        for k in range(0,len(predflipped['keypoints']), 3):
+            if predflipped['keypoints'][k]> refpointx:
+                 predflipped['keypoints'][k] = predflipped['keypoints'][k] - refpointx
+            else:
+                 predflipped['keypoints'][k] = refpointx - predflipped['keypoints'][k]
+
+            if predflipped['keypoints'][k+1]> refpointy:
+                 predflipped['keypoints'][k+1] = predflipped['keypoints'][k+1] - refpointy
+            else:
+                 predflipped['keypoints'][k+1] = refpointy - predflipped['keypoints'][k+1]  
+        preds.append(predflipped)
+        c_flip = c_flip + 1
+    print("Added {} flipped keypoint predictions".format(c_flip))
 
 def lines_direct_adjacent(keypoints):
     #Directly adjacent lines (linemapping of _KPTS_LINES), Dimesions: 25 - 1 / 17-1 = 16

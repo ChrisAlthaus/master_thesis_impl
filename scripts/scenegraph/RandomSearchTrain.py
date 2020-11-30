@@ -10,14 +10,14 @@ import csv
 _PARAM_MODES = ['randomsearch', 'custom']
 _PARAM_MODE = _PARAM_MODES[1]
 _NUMRUNS = 1
-_NUMGPUS = 4
+_NUMGPUS = 1#4
 
 _PREDICTOR = ['MotifPredictor', 'IMPPredictor', 'VCTreePredictor', 'TransformerPredictor', 'CausalAnalysisPredictor']
 _FUSION_TYPES = ['sum', 'gate']
 _CONTEXTLAYER_TYPES = ['motifs', 'vctree', 'vtranse']
 _LR = [0.01, 0.001, 0.005] #original: 0.01
 
-_IMS_PER_BATCH = 4#8
+_IMS_PER_BATCH = 12#4#8
 #scalefactor to keep same number of epochs -> ~15 Epochs
 scalefactor = 12/_IMS_PER_BATCH 
 _ADD_ITER = 25000
@@ -82,13 +82,14 @@ for i in range(0, _NUMRUNS):
         lr = 0.01 / (_NUMGPUS/2)
 
 
-    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
+    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run-2.sh'#'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-2-qrtx8000.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun%d-2.sh'%_NUMGPUS
     jobname = 'sg-train%s'%datetime.datetime.now().strftime('%d_%H-%M-%S')
     masterport = random.randint(10020, 10100)
 
     out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training'
     #Using pre-trained Faster-RCNN
-    pretrained_frcnn = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-20_15-29-23/model_final.pth'
+    pretrained_frcnn = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-25_10-52-27/model_final.pth'
+            #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-20_15-29-23/model_final.pth'
             #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-12_19-22-41/model_final.pth'
     glovedir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/glove'
     configfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_R_101_FPN_1x.yaml' 
@@ -115,7 +116,7 @@ for i in range(0, _NUMRUNS):
             'require_bboxoverlap': True,
             'attribute_on': _ATTRIBUTE_ON,
 			'trainbatchsize': int(_IMS_PER_BATCH), 
-			'testbatchsize': 2#1* _NUMGPUS, 
+			'testbatchsize': 2,#1* _NUMGPUS, 
             'lrscheduler': _LR_SCHEDULER,
 			'lr': lr, 
 			'steps': tuple(map(int,_STEPS)), 
