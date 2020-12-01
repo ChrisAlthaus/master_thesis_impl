@@ -93,6 +93,7 @@ if args.method_insert and args.gpd_type:
     _INDEX = 'patchesindex'    
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
+    _INDEX = 'patchesindex'   
 print("Current index: ",_INDEX)
 
 _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation
@@ -174,7 +175,8 @@ def main():
         print("Searching image descriptors done.")
         
         querynums = len(data)
-       
+        print("Results unranked: ", results)
+        exit(1)
         imgids_final = bestmatching(results, args.rankingtype, len(data), _NUMRES)
         #imgids_final = bestmatching_sumdist(results, _NUMRES)
 
@@ -297,6 +299,9 @@ def createIndex(es, dim, mode, imgdir):
                 "imageid": {
                     "type": "text"
                 },
+                 "id": {
+                    "type": "integer"
+                },
                 "score": {
                     "type": "float"
                 },
@@ -319,6 +324,7 @@ def createIndex(es, dim, mode, imgdir):
     }
 
     if es.indices.exists(index=_INDEX):
+        print("Deleting existing index {}".format(_INDEX))
         es.indices.delete(index=_INDEX, ignore=[400, 404])
 
     response = es.indices.create(
@@ -333,6 +339,7 @@ def createIndex(es, dim, mode, imgdir):
 def insertdoc(es, data, metadata, id, featurelabel):
     doc = {
     'imageid': metadata['image_id'],
+    'id': int(metadata['image_id']),
     'score': metadata['score'],
     featurelabel: list(data[featurelabel]),
     '{}-array'.format(featurelabel): list(data[featurelabel]),
@@ -357,7 +364,7 @@ def query(es, descriptor, size, method):
 
     #Metrics:
     #   1. Cos-Similarity Score: higher value means closer/better match (unlike cossim defined normaly)!
-    
+    print("QUERY:", featurevector)
     if method == _METHODS_SEARCH[0]: #COSSIM
         request = { "size": size,
                     "query": {
@@ -372,17 +379,42 @@ def query(es, descriptor, size, method):
                                     def m2 = params.queryMask;
                                     def c = 1;
                                     def penalty = 1.0/params.queryVector.size(); //TODO: finetune penalty
-
+                                   
+                                    //if (doc['id'].value == 81) {
+                                    //    Debug.explain(params.queryVector);
+                                    //}
+                                    ArrayList qeffective = new ArrayList();
+                                    //float[] qeffective = new float[params.queryVector.size()];
                                     for(int i; i < m1.length(); i++) {
                                         if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                                            params.queryVector[i] = params._source['gpd-array'][i]; 
+                                            qeffective.add(params._source['gpd-array'][i]);
+                                            //qeffective[i] = params._source['gpd-array'][i]; 
+                                            //params.queryVector[i] = params._source['gpd-array'][i]; 
                                             c = c + penalty;
+                                        }else{
+                                            qeffective.add(params.queryVector[i]);
+                                            //qeffective[i] = params.queryVector[i]; 
                                         }
                                     }
+                                    //if (doc['id'].value == 90) {
+                                        //Debug.explain(qeffective);
+                                          //Debug.explain(c);
+                                          //Debug.explain(cosineSimilarity(qeffective, 'gpd'));
+                                          //Debug.explain((cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value);
+                                    //    Debug.explain(params.queryVector);
+                                    //    Debug.explain(params._source['gpd-array']);
+                                    //    Debug.explain(cosineSimilarity(params.queryVector, 'gpd'));
+                                    //}
+                                    
+                                    //double d = (cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value;
+                                    //d = d * doc['score'].value;
+                                    //if (doc['id'].value == 90) {
+                                        //Debug.explain(cosineSimilarity(qeffective, 'gpd')/c + 1.0);
+                                        //Debug.explain(d);
 
-                                    def d = cosineSimilarity(params.queryVector, 'gpd')/c + 1.0;
-                                    d = d * doc['score'].value;
-                                    return d;
+                                        //Debug.explain((cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value);
+                                    //}
+                                    return (cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value;
                                 """,
                                 "params": {
                                     "queryVector": list(featurevector),
@@ -569,12 +601,12 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
     #print(bestk)
     #exit(1)
     #Apply normalization to intervall [0,1] & then apply exponential function, used for later comparison score in search results display
-    if max(score_sums.values()) != min(score_sums.values()):
+    """if max(score_sums.values()) != min(score_sums.values()):
         lin_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())))
         bestk = list(map(lin_norm, bestk))
         print(bestk)
 
-        print("Linear Normalization statistics:", logscorestats([s for id,s in bestk]))
+        print("Linear Normalization statistics:", logscorestats([s for id,s in bestk]))"""
     #log_norm = lambda x: (x[0], np.log2(x[1]+1)) 
     #bestk = list(map(exp_norm, bestk))
     #print("Logarithmic Normalization statistics:", logscorestats([s for id,s in bestk]))
