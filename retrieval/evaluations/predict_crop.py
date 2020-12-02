@@ -23,11 +23,17 @@ def latestdir(dir):
     all_subdirs = [d for d in diritems if os.path.isdir(d)]
     return max(all_subdirs, key=os.path.getmtime)
 
+def filewithname(dir, searchstr):
+    for item in os.listdir(dir):
+        if os.path.isfile(os.path.join(dir,item)) and searchstr in item:
+            return os.path.join(dir,item)
+    return None
+
 """
 # ---------------------------------------- PREDICTION ----------------------------------------
 print("MASK-RCNN PREDICTION:")
 predictionfile = ''
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d3-1.sh'
 topk = 1
 score_tresh = 0.9 #For evaluation use all predictions
 styletransfered = False
@@ -36,16 +42,17 @@ cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCN
                                                 .format(gpu_cmd, args.model_cp, args.image, topk, score_tresh, '-styletransfered' if styletransfered else ' ')
 print(cmd)
 os.system(cmd)
-outputdir = latestdir('/home/althausc/master_thesis_impl/detectron2/out/art_predictions/eval')"""
-predictionfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query/11-27_18-56-33/maskrcnn_predictions.json' #os.path.join(latestdir(outputdir), 'maskrcnn_predictions.json')
-#print("Output directory: ", outputdir)
+outputdir = latestdir('/home/althausc/master_thesis_impl/detectron2/out/art_predictions/eval')
+print("Output directory: ", outputdir)
+predictionfile = os.path.join(outputdir, "maskrcnn_predictions.json")
+#'/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query/11-27_18-56-33/maskrcnn_predictions.json' #os.path.join(latestdir(outputdir), 'maskrcnn_predictions.json')"""
 
 
 # -------------------------------- GENERATING IMAGE PATCHES --------------------------------------
 print("GENERATING IMAGE PATCHES:")
-#outputdir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/art_predictions/eval', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
-#os.makedirs(outputdir)
-outputdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query/11-27_18-56-33'
+outputdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/eval/12-01_10-30-06'
+predictionfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/eval/12-01_10-30-06/maskrcnn_predictions.json'
+
 imgname = os.path.splitext(os.path.basename(args.image))[0]
 
 img = Image.open(args.image) 
@@ -78,7 +85,7 @@ dataout = [] #cropped/reduced predictions for each generated image
 def getprediction(fullprediction, newx, newy, newwidth, newheight, id):
     newprediction = copy.deepcopy(fullprediction)
     del newprediction['bbox']
-    del newprediction['category_id']
+    #del newprediction['category_id']
     newprediction['image_id'] = id
     newprediction['image_size'] = [newheight, newwidth]
     #print(newx, newy, newx + newwidth,  newy + newheight)
@@ -89,6 +96,10 @@ def getprediction(fullprediction, newx, newy, newwidth, newheight, id):
         
         if kx < newx or kx > newx + newwidth or ky < newy or ky > newy + newheight:
             newprediction['keypoints'][n+2] = 0.0
+
+        newprediction['keypoints'][n+0] = newprediction['keypoints'][n+0] - newx
+        newprediction['keypoints'][n+1] = newprediction['keypoints'][n+1] - newy
+
         c = c + 1
     assert c == 17
     return newprediction
@@ -120,17 +131,18 @@ for k, patchsize in enumerate(patchsizes):
     numerate[0], numerate[1] = 0.0, 0.0
 
 print("Output directory: ", outputdir)
-fileout = os.path.join(outputdir,"maskrcnn_predictions_patches.json")
+fileout = os.path.join(outputdir, "maskrcnn_predictions_patches.json")
 with open(fileout, 'w') as f:
     json.dump(dataout, f, separators=(', ', ': '))
 
 
 # ---------------------------------------- VISUALIZE KEYPOINTS ----------------------------------------
 print("VISUALIZE KEYPOINTS FROM REDUCED PREDICTIONS:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d3-1.sh'
+#os.makedirs(os.path.join(outputdir, '.evalimages'))
 
 cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file {} -imagespath {} -outputdir {}"\
-                                                .format(gpu_cmd, fileout, args.image, os.path.join(outputdir, '.visimages'))
+                                                .format(gpu_cmd, fileout, os.path.join(outputdir, ".visimages"), os.path.join(outputdir, '.evalimages'))
 print(cmd)
 os.system(cmd)
 
@@ -155,6 +167,24 @@ print("Output directory: ", outrun_dir)
 
 # ---------------------------------------- PRINT ELASTICSEARCH INSERT ----------------------------------------
 methodins = 'RAW' #['CLUSTER', 'RAW']
+gpdfile = filewithname(outrun_dir, 'geometric_pose_descriptor')
 cmd = "python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
-                                                                                            .format(outrun_dir, methodins, imgdir, methodgpd)
+                                                                                            .format(gpdfile, methodins, imgdir, methodgpd)
 print(cmd)
+
+# ---------------------------------------- CREATE QUERY DESCRIPTOR ----------------------------------------
+#Can be used by jupyter notebook
+methodins = 'RAW' #['CLUSTER', 'RAW']
+imgid = int(input("Image id for new gpd descriptor: "))
+with open (gpdfile, "r") as f:
+    data = f.read()
+data = eval(data)
+descriptor = []
+for gpd in data:
+    if gpd['image_id'] == imgid:
+        descriptor.append(gpd)
+assert len(descriptor) != 0
+
+with open(os.path.join(outrun_dir, 'gpd_evalsingle.json'), 'w') as f:
+    print("Writing to folder: ",outrun_dir)
+    json.dump(descriptor, f)
