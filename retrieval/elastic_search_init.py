@@ -62,7 +62,7 @@ parser.add_argument('-firstn', type=int, default=10, help='Gets firstn documents
 args = parser.parse_args()
 
 logger = logging.getLogger('elasticsearch-db')
-_DEBUG = False#True#False#True#False #True #False
+_DEBUG = True#False#True#False#True#False #True #False
 if _DEBUG:
     logger.setLevel(logging.DEBUG)
     # Setup ElasticSearch server & client logging
@@ -91,9 +91,13 @@ if args.method_insert and args.gpd_type:
     _INDEX = _INDEX +'_pbn10k'
     _INDEX = _INDEX.lower()
     _INDEX = 'patchesindex'    
+    #_INDEX = 'bitseq4' 
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
-    _INDEX = 'patchesindex'   
+    _INDEX = 'patchesindex' 
+    #_INDEX = 'bitseq4'   
+_INDEX = 'bitseq4' 
+_INDEX = '2vecstest' 
 print("Current index: ",_INDEX)
 
 _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation
@@ -299,7 +303,7 @@ def createIndex(es, dim, mode, imgdir):
                 "imageid": {
                     "type": "text"
                 },
-                 "id": {
+                 "imid": {
                     "type": "integer"
                 },
                 "score": {
@@ -311,7 +315,10 @@ def createIndex(es, dim, mode, imgdir):
                 },
                 #Used to get the descriptor values in the script
                 '{}-array'.format(varname): {
-                    "type": "half_float"
+                    "type": "double" #"half_float"
+                },
+                'tempvec': {
+                    "type": "double" #"half_float"
                 },
                 "mask": {
                     "type" : "keyword",
@@ -339,11 +346,12 @@ def createIndex(es, dim, mode, imgdir):
 def insertdoc(es, data, metadata, id, featurelabel):
     doc = {
     'imageid': metadata['image_id'],
-    'id': int(metadata['image_id']),
+    'imid': int(metadata['image_id']),
     'score': metadata['score'],
     featurelabel: list(data[featurelabel]),
     '{}-array'.format(featurelabel): list(data[featurelabel]),
-    'mask': data['mask']
+    'mask': data['mask'],
+    'tempvec':  list(data[featurelabel]) # [-100 for i in range(len(data[featurelabel]))]
     }
 
     res = es.index(index=_INDEX, id=id, body=doc) 
@@ -353,6 +361,49 @@ def insertdoc(es, data, metadata, id, featurelabel):
 def query(es, descriptor, size, method):
     featurevector = descriptor['gpd']
     maskstr = descriptor['mask']
+
+    q = {
+     "script": {
+        "lang": "painless",
+        "source": """
+                def m1 = ctx._source.mask;
+                def m2 = params.queryMask;
+                //def c = 1;
+                //def penalty = 1.0/params.queryVector.size(); //TODO: finetune penalty
+
+                for(int i; i < m1.length(); i++) {
+                    if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
+                        //qeffective.add(params._source['gpd-array'][i]);
+                        ctx._source.tempvec[i] = ctx._source['gpd-array'][i];
+                    }else{
+                        ctx._source.tempvec[i] = params.queryVector[i]; 
+                    }
+                }
+                """,
+        "params": {
+                "queryVector": list(featurevector),
+                "queryMask": maskstr
+        }    
+     }
+    }
+
+    params={ 
+        "queryVector": list(featurevector),
+        "queryMask": maskstr   
+    }
+
+    """try :
+        res= es.update_by_query(body=q, index=_INDEX)
+    except elasticsearch.ElasticsearchException as es1:  
+        print(es1)
+        print("---------------------------------")
+        print(es1.info)
+        print("---------------------------------")
+        recursive_print_dict(es1.info)
+        print("---------------------------------")
+
+    es.indices.refresh(index=_INDEX)
+    recursive_print_dict(res)"""
     
     #Notes to querying in elasticsearch
     #   - params._source['gpd-array'] prevents es to sort the array (vs. params['gpd-array'])
@@ -368,10 +419,10 @@ def query(es, descriptor, size, method):
     if method == _METHODS_SEARCH[0]: #COSSIM
         request = { "size": size,
                     "query": {
-                        "script_score": {
-                            "query": {
-                                "match_all": {}
-                            },
+                        #"script_score": {
+                            #"query": {
+                            #    "match_all": {}
+                            #},
                             "script": {
                                 "lang":"painless",
                                 "source": """
@@ -380,10 +431,11 @@ def query(es, descriptor, size, method):
                                     def c = 1;
                                     def penalty = 1.0/params.queryVector.size(); //TODO: finetune penalty
                                    
-                                    //if (doc['id'].value == 81) {
+                                    //if (doc['id'].value == 89) {
                                     //    Debug.explain(params.queryVector);
                                     //}
                                     ArrayList qeffective = new ArrayList();
+
                                     //float[] qeffective = new float[params.queryVector.size()];
                                     for(int i; i < m1.length(); i++) {
                                         if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
@@ -396,8 +448,8 @@ def query(es, descriptor, size, method):
                                             //qeffective[i] = params.queryVector[i]; 
                                         }
                                     }
-                                    //if (doc['id'].value == 90) {
-                                        //Debug.explain(qeffective);
+                                    //if (doc['id'].value == 67) {
+                                          //Debug.explain(qeffective);
                                           //Debug.explain(c);
                                           //Debug.explain(cosineSimilarity(qeffective, 'gpd'));
                                           //Debug.explain((cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value);
@@ -408,22 +460,60 @@ def query(es, descriptor, size, method):
                                     
                                     //double d = (cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value;
                                     //d = d * doc['score'].value;
-                                    //if (doc['id'].value == 90) {
+                                    //if (doc['id'].value == 3) {
+                                        //Debug.explain(cosineSimilarity(qeffective, doc['gpd']) + 1);
                                         //Debug.explain(cosineSimilarity(qeffective, 'gpd')/c + 1.0);
-                                        //Debug.explain(d);
+                                        //Debug.explain(cosineSimilarity(params.queryVector, doc['gpd']));
 
                                         //Debug.explain((cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value);
                                     //}
-                                    return (cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value;
+                                    params.queryVector[2] = 1;
+                                    //return cosineSimilarity(qeffective, doc['gpd']) + 1;// /c + 1.0)* doc['score'].value;
+                                    return cosineSimilarity(params.queryVector, doc['gpd']) + 1;// /c + 1.0)* doc['score'].value;
+
                                 """,
                                 "params": {
                                     "queryVector": list(featurevector),
                                     "queryMask": maskstr
                                 }    
-                            }
+                            },
+                        }
+                    #}
+            }
+        
+        """
+        request = { "size": size,
+                "query": {
+                    "script_score": {
+                        "query": {
+                            "match_all": {}
+                        },
+                        "script": {
+                            "lang":"painless",
+                            "source": "l2norm(doc['tempvec'], doc['gpd']) + 1;"
+                            ,  
                         }
                     }
-                  }
+                }
+              }"""
+
+        request = { "size": size,
+                "query": {
+                    "script": {
+                        "script": {
+                            "lang":"painless",
+                            "source": "l2norm(doc['tempvec'], doc['gpd']) + 1;" 
+                        }
+                    }
+                }
+              }
+              
+        """"script": {
+          "script": {
+            "source": "doc['num1'].value > 1",
+            "lang": "painless"
+          }
+        }"""
 
     elif method == _METHODS_SEARCH[1]: #L1-distance
         print("TEST")
@@ -503,7 +593,7 @@ def query(es, descriptor, size, method):
         raise ValueError()
     try :
         res= es.search(index=_INDEX, 
-                        body=request)
+                        body=request, explain=True, search_type='dfs_query_then_fetch')
     except elasticsearch.ElasticsearchException as es1:  
         print("Error when querying for feature vector ",featurevector)
        
@@ -526,6 +616,7 @@ def query(es, descriptor, size, method):
         scores = [item['_score'] for item in docs]
         print("Query descriptor: ", descriptor)
         print("Result: ",imageids ,scores)
+        print(list(zip(imageids, scores)))
         exit(1)
     
     docs = res['hits']['hits']
@@ -684,7 +775,8 @@ def show_docs(es, firstn):
     es.indices.refresh(index=_INDEX)
     response = scan(es, index=_INDEX, query={"query": { "match_all" : {}}}, size=firstn)
 
-    print(list(response)[:firstn])
+    recursive_print_dict({'Documents':list(response)})
+    #print(list(response)[:firstn])
 
 def get_alldocs(es):
     es.indices.refresh(index=_INDEX)
