@@ -13,6 +13,7 @@ import datetime
 import time
 import logging
 import itertools
+import copy
 import matplotlib.pyplot as plt
 from utils import applyPCA, normalizevec, dict_to_item_list, line_intersection, angle
 
@@ -55,7 +56,7 @@ _REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
 _NUMKPTS = 17
 
 _FILTER = True
-_MINKPTs = 10
+_MINKPTs = 7#5 #7#10
 _KPTS_THRESHOLD = 0.05 #same as in detectron2/utils/visualizer.py
 
 _NORM = True
@@ -597,24 +598,24 @@ def filterKeypoints(pose_keypoints, mode):
 def addflippedpredictions(preds):
     print("Adding flipped keypoint predictions ...")
     c_flip = 0
-    for i,pred in enumerate(preds):
-        predflipped = copy.deepcopy(pred)
-        refs = _REFs.values()
+    predscopy = copy.deepcopy(preds)
+    for i,pred in enumerate(predscopy):
+        refs = _REFs.keys()
         #supports more than 2 keypoints
-        refpointx = sum([ predflipped['keypoints'][k*3] for k in refs])/len(refs)
-        refpointy = sum([ predflipped['keypoints'][k*3+1] for k in refs])/len(refs)
-
-        for k in range(0,len(predflipped['keypoints']), 3):
-            if predflipped['keypoints'][k]> refpointx:
-                 predflipped['keypoints'][k] = predflipped['keypoints'][k] - refpointx
+        refpointx = sum([ pred['keypoints'][k*3] for k in refs])/len(refs)
+        refpointy = sum([ pred['keypoints'][k*3+1] for k in refs])/len(refs)
+        for k in range(0,len(pred['keypoints']), 3):
+            if pred['keypoints'][k]> refpointx:
+                 pred['keypoints'][k] = pred['keypoints'][k] - refpointx
             else:
-                 predflipped['keypoints'][k] = refpointx - predflipped['keypoints'][k]
+                 pred['keypoints'][k] = refpointx - pred['keypoints'][k]
 
-            if predflipped['keypoints'][k+1]> refpointy:
-                 predflipped['keypoints'][k+1] = predflipped['keypoints'][k+1] - refpointy
+            if pred['keypoints'][k+1]> refpointy:
+                 pred['keypoints'][k+1] = pred['keypoints'][k+1] - refpointy
             else:
-                 predflipped['keypoints'][k+1] = refpointy - predflipped['keypoints'][k+1]  
-        preds.append(predflipped)
+                 pred['keypoints'][k+1] = refpointy - pred['keypoints'][k+1] 
+        pred['image_id'] = '{}-flipped'.format(pred['image_id']) 
+        preds.append(pred)
         c_flip = c_flip + 1
     print("Added {} flipped keypoint predictions".format(c_flip))
 

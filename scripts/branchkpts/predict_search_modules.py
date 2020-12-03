@@ -95,7 +95,7 @@ def predict(imgpath):
 
     # --------------------- Visualize PoseFix predictions --------------------------
     print("VISUALIZE POSEFIX PREDICTIONS ...")
-    ubuntu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run.sh'
+    ubuntu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run-1.sh'
     if _PREDICT_POSEFIX:
         inputfile = os.path.join(outrun_dir,"resultfinal.json")
     else:
@@ -119,7 +119,7 @@ def predict(imgpath):
     annpath = inputfile
     return annpath
 
-def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None):
+def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=False):
     # ------------------------ GPD DESCRIPTORS ------------------------
     print("CALCULATE GPD DESCRIPTORS ...")
     #methodgpd = 0 #['JcJLdLLa_reduced', 'JLd_all']
@@ -134,17 +134,17 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None):
             raise ValueError("Please specify a pca model file for feature reduction.")
         if _PRINT_CMDS:
             print("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py \
-                                                                    -inputFile {} -mode {} -pcamodel {} -target {} &> {}"\
-                                                                     .format(annpath, methodgpd, pca_model, target, logfile))
+                                                                    -inputFile {} -mode {} -pcamodel {} {} -target {} &> {}"\
+                                                                     .format(annpath, methodgpd, pca_model, '-flip' if flip else '', target, logfile))
         os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py \
-                                                                    -inputFile {} -mode {} -pcamodel {} -target {} &> {}"\
-                                                                     .format(annpath, methodgpd, pca_model, target, logfile))
+                                                                    -inputFile {} -mode {} -pcamodel {} {} -target {} &> {}"\
+                                                                     .format(annpath, methodgpd, pca_model, '-flip' if flip else '', target, logfile))
     else:
         if _PRINT_CMDS:
-            print("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -target {} &> {}"\
-                                                                                                            .format(annpath, methodgpd, target, logfile))
-        os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} -target {} &> {}"\
-                                                                                                            .format(annpath, methodgpd, target, logfile))
+            print("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} {} -target {} &> {}"\
+                                                                                                            .format(annpath, methodgpd, '-flip' if flip else '', target, logfile))
+        os.system("python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile {} -mode {} {} -target {} &> {}"\
+                                                                                                            .format(annpath, methodgpd, '-flip' if flip else '', target, logfile))
 
     print("CALCULATE GPD DESCRIPTORS DONE.")
     out_dir = '/home/althausc/master_thesis_impl/posedescriptors/out/query'

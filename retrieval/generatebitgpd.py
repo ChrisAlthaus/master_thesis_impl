@@ -4,9 +4,10 @@ import os
 
 data = []
 x = [i for i in product(range(2), repeat=4)]
+y = [i for i in product(range(2), repeat=4)]
 
-for k, bitvector in enumerate(x):
-    data.append({'image_id':k , 'gpd': bitvector, 'mask':'1111', 'score':1})
+for k, bitvectors in enumerate(zip(x,y)):
+    data.append({'image_id':k , 'gpd': bitvectors[0], 'mask': ''.join(map(str,bitvectors[1])), 'score':1})
 
 print("Data: ", data)
 

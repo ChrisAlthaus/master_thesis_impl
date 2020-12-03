@@ -19,6 +19,7 @@ import ast
 import csv
 
 from utils import recursive_print_dict, logscorestats
+from utils import checkbyrecalculate
 
 import logging
 
@@ -62,7 +63,7 @@ parser.add_argument('-firstn', type=int, default=10, help='Gets firstn documents
 args = parser.parse_args()
 
 logger = logging.getLogger('elasticsearch-db')
-_DEBUG = True#False#True#False#True#False #True #False
+_DEBUG = False#True#False#True#False #True #False
 if _DEBUG:
     logger.setLevel(logging.DEBUG)
     # Setup ElasticSearch server & client logging
@@ -91,15 +92,18 @@ if args.method_insert and args.gpd_type:
     _INDEX = _INDEX +'_pbn10k'
     _INDEX = _INDEX.lower()
     _INDEX = 'patchesindexm10' 
-    _INDEX = 'patchesindexm7'    
+    _INDEX = 'patchesindexm7'   
+    _INDEX = 'patchesindexm5'    
     #_INDEX = 'bitseq4' 
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
     _INDEX = 'patchesindexm10' 
-    _INDEX = 'patchesindexm7' 
+    _INDEX = 'patchesindexm7'
+    _INDEX = 'patchesindexm5'    
     #_INDEX = 'bitseq4'   
 #_INDEX = 'bitseq4' 
 #_INDEX = '2vecstest' 
+_INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
 print("Current index: ",_INDEX)
 
 _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation
@@ -325,9 +329,7 @@ def createIndex(es, dim, mode, imgdir):
                 "mask": {
                     "type" : "keyword"#,
                     #"index" : False
-                }
-
-                
+                }    
             }               
         }
     }
@@ -363,49 +365,6 @@ def insertdoc(es, data, metadata, id, featurelabel):
 def query(es, descriptor, size, method):
     featurevector = descriptor['gpd']
     maskstr = descriptor['mask']
-
-    q = {
-     "script": {
-        "lang": "painless",
-        "source": """
-                def m1 = ctx._source.mask;
-                def m2 = params.queryMask;
-                //def c = 1;
-                //def penalty = 1.0/params.queryVector.size(); //TODO: finetune penalty
-
-                for(int i; i < m1.length(); i++) {
-                    if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                        //qeffective.add(params._source['gpd-array'][i]);
-                        ctx._source.tempvec[i] = ctx._source['gpd-array'][i];
-                    }else{
-                        ctx._source.tempvec[i] = params.queryVector[i]; 
-                    }
-                }
-                """,
-        "params": {
-                "queryVector": list(featurevector),
-                "queryMask": maskstr
-        }    
-     }
-    }
-
-    params={ 
-        "queryVector": list(featurevector),
-        "queryMask": maskstr   
-    }
-
-    """try :
-        res= es.update_by_query(body=q, index=_INDEX)
-    except elasticsearch.ElasticsearchException as es1:  
-        print(es1)
-        print("---------------------------------")
-        print(es1.info)
-        print("---------------------------------")
-        recursive_print_dict(es1.info)
-        print("---------------------------------")
-
-    es.indices.refresh(index=_INDEX)
-    recursive_print_dict(res)"""
     
     #Notes to querying in elasticsearch
     #   - params._source['gpd-array'] prevents es to sort the array (vs. params['gpd-array'])
@@ -419,170 +378,6 @@ def query(es, descriptor, size, method):
     #   1. Cos-Similarity Score: higher value means closer/better match (unlike cossim defined normaly)!
     print("QUERY:", featurevector)
     if method == _METHODS_SEARCH[0]: #COSSIM
-        request = { "size": size,
-                    "query": {
-                        #"script_score": {
-                            #"query": {
-                            #    "match_all": {}
-                            #},
-                            "script": {
-                                "lang":"painless",
-                                "source": """
-                                    def m1 = doc['mask'].value;
-                                    def m2 = params.queryMask;
-                                    def c = 1;
-                                    def penalty = 1.0/params.queryVector.size(); //TODO: finetune penalty
-                                   
-                                    //if (doc['id'].value == 89) {
-                                    //    Debug.explain(params.queryVector);
-                                    //}
-                                    ArrayList qeffective = new ArrayList();
-
-                                    //float[] qeffective = new float[params.queryVector.size()];
-                                    for(int i; i < m1.length(); i++) {
-                                        if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                                            qeffective.add(params._source['gpd-array'][i]);
-                                            //qeffective[i] = params._source['gpd-array'][i]; 
-                                            //params.queryVector[i] = params._source['gpd-array'][i]; 
-                                            c = c + penalty;
-                                        }else{
-                                            qeffective.add(params.queryVector[i]);
-                                            //qeffective[i] = params.queryVector[i]; 
-                                        }
-                                    }
-                                    //if (doc['id'].value == 67) {
-                                          //Debug.explain(qeffective);
-                                          //Debug.explain(c);
-                                          //Debug.explain(cosineSimilarity(qeffective, 'gpd'));
-                                          //Debug.explain((cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value);
-                                    //    Debug.explain(params.queryVector);
-                                    //    Debug.explain(params._source['gpd-array']);
-                                    //    Debug.explain(cosineSimilarity(params.queryVector, 'gpd'));
-                                    //}
-                                    
-                                    //double d = (cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value;
-                                    //d = d * doc['score'].value;
-                                    //if (doc['id'].value == 3) {
-                                        //Debug.explain(cosineSimilarity(qeffective, doc['gpd']) + 1);
-                                        //Debug.explain(cosineSimilarity(qeffective, 'gpd')/c + 1.0);
-                                        //Debug.explain(cosineSimilarity(params.queryVector, doc['gpd']));
-
-                                        //Debug.explain((cosineSimilarity(qeffective, 'gpd')/c + 1.0)* doc['score'].value);
-                                    //}
-                                    params.queryVector[2] = 1;
-                                    //return cosineSimilarity(qeffective, doc['gpd']) + 1;// /c + 1.0)* doc['score'].value;
-                                    return cosineSimilarity(params.queryVector, doc['gpd']) + 1;// /c + 1.0)* doc['score'].value;
-
-                                """,
-                                "params": {
-                                    "queryVector": list(featurevector),
-                                    "queryMask": maskstr
-                                }    
-                            },
-                        }
-                    #}
-            }
-        
-        
-        request = { "size": size,
-                "query": {
-                    "script_score": {
-                        "query": {
-                            "match_all": {}
-                        },
-                        "script": {
-                            "lang":"painless",
-                            "source": """
-                                double sum = 0.0;
-                                for(int i; i < doc['tempvec'].size(); i++) {
-                                    sum = sum + doc['gpd-array'][i] + doc['tempvec'][i];
-                                }
-                                return params._source['gpd-array'][0] + params._source['tempvec'][0];
-                                """
-                            ,  
-                        }
-                    }
-                }
-              }
-        
-        """request = { "size": size,
-                "query": {
-                    "script": {
-                        "script": {
-                            "lang":"painless",
-                            "source": "l2norm(_source.doc['tempvec'], _source.doc['gpd']) + 1;" 
-                        }
-                    }
-                }
-              }"""
-              
-        """"script": {
-          "script": {
-            "source": "doc['num1'].value > 1",
-            "lang": "painless"
-          }
-        }"""
-
-        request = { "size": size,
-                "query": {
-                    "script_score": {
-                        "query": {
-                            "match_all": {}
-                        },
-                        "script": {
-                            "lang":"painless",
-                            "source":"""
-                                return l2norm(params._source['tempvec'], doc['gpd']) + 1;
-                            """
-                             
-                        }
-                    }
-                }
-              }
-
-        request = { "size": size,
-            "query": {
-                "script_score": {
-                    "query": {
-                        "match_all": {}
-                    },
-                    "script": {
-                        "lang":"painless",
-                        "source": """
-                            def m1 = params._source['mask'];
-                            def m2 = params.queryMask;
-                            double penalty = 0.5/params.queryVector.size(); //0.5 since majority of entries are between [0,1]
-                            double c = 0.0;
-
-                            ArrayList qeffective = new ArrayList();
-                            for(int i; i < m1.length(); i++) {
-                                if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                                    qeffective.add(params._source['gpd-array'][i]);
-                                    c = c + penalty;
-                                }else{
-                                    qeffective.add(params.queryVector[i]);
-                                }
-                            }
-
-                            double l2norm = 0;
-                            for (int dim = 0; dim < doc['gpd-array'].size(); dim++){
-                                double diff = params._source['gpd-array'][dim] - qeffective[dim];
-                                l2norm += diff * diff;
-                            }
-                            l2norm = Math.sqrt(l2norm);
-                            return 1 / (1 + l2norm + c) *  params._source['score'];
-                            //return 1 / (1 + l2norm) *  params._source['score'];
-                            //return l2norm(qeffective, doc['gpd']) *  params._source['score']; not working
-                            """
-                        ,
-                        "params": {
-                            "queryVector": list(featurevector),
-                            "queryMask": maskstr
-                        }   
-                    }
-                }
-            }
-          }
 
         request = { "size": size,
             "query": {
@@ -637,41 +432,6 @@ def query(es, descriptor, size, method):
           }
 
     elif method == _METHODS_SEARCH[1]: #L1-distance
-        print("TEST")
-        request = { "size": size,
-                    "query": {
-                        "script_score": {
-                            "query": {
-                                "match_all": {}
-                            },
-                            "script": {
-                                "lang":"painless",
-                                "source": """
-                                    def m1 = doc['mask'].value;
-                                    def m2 = params.queryMask;
-                                    def c = 1;
-                                    def penalty = 0.5; //Since normalization of descriptor mainly to [0,1], therefore 'maybe' good value
-
-                                    for(int i; i < m1.length(); i++) {
-                                        if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                                            params.queryVector[i] = params._source['gpd-array'][i]; 
-                                            c = c + penalty;
-                                        }
-                                    }
-
-                                    //l1norm value range from testrun: [20,90]
-                                    def d = 1 / (1 + l1norm(params.queryVector, 'gpd') + c);
-                                    d = d * doc['score'].value;
-                                    return d;
-                                """,
-                                "params": {
-                                    "queryVector": list(featurevector),
-                                    "queryMask": maskstr
-                                }    
-                            }
-                        }
-                    }
-                  }
 
         request = { "size": size,
             "query": {
@@ -791,63 +551,7 @@ def query(es, descriptor, size, method):
         resultlist = list(zip(imageids, scores))
         for id, s in resultlist:
             print(id, s)
-
-        from scipy.spatial import distance
-        from numpy import dot
-        from numpy.linalg import norm
-
-        vecs1 = [item['_source']['gpd-array'] for item in docs]
-        ms1 = [item['_source']['mask'] for item in docs]
-        v1dbscores = [item['_source']['score'] for item in docs]
-        #vecs2 = [item['_source']['tempvec'] for item in docs]
-        vecs2 = [featurevector for item in docs]
-        ms2 = [maskstr for item in docs]
-        #print('db vectors:', vecs1)
-        #print("query vectors:", vecs2)
-        #print('masks 1      :', ms1)
-        #print('masks 1      :', ms2)
-        penalties = []
-        penalty = 0.5/len(vecs1[0])
-
-        
-        for i in range(len(vecs1)):
-            vecs2[i] = [vecs1[i][n] if (ms1[i][n] == '0' or ms2[i][n] == '0') else vecs2[i][n] for n in range(len(vecs1[i]))]
-            c = sum( [penalty if (ms1[i][n] == '0' or ms2[i][n] == '0') else 0 for n in range(len(vecs1[i]))] )
-            penalties.append(c)
-        print("masked query vectors: ", vecs2)
-
-
-        if method == _METHODS_SEARCH[0]:
-            c = 0
-            for v1,v2,s in zip(vecs1, vecs2, v1dbscores):
-                cossim = dot(v1, v2)/(norm(v1)*norm(v2))
-                dst = 1 + cossim
-                #print("Distance between {} and {} = {}".format(v1, v2, dst))
-                print("Distance {} = {} ,db result= {}".format(c, dst, resultlist[c][1]))
-                c = c + 1
-
-        elif method == _METHODS_SEARCH[1]:
-            c = 0
-            for v1,v2,s in zip(vecs1, vecs2, v1dbscores):
-                l1norm = sum(abs(a - b) for a, b in zip(v1,v2))
-                dst = 1 / (1 + l1norm + penalties[c]) * s
-                #print("Distance between {} and {} = {}".format(v1, v2, dst))
-                print("Distance {} = {} ,db result= {}".format(c, dst, resultlist[c][1]))
-                c = c + 1
-
-        elif method == _METHODS_SEARCH[2]:
-            c = 0
-            for v1,v2,s in zip(vecs1, vecs2, v1dbscores):
-                dst = 1 / (1 + distance.euclidean(v1,v2) + penalties[c]) * s
-                #print("Distance between {} and {} = {}".format(v1, v2, dst))
-                print("Distance {} = {} ,db result= {}".format(c, dst, resultlist[c][1]))
-                c = c + 1
-        else:
-            raise ValueError()
-
-         
-
-        #exit(1)
+        checkbyrecalculate(resultlist, docs, method , featurevector, maskstr)
     
     docs = res['hits']['hits']
     imageids = [item['_source']['imageid'] for item in docs]
@@ -889,6 +593,7 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
     #for k,v in grouped_by_imageid:
     #    print(k, v,list(v))
     #exit(1)
+    print("Using ranking type: {}".format(rankingtype))
     
     c_ids = 0
     for imageid, group in grouped_by_imageid:
@@ -917,54 +622,23 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
     print("Number of unique imagids: ",len(score_sums))
     print("Every imgid has in average {} returned descriptors".format(c_gpds/len(score_sums)))
     print("Raw averagescore statistics:", logscorestats(list(score_sums.values())))
-    #print(score_sums)
-    bestk = sorted(score_sums.items(), key=lambda x: x[1], reverse=True)[:k]
-    #print(bestk)
-    #exit(1)
-    #Apply normalization to intervall [0,1] & then apply exponential function, used for later comparison score in search results display
-    """if max(score_sums.values()) != min(score_sums.values()):
-        lin_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())))
-        bestk = list(map(lin_norm, bestk))
-        print(bestk)
 
-        print("Linear Normalization statistics:", logscorestats([s for id,s in bestk]))"""
+    bestk = sorted(score_sums.items(), key=lambda x: x[1], reverse=True)[:k]
+   
+    if not _DEBUG:
+        #Apply normalization to intervall [0,1] & then apply exponential function, used for later comparison score in search results display
+        if max(score_sums.values()) != min(score_sums.values()):
+            lin_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())))
+            bestk = list(map(lin_norm, bestk))
+            print(bestk)
+
+            print("Linear Normalization statistics:", logscorestats([s for id,s in bestk]))
     #log_norm = lambda x: (x[0], np.log2(x[1]+1)) 
     #bestk = list(map(exp_norm, bestk))
     #print("Logarithmic Normalization statistics:", logscorestats([s for id,s in bestk]))
     print("Best k: ", bestk)
-    #exit(1)
     return bestk
 
-#deprecated   
-def bestmatching_sumdist(image_scoring, k):
-    #Scoring should contain for each imageid the accumulated scores between query features and db entries  
-    score_sums = {}
-    #Number of iterations: number of query features * number of db entries (each-by-each)
-    start_time = time.time()
-    print("Ranking query results with sum distance ...")
-    for item in image_scoring:
-        imageid = item[0] 
-        score = item[1]
-        if not imageid in score_sums:
-            score_sums[imageid] = score
-        else:
-            score_sums[imageid] = score_sums[imageid] + score
-    print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
-    print("Number of unreduced (without topk) unique imagids: ",len(score_sums))
-    print("Raw sumdistances statistics:", logscorestats(list(score_sums.values())))
-    
-    bestk = sorted(score_sums.items(), key=lambda x: x[1])[:k]
-    #Apply normalization to intervall [0,1] & then apply exponential function, used for later comparison score in search results display
-    if max(score_sums.values()) != min(score_sums.values()):
-        lin_norm = lambda x: (x[0], (x[1] - min(score_sums.values()))/(max(score_sums.values()) - min(score_sums.values())))
-        bestk = list(map(lin_norm, bestk))
-
-        print("Linear Normalization statistics:", logscorestats([s for id,s in bestk]))
-    exp_norm = lambda x: (x[0], np.exp(-10* x[1]))
-    bestk = list(map(exp_norm, bestk))
-    print("Exponential Normalization statistics:", logscorestats([s for id,s in bestk]))
-
-    return bestk
 
 #deprecated
 def bestmatching_cluster(image_scoring, k):
