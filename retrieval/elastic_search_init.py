@@ -90,14 +90,16 @@ if args.method_insert and args.gpd_type:
     _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
     _INDEX = _INDEX +'_pbn10k'
     _INDEX = _INDEX.lower()
-    _INDEX = 'patchesindex'    
+    _INDEX = 'patchesindexm10' 
+    _INDEX = 'patchesindexm7'    
     #_INDEX = 'bitseq4' 
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
-    _INDEX = 'patchesindex' 
+    _INDEX = 'patchesindexm10' 
+    _INDEX = 'patchesindexm7' 
     #_INDEX = 'bitseq4'   
-_INDEX = 'bitseq4' 
-_INDEX = '2vecstest' 
+#_INDEX = 'bitseq4' 
+#_INDEX = '2vecstest' 
 print("Current index: ",_INDEX)
 
 _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation
@@ -180,7 +182,7 @@ def main():
         
         querynums = len(data)
         print("Results unranked: ", results)
-        exit(1)
+        #exit(1)
         imgids_final = bestmatching(results, args.rankingtype, len(data), _NUMRES)
         #imgids_final = bestmatching_sumdist(results, _NUMRES)
 
@@ -321,8 +323,8 @@ def createIndex(es, dim, mode, imgdir):
                     "type": "double" #"half_float"
                 },
                 "mask": {
-                    "type" : "keyword",
-                    "index" : False
+                    "type" : "keyword"#,
+                    #"index" : False
                 }
 
                 
@@ -351,7 +353,7 @@ def insertdoc(es, data, metadata, id, featurelabel):
     featurelabel: list(data[featurelabel]),
     '{}-array'.format(featurelabel): list(data[featurelabel]),
     'mask': data['mask'],
-    'tempvec':  list(data[featurelabel]) # [-100 for i in range(len(data[featurelabel]))]
+    'tempvec':  list(np.random.randint(2, size=(4,))) #[0,0,0,0] #list(data[featurelabel]) # [-100 for i in range(len(data[featurelabel]))]
     }
 
     res = es.index(index=_INDEX, id=id, body=doc) 
@@ -481,7 +483,7 @@ def query(es, descriptor, size, method):
                     #}
             }
         
-        """
+        
         request = { "size": size,
                 "query": {
                     "script_score": {
@@ -490,23 +492,29 @@ def query(es, descriptor, size, method):
                         },
                         "script": {
                             "lang":"painless",
-                            "source": "l2norm(doc['tempvec'], doc['gpd']) + 1;"
+                            "source": """
+                                double sum = 0.0;
+                                for(int i; i < doc['tempvec'].size(); i++) {
+                                    sum = sum + doc['gpd-array'][i] + doc['tempvec'][i];
+                                }
+                                return params._source['gpd-array'][0] + params._source['tempvec'][0];
+                                """
                             ,  
                         }
                     }
                 }
-              }"""
-
-        request = { "size": size,
+              }
+        
+        """request = { "size": size,
                 "query": {
                     "script": {
                         "script": {
                             "lang":"painless",
-                            "source": "l2norm(doc['tempvec'], doc['gpd']) + 1;" 
+                            "source": "l2norm(_source.doc['tempvec'], _source.doc['gpd']) + 1;" 
                         }
                     }
                 }
-              }
+              }"""
               
         """"script": {
           "script": {
@@ -514,6 +522,119 @@ def query(es, descriptor, size, method):
             "lang": "painless"
           }
         }"""
+
+        request = { "size": size,
+                "query": {
+                    "script_score": {
+                        "query": {
+                            "match_all": {}
+                        },
+                        "script": {
+                            "lang":"painless",
+                            "source":"""
+                                return l2norm(params._source['tempvec'], doc['gpd']) + 1;
+                            """
+                             
+                        }
+                    }
+                }
+              }
+
+        request = { "size": size,
+            "query": {
+                "script_score": {
+                    "query": {
+                        "match_all": {}
+                    },
+                    "script": {
+                        "lang":"painless",
+                        "source": """
+                            def m1 = params._source['mask'];
+                            def m2 = params.queryMask;
+                            double penalty = 0.5/params.queryVector.size(); //0.5 since majority of entries are between [0,1]
+                            double c = 0.0;
+
+                            ArrayList qeffective = new ArrayList();
+                            for(int i; i < m1.length(); i++) {
+                                if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
+                                    qeffective.add(params._source['gpd-array'][i]);
+                                    c = c + penalty;
+                                }else{
+                                    qeffective.add(params.queryVector[i]);
+                                }
+                            }
+
+                            double l2norm = 0;
+                            for (int dim = 0; dim < doc['gpd-array'].size(); dim++){
+                                double diff = params._source['gpd-array'][dim] - qeffective[dim];
+                                l2norm += diff * diff;
+                            }
+                            l2norm = Math.sqrt(l2norm);
+                            return 1 / (1 + l2norm + c) *  params._source['score'];
+                            //return 1 / (1 + l2norm) *  params._source['score'];
+                            //return l2norm(qeffective, doc['gpd']) *  params._source['score']; not working
+                            """
+                        ,
+                        "params": {
+                            "queryVector": list(featurevector),
+                            "queryMask": maskstr
+                        }   
+                    }
+                }
+            }
+          }
+
+        request = { "size": size,
+            "query": {
+                "script_score": {
+                    "query": {
+                        "match_all": {}
+                    },
+                    "script": {
+                        "lang":"painless",
+                        "source": """
+                            def m1 = params._source['mask'];
+                            def m2 = params.queryMask;
+                            double penalty = 0.5; //not necessary?!
+                            double c = 0.0;
+
+                            ArrayList qeffective = new ArrayList();
+                            for(int i; i < m1.length(); i++) {
+                                if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
+                                    qeffective.add(params._source['gpd-array'][i]);
+                                    c = c + penalty;
+                                }else{
+                                    qeffective.add(params.queryVector[i]);
+                                }
+                            }
+                            
+                            double qdotproduct = 0;
+                            double gpddotproduct = 0;
+                            double qgpddotproduct = 0;
+
+                            for (int dim = 0; dim < doc['gpd-array'].size(); dim++){
+                                qdotproduct += qeffective[dim] * qeffective[dim];
+                                gpddotproduct += params._source['gpd-array'][dim] * params._source['gpd-array'][dim];
+                                qgpddotproduct += qeffective[dim] * params._source['gpd-array'][dim];
+                            }
+
+                            double qmagnitude = Math.sqrt(qdotproduct);
+                            double gpdmagnitude = Math.sqrt(gpddotproduct);
+
+                            double cossim = qgpddotproduct / (qmagnitude * gpdmagnitude);
+                            return (cossim + 1) * params._source['score'];  
+                            //return cosineSimilarity(qeffective, doc['gpd']) + 1 //not working
+                            //return 1 / (1 + l1norm + c) *  params._source['score'];
+                            """
+                        ,
+                        "params": {
+                            "queryVector": list(featurevector),
+                            "queryMask": maskstr
+                        }   
+                    }
+                }
+            }
+          }
 
     elif method == _METHODS_SEARCH[1]: #L1-distance
         print("TEST")
@@ -551,44 +672,95 @@ def query(es, descriptor, size, method):
                         }
                     }
                   }
+
+        request = { "size": size,
+            "query": {
+                "script_score": {
+                    "query": {
+                        "match_all": {}
+                    },
+                    "script": {
+                        "lang":"painless",
+                        "source": """
+                            def m1 = params._source['mask'];
+                            def m2 = params.queryMask;
+                            double penalty = 0.5; //0.5 since majority of entries are between [0,1] & Manhatten distance
+                            double c = 0.0;
+
+                            ArrayList qeffective = new ArrayList();
+                            for(int i; i < m1.length(); i++) {
+                                if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
+                                    qeffective.add(params._source['gpd-array'][i]);
+                                    c = c + penalty;
+                                }else{
+                                    qeffective.add(params.queryVector[i]);
+                                }
+                            }
+                            
+                            double l1norm = 0;
+                            for (int dim = 0; dim < doc['gpd-array'].size(); dim++){
+                                l1norm += Math.abs(params._source['gpd-array'][dim] - qeffective[dim]);
+                            }
+                            //return l1norm;
+                            return 1 / (1 + l1norm + c) *  params._source['score'];
+                            //return 1 / (1 + l1norm(qeffective, doc['gpd']) + c) *  params._source['score']; //not working
+                            """
+                        ,
+                        "params": {
+                            "queryVector": list(featurevector),
+                            "queryMask": maskstr
+                        }   
+                    }
+                }
+            }
+          }
                   #Debug descriptors: - insert: /home/althausc/master_thesis_impl/posedescriptors/out/query/11-25_18-18-11/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt10n1.json
                   #             -query: /home/althausc/master_thesis_impl/posedescriptors/out/query/11-13_13-35-19/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt10n1.json
                   
     elif method == _METHODS_SEARCH[2]: #L2-distance
          request = { "size": size,
+            "query": {
+                "script_score": {
                     "query": {
-                        "script_score": {
-                            "query": {
-                                "match_all": {}
-                            },
-                            "script": {
-                                "lang":"painless",
-                                "source": """
-                                    def m1 = doc['mask'].value;
-                                    def m2 = params.queryMask;
-                                    def c = 1;
-                                    def penalty = 0.5; //Since normalization of descriptor mainly to [0,1], therefore 'maybe' good value
+                        "match_all": {}
+                    },
+                    "script": {
+                        "lang":"painless",
+                        "source": """
+                            def m1 = params._source['mask'];
+                            def m2 = params.queryMask;
+                            double penalty = 0.5/params.queryVector.size(); //0.5 since majority of entries are between [0,1]
+                            double c = 0.0;
 
-                                    for(int i; i < m1.length(); i++) {
-                                        if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                                            params.queryVector[i] = params._source['gpd-array'][i]; 
-                                            c = c + penalty;
-                                        }
-                                    }
-
-                                    //l1norm value range from testrun: [20,90]
-                                    def d = 1 / (1 + l2norm(params.queryVector, 'gpd') + c);
-                                    d = d * doc['score'].value;
-                                    return d;
-                                """,
-                                "params": {
-                                    "queryVector": list(featurevector),
-                                    "queryMask": maskstr
-                                }    
+                            ArrayList qeffective = new ArrayList();
+                            for(int i; i < m1.length(); i++) {
+                                if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
+                                    qeffective.add(params._source['gpd-array'][i]);
+                                    c = c + penalty;
+                                }else{
+                                    qeffective.add(params.queryVector[i]);
+                                }
                             }
-                        }
+
+                            double l2norm = 0;
+                            for (int dim = 0; dim < doc['gpd-array'].size(); dim++){
+                                double diff = params._source['gpd-array'][dim] - qeffective[dim];
+                                l2norm += diff * diff;
+                            }
+                            l2norm = Math.sqrt(l2norm);
+                            return 1 / (1 + l2norm + c) *  params._source['score'];
+                            //return 1 / (1 + l2norm) *  params._source['score'];
+                            //return l2norm(qeffective, doc['gpd']) *  params._source['score']; not working
+                            """
+                        ,
+                        "params": {
+                            "queryVector": list(featurevector),
+                            "queryMask": maskstr
+                        }   
                     }
-                  }
+                }
+            }
+          }
     else:
         raise ValueError()
     try :
@@ -616,8 +788,66 @@ def query(es, descriptor, size, method):
         scores = [item['_score'] for item in docs]
         print("Query descriptor: ", descriptor)
         print("Result: ",imageids ,scores)
-        print(list(zip(imageids, scores)))
-        exit(1)
+        resultlist = list(zip(imageids, scores))
+        for id, s in resultlist:
+            print(id, s)
+
+        from scipy.spatial import distance
+        from numpy import dot
+        from numpy.linalg import norm
+
+        vecs1 = [item['_source']['gpd-array'] for item in docs]
+        ms1 = [item['_source']['mask'] for item in docs]
+        v1dbscores = [item['_source']['score'] for item in docs]
+        #vecs2 = [item['_source']['tempvec'] for item in docs]
+        vecs2 = [featurevector for item in docs]
+        ms2 = [maskstr for item in docs]
+        #print('db vectors:', vecs1)
+        #print("query vectors:", vecs2)
+        #print('masks 1      :', ms1)
+        #print('masks 1      :', ms2)
+        penalties = []
+        penalty = 0.5/len(vecs1[0])
+
+        
+        for i in range(len(vecs1)):
+            vecs2[i] = [vecs1[i][n] if (ms1[i][n] == '0' or ms2[i][n] == '0') else vecs2[i][n] for n in range(len(vecs1[i]))]
+            c = sum( [penalty if (ms1[i][n] == '0' or ms2[i][n] == '0') else 0 for n in range(len(vecs1[i]))] )
+            penalties.append(c)
+        print("masked query vectors: ", vecs2)
+
+
+        if method == _METHODS_SEARCH[0]:
+            c = 0
+            for v1,v2,s in zip(vecs1, vecs2, v1dbscores):
+                cossim = dot(v1, v2)/(norm(v1)*norm(v2))
+                dst = 1 + cossim
+                #print("Distance between {} and {} = {}".format(v1, v2, dst))
+                print("Distance {} = {} ,db result= {}".format(c, dst, resultlist[c][1]))
+                c = c + 1
+
+        elif method == _METHODS_SEARCH[1]:
+            c = 0
+            for v1,v2,s in zip(vecs1, vecs2, v1dbscores):
+                l1norm = sum(abs(a - b) for a, b in zip(v1,v2))
+                dst = 1 / (1 + l1norm + penalties[c]) * s
+                #print("Distance between {} and {} = {}".format(v1, v2, dst))
+                print("Distance {} = {} ,db result= {}".format(c, dst, resultlist[c][1]))
+                c = c + 1
+
+        elif method == _METHODS_SEARCH[2]:
+            c = 0
+            for v1,v2,s in zip(vecs1, vecs2, v1dbscores):
+                dst = 1 / (1 + distance.euclidean(v1,v2) + penalties[c]) * s
+                #print("Distance between {} and {} = {}".format(v1, v2, dst))
+                print("Distance {} = {} ,db result= {}".format(c, dst, resultlist[c][1]))
+                c = c + 1
+        else:
+            raise ValueError()
+
+         
+
+        #exit(1)
     
     docs = res['hits']['hits']
     imageids = [item['_source']['imageid'] for item in docs]
