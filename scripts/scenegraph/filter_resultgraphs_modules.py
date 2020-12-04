@@ -10,6 +10,7 @@ import itertools
 import numpy as np
 
 from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VALID_RELLABELS
+
 #Can be used for scene graph prediction topk filtering before saving
 #Otherwise much too large (~7MB/prediction)
 #Used in: Scene-Graph-Benchmark.pytorch/maskrcnn_benchmark/engine/inference.py
@@ -43,6 +44,8 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
     box_labels = preds['bbox_labels']   #assumption: model just supports valid labels
     box_scores = preds['bbox_scores'] 
 
+    _DEBUG = True
+
     #filter out unvalid boxes
     b_data = []
     b_labels = []
@@ -50,14 +53,23 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
     b_indices = [] 
     skipped_indices = []
     for i, l in enumerate(box_labels):
-        if ind_to_classes[l] in VALID_BBOXLABELS and box_scores[i]>=_SCORE_THRESH_BOXES:
-            b_indices.append(i)
-            
-            b_data.append(boxes[i])
-            b_labels.append(l)
-            b_scores.append(box_scores[i])
+        if ind_to_classes[l] in VALID_BBOXLABELS:
+            if box_scores[i]>=_SCORE_THRESH_BOXES:
+                b_indices.append(i)
+                
+                b_data.append(boxes[i])
+                b_labels.append(l)
+                b_scores.append(box_scores[i])
+                if _DEBUG:
+                    print("Add bbox of class {} ,score = {}".format(ind_to_classes[l], box_scores[i]))
+            else:
+                skipped_indices.append(i)
+                if _DEBUG:
+                    print("Delete bbox of class {} ,score = {}".format(ind_to_classes[l], box_scores[i]))
         else:
             skipped_indices.append(i)
+            if _DEBUG:
+                print("Delete bbox of class {} because not in valid labels".format(ind_to_classes[l], box_scores[i]))
         if len(b_labels) >= _BOXES_TOPK:
             break
         
@@ -67,28 +79,39 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
     rel_labels = preds['rel_labels']
     rel_scores = preds['rel_scores']
     
-    print("box indices: ",b_indices)
-    print("skipped: ",skipped_indices)
+    print("Pevious number of boxes: {}, Reduced number of boxes: {}".format(len(box_labels), len(skipped_indices)))
     #filter out unvalid relations
     r_data = []
     r_scores = []
     r_labels = []
+    delc = 0
     for i,rel in enumerate(rels):
         if rel[0] in b_indices and rel[1] in b_indices:
             if rel_scores[i] >= _SCORE_THRESH_RELS:
                 r_data.append(rel)
                 r_scores.append(rel_scores[i])
                 r_labels.append(rel_labels[i])
-            
+                if _DEBUG:
+                    print("Add rel of class {} ,score = {}".format(ind_to_predicates[rel_labels[i]], rel_scores[i]))
+            else:
+                if _DEBUG:
+                    print("Delete rel of class {} ,score = {}".format(ind_to_predicates[rel_labels[i]], rel_scores[i]))
+                delc = delc + 1
+        else:
+            if _DEBUG:
+                print("Delete rel of class {} ,because of delted bboxes".format(ind_to_predicates[rel_labels[i]], rel_scores[i]))
+            delc = delc + 1
         if len(r_data)>_RELS_TOPK:
             break
+
+    print("Pevious number of rels: {}, Reduced number of rels: {}".format(len(rels), delc))   
 
     #align rels indices to match the new box ordering
     b_indices_map = dict()
     for i,b_ind in enumerate(b_indices):
         b_indices_map[b_ind] = i
-    print("b_indices_map: ",b_indices_map)
-    print("r_data: ",r_data)
+    #print("b_indices_map: ",b_indices_map)
+    #print("r_data: ",r_data)
     for rel in r_data:
         rel[0] = b_indices_map[rel[0]]
         rel[1] = b_indices_map[rel[1]]   

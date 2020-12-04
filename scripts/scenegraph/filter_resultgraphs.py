@@ -95,7 +95,7 @@ def main(args):
     r_labels_added = []
 
     for idx, preds in list(data.items()):
-        box_labels = preds['bbox_labels']   #assumption: model just supports valid labels
+        """box_labels = preds['bbox_labels']   #assumption: model just supports valid labels
         box_scores = preds['bbox_scores']   
 
         #filter out unvalid boxes
@@ -126,12 +126,12 @@ def main(args):
         rel_scores = preds['rel_scores']
         rel_labels = preds['rel_labels']
 
-        """#delete all rels with skipped box correspondance
-        for i in reversed(list(range(len(rels)))):
-            if rels[i][0] in skipped_indices or rels[i][1] in skipped_indices:
-                del rels[i]
-                del rel_scores[i]
-                del rel_labels[i]"""
+        ##delete all rels with skipped box correspondance
+        #for i in reversed(list(range(len(rels)))):
+        #    if rels[i][0] in skipped_indices or rels[i][1] in skipped_indices:
+        #        del rels[i]
+        #        del rel_scores[i]
+        #        del rel_labels[i]
 
         #filter out unvalid relations
         r_valid = []
@@ -156,7 +156,7 @@ def main(args):
                 break
             
 
-        r_classes = [ind_to_predicates[l] for l in r_labels]
+        r_classes = [ind_to_predicates[l] for l in r_labels]"""
 
         """#align rels indices to match the new box ordering
         print("r_valid: ",r_valid)
@@ -169,6 +169,21 @@ def main(args):
 
         print("skipped: ",skipped_indices)
         print("r_valid: ",r_valid)"""
+
+        box_labels = preds['bbox_labels']   #assumption: model just supports valid labels
+        box_scores = preds['bbox_scores']
+        rels = preds['rel_pairs']
+        rel_scores = preds['rel_scores']
+        rel_labels = preds['rel_labels']
+
+        b_valid = preds['bbox_labels'] 
+        b_scores = preds['bbox_scores']
+        b_indices = list(range(0,len(b_valid)))
+        b_classes = list(map(lambda x: ind_to_classes[x], b_valid))
+        r_valid = preds['rel_pairs']
+        r_scores = preds['rel_scores']
+        r_labels = preds['rel_labels']
+        r_classes =  list(map(lambda x: ind_to_predicates[x], r_labels))
 
 
         b_labels_added.append(b_valid)

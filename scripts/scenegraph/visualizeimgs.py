@@ -18,11 +18,11 @@ from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-predictdir')
-    parser.add_argument('-filter', action='store_true', 
+    parser.add_argument('-filterlabels', action='store_true', 
                         help='Specify if boxes should be filtered by predefined labels. Filtered out boxes will be shown in green.\
                               Not necessary when filtered previously.')
-    parser.add_argument('-boxestopk', default=20, help='Only draw best scored first k boxes')
-    parser.add_argument('-relstopk', default=20, help='Only draw best scored first k relationships')
+    parser.add_argument('-boxestopk', default=-1, type=int, help='Only draw best scored first k boxes')
+    parser.add_argument('-relstopk', default=-1, type=int, help='Only draw best scored first k relationships')
 
 
     args = parser.parse_args()
@@ -78,7 +78,7 @@ def print_list(name, input_list, scores=None):
 
     
 def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None, rel_topk=None, 
-                box_scores=None, rel_scores=None, filter=False, box_indstart = None):
+                box_scores=None, rel_scores=None, filterlabels=False, box_indstart = None):
     #Draw the scene graph onto the input image. 
     #Additional options which can be used:
     #   - Filter out invalid labels from the input scene graph annotation
@@ -98,21 +98,30 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
 
     ann_str = ''
     print("Picture size: ",pic.size)
-    if filter:  #apply class filter
+    if filterlabels:  #apply class filter
         validlabels = get_filterinds()
     else:
         validlabels = [ind_to_classes.index(elem) for elem in ind_to_classes]
 
     addedlabels = []    #remember added box index to the image
                         #to filter valid relations (relations having (boxid1,boxid2) items)
+   
+    #For prediction rescaling regarding configs min/max size is necessary
+    size = get_size(pic.size)
+    print("Resize to: ",size)
+    pic = pic.resize(size)
+    print(pic.size)
+
+    #draw bboxes
     ann_str = ann_str + 'Box labels: \n'
     c = 0
     num_obj = len(boxes)
+    if box_topk == -1:
+        box_topk = len(boxes)
 
     for i in range(num_obj):
-        if box_topk is not None:
-            if c == box_topk:
-                break
+        if c == box_topk:
+            break
         if box_labels[i] in validlabels:
             info = str(i) + '_' + ind_to_classes[box_labels[i]]
             draw_single_box(pic, boxes[i], draw_info=info, color='red', validsize=pic.size)
@@ -131,25 +140,29 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
     c = 0        
     num_rel = len(rel_pairs)
 
-    #relationship values not starting from 0, e.g. for visualizing scene graph data
+    # draw relationships
+    # relationship values not starting from 0, e.g. for visualizing scene graph data
     #for predictions rel values starting from 0 relative to box array length
     if box_indstart is not None:
         rel_pairs = np.array(rel_pairs) - box_indstart
-   
+    if rel_topk == -1:
+        rel_topk = len(rel_pairs)
+
     for i in range(len(rel_pairs)):
-        if rel_topk is not None:
-            if c == rel_topk:
-                break
+        if c == rel_topk:
+            break
         id1, id2 = rel_pairs[i]
         b1 = boxes[id1]
         b2 = boxes[id2]
         b1_label = ind_to_classes[box_labels[id1]]
         b2_label = ind_to_classes[box_labels[id2]]
-        if filter:
-            if id1 not in addedlabels or id2 not in addedlabels:
-                continue
+        
+        if id1 not in addedlabels or id2 not in addedlabels:
+            continue
+        if filterlabels:
             if id1 in addedlabels and id2 in addedlabels:
                 info = str(i) + '_' + ind_to_predicates[rel_labels[i]]
+                print('draw lin rel info: ', info)
                 drawline(pic, b1, b2, draw_info=info)
                 relstr = str(id1) + '_' + b1_label + ' => ' + ind_to_predicates[rel_labels[i]] + ' => ' + str(id2) + '_' + b2_label
                 if rel_scores is not None:
@@ -168,8 +181,9 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
             c = c + 1
 
     #Print not filtered top-k relationships
-    if filter: 
+    if filterlabels: 
         ann_str = ann_str + 'Actual Top-k rel: \n'
+        print(len(rel_pairs), rel_topk)
         for i in range(min(len(rel_pairs), rel_topk)):
             id1, id2 = rel_pairs[i]
 
@@ -212,7 +226,7 @@ if __name__ == "__main__":
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     else:
-        raise ValueError("Output directory %s already exists."%output_dir)
+        print("Warning: Output directory %s already exists."%output_dir)
 
     box_topk = args.boxestopk # select top k bounding boxes
     rel_topk = args.relstopk # select top k relationships
@@ -230,12 +244,11 @@ if __name__ == "__main__":
         all_rel_pairs = custom_prediction[str(image_idx)]['rel_pairs']
     
         img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
-                        box_topk, rel_topk,
-                        ind_to_classes, ind_to_predicates, box_scores=bbox_scores, rel_scores=all_rel_scores, filter=args.filter)
-        imgname =  "1%s_scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
+                        box_topk, rel_topk, box_scores=bbox_scores, rel_scores=all_rel_scores, filterlabels=args.filterlabels)
+        imgname =  "1-%s_scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
         img.save(os.path.join(output_dir, imgname))
 
-        annname = "2%s_labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
+        annname = "2-%s_labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
         with open(os.path.join(output_dir, annname), "w") as text_file:
             text_file.write(ann_str)
 
