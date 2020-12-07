@@ -18,13 +18,13 @@ import itertools
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-file',required=True,
+    parser.add_argument('-file', required=True,
                         help='File with a list of dict items with fields imageid and keypoints.')
-    parser.add_argument('-imagespath',required=True)    
-    parser.add_argument('-outputdir',required=True) 
-    parser.add_argument('-transformid',action="store_true", 
+    parser.add_argument('-imagespath', required=True, help='Path to the image directory.')    
+    parser.add_argument('-outputdir', required=True) 
+    parser.add_argument('-transformid', action="store_true", 
                         help='Wheather to split imageid to get image filepath (used for style transfered images.')    
-    parser.add_argument('-vistresh',type=float, default=0.0)                
+    parser.add_argument('-vistresh', type=float, default=0.0)                
     args = parser.parse_args()
 
     data = None
@@ -33,7 +33,7 @@ def main():
 
     grouped_by_imageid = [{k: list(g)} for k, g in itertools.groupby(sorted(data, key=lambda x:x['image_id']), lambda x: x['image_id'])]
     print("Visualize the predictions onto the original image(s) ...")
-    visualize(grouped_by_imageid, args.imagespath,args.outputdir, vistresh=args.vistresh, transformid=args.transformid, drawbboxes=True)
+    visualize(grouped_by_imageid, args.imagespath, args.outputdir, vistresh=args.vistresh, transformid=args.transformid, drawbboxes=True)
     print("Visualize done.")
     print("Wrote images to path: ",args.outputdir)
 
@@ -58,6 +58,7 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
             imgname_out = "{}_{}.jpg".format(imgid, suffix)
             img_path = os.path.join(imagedir, imgname)
 
+        print(img_path)
         img = cv2.imread(img_path, 0)
         height, width = img.shape[:2]
 
@@ -70,20 +71,24 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
 
         #"image_id": 785050351, "category_id": 1, "score": 1.0, "keypoints"
         for pred in preds:
-            classes.append(pred["category_id"])
             if 'score' in pred: #gt annotations don't have score entry
                 scores.append(pred['score'])
             else:
                 scores.append(1.0)
+            if 'category_id' in pred:
+                classes.append(pred["category_id"])
+            if 'bbox' in pred:
+                boxes.append(pred["bbox"]) 
             kpts = list(zip(pred['keypoints'][::3], pred['keypoints'][1::3], pred['keypoints'][2::3]))
             keypoints.append(kpts)
-            boxes.append(pred["bbox"])
     
         instances.scores = torch.Tensor(scores)
-        instances.pred_classes = torch.Tensor(classes)
+        if classes:
+            instances.pred_classes = torch.Tensor(classes)
+        if boxes and drawbboxes:
+            instances.pred_boxes = torch.Tensor(boxes)    
         instances.pred_keypoints = torch.Tensor(keypoints)
-        if drawbboxes:
-            instances.pred_boxes = torch.Tensor(boxes)
+        
 
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(instances, vistresh)
