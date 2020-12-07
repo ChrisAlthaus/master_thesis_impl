@@ -50,3 +50,19 @@ print(cmd)
 outrun_dir = os.path.join(preddir, '.visimages')
 print("Output Directory: %s\n"%outrun_dir)  
 
+
+# --------------------------------- EVALUATE MODEL --------------------------------------
+print("EVLUATE MODEL:")
+modeldir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3'
+configfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml'
+valset = "VG_styletransfer_val_subset_val", #("VG_styletransfer_val",)
+
+cmd = ("python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/utils/evalmodel.py -config_file {} "+\
+                                                            "MODEL.PRETRAINED_DETECTOR_CKPT {} DATASETS.VAL {}")\
+                                                .format(configfile, modeldir, valset)
+print(cmd)
+
+outrun_dir = os.path.join(modeldir, '.eval')
+print("Output Directory: %s\n"%outrun_dir) 
+
+
