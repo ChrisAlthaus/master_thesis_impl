@@ -44,7 +44,7 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
     box_labels = preds['bbox_labels']   #assumption: model just supports valid labels
     box_scores = preds['bbox_scores'] 
 
-    _DEBUG = True
+    _DEBUG = False#True
 
     #filter out unvalid boxes
     b_data = []
@@ -73,13 +73,13 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
         if len(b_labels) >= _BOXES_TOPK:
             break
         
-    print("Number of valid boxes: ",b_labels)
+    #print("Number of valid boxes: ",b_labels)
     
     rels = preds['rel_pairs']
     rel_labels = preds['rel_labels']
     rel_scores = preds['rel_scores']
     
-    print("Pevious number of boxes: {}, Reduced number of boxes: {}".format(len(box_labels), len(skipped_indices)))
+    print("Pevious number of boxes: {}, Reduced number of boxes: {}".format(len(box_labels), len(b_data)))
     #filter out unvalid relations
     r_data = []
     r_scores = []
@@ -104,7 +104,7 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
         if len(r_data)>_RELS_TOPK:
             break
 
-    print("Pevious number of rels: {}, Reduced number of rels: {}".format(len(rels), delc))   
+    print("Pevious number of rels: {}, Reduced number of rels: {}".format(len(rels), len(r_data)))   
 
     #align rels indices to match the new box ordering
     b_indices_map = dict()
@@ -116,7 +116,7 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
         rel[0] = b_indices_map[rel[0]]
         rel[1] = b_indices_map[rel[1]]   
 
-    print("r_data: ",r_data)
+    #print("r_data: ",r_data)
     """for i in skipped_indices:
         for rel in r_data:
             if rel[0] > i:

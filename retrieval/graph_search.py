@@ -30,15 +30,15 @@ from graph2vec import WeisfeilerLehmanMachine, dataset_reader, feature_extractor
 
 def main():
     parser = argparse.ArgumentParser(description="Run Graph2Vec.")
+    parser.add_argument("--model", help="Path to the previous trained Doc2Vec model.")
     parser.add_argument("--inputpath", help="Input folder with jsons.")
-    parser.add_argument("--modelout", help="Path to the directory where the model should be saved.") #deprecated?
+    #parser.add_argument("--modelout", help="Path to the directory where the model should be saved.") #deprecated?
     parser.add_argument("--inference", action='store_true',
                         help="Using stored model for inference on a given graph.")
     parser.add_argument("--reweight", action='store_true',
                         help="Include the box & rel labels to reweight the top k results.")
     parser.add_argument("--reweightmode", default='jaccard', help="Mode for similarity calculations between labelvectors.")
     parser.add_argument("--labelvecpath", help="Path to the g2v training set composed of all graphs.")
-    parser.add_argument("--model", help="Path to the previous trained Doc2Vec model.")
     parser.add_argument("--topk", type=int, default=10,
                         help="Number of returned similar documents.")
     parser.add_argument("--wl-iterations", type=int, default=2,
@@ -61,6 +61,8 @@ def main():
     document_collections = Parallel(n_jobs=1)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in tqdm(graphs))
     print("\nOptimization started.\n")
 
+    print("Feature [0]: ", document_collections[0])
+
     # ------------------------ Get most similar topk graphs with corresponding image ---------------------
     if args.inference:
         with open(args.model,'rb') as f:
@@ -81,7 +83,7 @@ def main():
         #For a more stable representation, increase the number of steps to assert a stricket convergence.  
         #model.random.seed(0)
         print("test")
-        vector = model.infer_vector(document_collections[0].words, steps=1000) #TODO: do eval of best step size, Only 1 graph?? TODO:batch of graphs
+        vector = model.infer_vector(document_collections[0].words, steps=100) #TODO: do eval of best step size, Only 1 graph?? TODO:batch of graphs
         sims = model.docvecs.most_similar([vector], topn = args.topk)
         print("Top k similarities (with cos-sim): ",sims)
 
@@ -164,7 +166,7 @@ def main():
             print("Reweighted topk images: ",sims)
 
         # -------------------------- Save resulting ranking ---------------------------
-        saveresults(sims)
+        saveresults(sims, output_dir)
 
     # ------------------------- Evaluate model w.r. to infer parameter step size ---------------------
     elif args.evaluations:
@@ -225,7 +227,7 @@ def getjaccard(vec1, vec2, metadata):
     #logging end
     return len(s1.intersection(s2)) / len(s1.union(s2)) 
 
-def saveresults(ranking):
+def saveresults(ranking, output_dir):
     #Output file format:
     #   - imagdir: base image directory
     #   - dict-entries rank : {filepath, relscore}

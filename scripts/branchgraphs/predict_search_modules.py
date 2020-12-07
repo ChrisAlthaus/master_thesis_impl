@@ -116,8 +116,7 @@ def visualize_scenegraph(anndir, filterlabels = True):
     print("VISUALIZE SCENEGRAPH ...")
     logfile = os.path.join(logpath, '2-visualize.txt')
 
-    os.chdir("/home/althausc/master_thesis_impl/scripts/scenegraph")
-    cmd = "python3.6 visualizeimgs.py -predictdir {} {} &> {}"\
+    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} {} &> {}"\
                                 .format(anndir, '-filterlabels' if filterlabels else ' ', logfile)
     print(cmd)
     if os.system(cmd):
@@ -141,7 +140,7 @@ def transform_into_g2vformat(anndir, relasnodes=True):
     out_dir = anndir #old: "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single"
     logfile = os.path.join(logpath, '3-transform.txt')
 
-    if os.system("python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/filter_resultgraphs.py \
+    if os.system("python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/graphdescriptors.py \
                     -file {} \
                     -imginfo {} \
                     -outputdir {} \

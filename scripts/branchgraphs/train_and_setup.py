@@ -8,6 +8,7 @@ import datetime
 import time
 import logging
 import itertools
+import random
 
 def latestdir(dir):
     diritems = [os.path.join(dir, d) for d in os.listdir(dir)]
@@ -129,41 +130,56 @@ print("Output Directory: %s\n"%out_dir)
 
 # ----------------- SCENE GRAPH PREDICTION ---------------------
 print("SCENE GRAPH PREDICTION:")
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-2.sh'
-model_dir = latestdir(out_dir)  #default: '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/causal_motif_sgdet'
-img_dir = '/home/althausc/nfs/data/vg_styletransfer/VG_100K'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-2.sh'
+#Note: model directory should contain a file 'last_checkpoint' with path to the used checkpoint
+model_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3'
+            #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/others/causal_motif_sgdet'           
 out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs'
 
 _EFFECT_TYPES = ['none', 'TDE', 'NIE', 'TE']
-effect_type = _EFFECT_TYPES[1]
-#filter prediction settings
-topkboxes = 20
-topkrels = 40
-ftresh_boxes = 0.5
-ftresh_rels = 0.5
+_FUSION_TYPES = ['sum', 'gate']
+_CONTEXTLAYER_TYPES = ['motifs', 'vctree', 'vtranse']
 
-#predictor, fusion_type, contextlayer_type like in training 
-cmd = (" {} python3.6 -m torch.distributed.launch " +\
-	            "--master_port 10027 " +\
-	            "--nproc_per_node=1 /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_test_net.py "+\
-	            "--config-file \"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml\" \t"+\
-	            "MODEL.ROI_RELATION_HEAD.USE_GT_BOX False \t"+\
-	            "MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False \t"+\
-	            "MODEL.ROI_RELATION_HEAD.PREDICTOR {} \t"+\
-	            "MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE {} \t"+\
-	            "MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE {} \t"+\
-	            "MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER {} \t"+\
-	            "TEST.IMS_PER_BATCH 1 \t"+\
-	            "DTYPE \"float16\" \t"+\
-	            "GLOVE_DIR {} \t"+\
-	            "MODEL.PRETRAINED_DETECTOR_CKPT {} \t"+\
-	            "OUTPUT_DIR {} \t"+\
-	            "TEST.CUSTUM_EVAL True \t"+\
-	            "TEST.CUSTUM_PATH {} \t"+\
-	            "DETECTED_SGG_DIR {} \t"+\
-				"topkboxes {} topkrels {} \t"+\
-				"filtertresh_boxes {} filtertresh_rels {} \t").format(gpu_cmd, predictor, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, model_dir, img_dir, out_dir,
-																		topkboxes, topkrels, ftresh_boxes, ftresh_rels)
+effect_type = _EFFECT_TYPES[1]
+fusion_type = _FUSION_TYPES[0]
+contextlayer_type = _CONTEXTLAYER_TYPES[0] 
+
+topkboxes = 4#10
+topkrels = 10#20
+treshboxes = 0.2
+treshrels = 0.2
+
+masterport = random.randint(10020, 10100)
+
+jobname = 'graph2vec-train'
+logfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/logs/%s.txt'%datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
+
+#Note: - MODEL.PRETRAINED_DETECTOR_CKPT same functionality as OUTPUT_DIR (but OUTPUT_DIR used for model loading)
+#      - TEST.IMS_PER_BATCH has to be 1 (assertion)
+cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
+				"{} python3.6 -m torch.distributed.launch" +\
+                "\t --master_port {}" +\
+                "\t --nproc_per_node=1 /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_test_net.py" +\
+                "\t --config-file \"/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml\" " +\
+                "\t MODEL.ROI_RELATION_HEAD.USE_GT_BOX False" +\
+                "\t MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False" +\
+                "\t MODEL.ROI_RELATION_HEAD.PREDICTOR CausalAnalysisPredictor" +\
+                "\t MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE {}" +\
+                "\t MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE {}" +\
+                "\t MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER {}" +\
+                "\t TEST.IMS_PER_BATCH 1" +\
+                "\t DTYPE \"float16\"" +\
+                "\t GLOVE_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/glove" +\
+                "\t MODEL.PRETRAINED_DETECTOR_CKPT {}" +\
+                "\t OUTPUT_DIR {}" +\
+                "\t TEST.CUSTUM_EVAL True" +\
+                "\t TEST.CUSTUM_PATH {}" +\
+                "\t TEST.POSTPROCESSING.TOPKBOXES {}" +\
+                "\t TEST.POSTPROCESSING.TOPKRELS {}" +\
+                "\t TEST.POSTPROCESSING.TRESHBOXES {}" +\
+                "\t TEST.POSTPROCESSING.TRESHRELS {}" +\
+                "\t DETECTED_SGG_DIR {} \t").format(jobname, logfile, gpu_cmd, masterport, effect_type, fusion_type, contextlayer_type, model_dir, model_dir, imgdir,
+                                                          topkboxes, topkrels, treshboxes, treshrels, out_dir)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:
@@ -171,6 +187,20 @@ if _EXEC_CMDS:
 
 print("Output Directory: %s\n"%out_dir)
 outrun_dir = latestdir(out_dir)
+
+# ------------------------------ VISUALIZE PREDICTIONS -------------------------------
+print("VISUALIZE SCENEGRAPH ...")
+
+predictdir = outrun_dir #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-07_14-09-00' #e.g.
+
+cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} -visrandom"\
+                            .format(predictdir)
+print(cmd)
+
+if os.system(cmd):
+    raise RuntimeError('Scene graph visualization failed.')
+
+print("VISUALIZE SCENEGRAPH DONE.")
 
 
 # ----------------- TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ---------------
@@ -181,7 +211,7 @@ pred_file = os.path.join(outrun_dir, 'custom_prediction.json')
 relasnodes = True
 out_dir = "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/graphs"
 
-cmd = ("python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/filter_resultgraphs.py "+ \
+cmd = ("python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/graphdescriptors.py "+ \
 	         		"-file {} -imginfo {} -outputdir {} -build_labelvectors {} ")\
 					.format(pred_file, pred_imginfo, out_dir, '-relsasnodes' if relasnodes else ' ')
 if _PRINT_CMDS:

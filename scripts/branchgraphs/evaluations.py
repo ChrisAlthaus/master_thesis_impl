@@ -53,13 +53,19 @@ print("Output Directory: %s\n"%outrun_dir)
 
 # --------------------------------- EVALUATE MODEL --------------------------------------
 print("EVLUATE MODEL:")
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-2.sh'
 modeldir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3'
 configfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml'
-valset = "VG_styletransfer_val_subset_val", #("VG_styletransfer_val",)
+valset = "VG_styletransfer_val_subset_val" #("VG_styletransfer_val",)
 
-cmd = ("python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/utils/evalmodel.py -config_file {} "+\
+jobname = 'sg-eval'
+logdir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/others/evallogs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+logfile = os.path.join(logdir, 'train.log')
+
+cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
+       "{} python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/utils/evalmodel.py -config_file {} "+\
                                                             "MODEL.PRETRAINED_DETECTOR_CKPT {} DATASETS.VAL {}")\
-                                                .format(configfile, modeldir, valset)
+                                                .format(jobname, logfile, gpu_cmd, configfile, modeldir, valset)
 print(cmd)
 
 outrun_dir = os.path.join(modeldir, '.eval')

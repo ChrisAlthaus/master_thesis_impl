@@ -23,6 +23,7 @@ if __name__ == "__main__":
                               Not necessary when filtered previously.')
     parser.add_argument('-boxestopk', default=-1, type=int, help='Only draw best scored first k boxes')
     parser.add_argument('-relstopk', default=-1, type=int, help='Only draw best scored first k relationships')
+    parser.add_argument('-visrandom', action='store_true', help='Only draw random subset of predictions.')
 
 
     args = parser.parse_args()
@@ -96,8 +97,10 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
     else:
         raise ValueError("Input image source {} not supported.".format(type(imagesrc)))
 
+    if pic.mode in ("RGBA", "P"):
+        pic = pic.convert("RGB")
+
     ann_str = ''
-    print("Picture size: ",pic.size)
     if filterlabels:  #apply class filter
         validlabels = get_filterinds()
     else:
@@ -108,9 +111,9 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
    
     #For prediction rescaling regarding configs min/max size is necessary
     size = get_size(pic.size)
-    print("Resize to: ",size)
+    #print("Resize to: ",size)
     pic = pic.resize(size)
-    print(pic.size)
+    #print(pic.size)
 
     #draw bboxes
     ann_str = ann_str + 'Box labels: \n'
@@ -183,7 +186,7 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
     #Print not filtered top-k relationships
     if filterlabels: 
         ann_str = ann_str + 'Actual Top-k rel: \n'
-        print(len(rel_pairs), rel_topk)
+        #print(len(rel_pairs), rel_topk)
         for i in range(min(len(rel_pairs), rel_topk)):
             id1, id2 = rel_pairs[i]
 
@@ -233,8 +236,13 @@ if __name__ == "__main__":
     ind_to_classes = custom_data_info['ind_to_classes']
     ind_to_predicates = custom_data_info['ind_to_predicates']
 
+    c = 0
+    if args.visrandom:
+        ids = random.sample(list(range(len(custom_data_info['idx_to_files']))), 100)
+    else:
+        ids = list(range(len(custom_data_info['idx_to_files'])))
 
-    for image_idx in range(len(custom_data_info['idx_to_files'])):
+    for image_idx in ids:
         image_path = custom_data_info['idx_to_files'][image_idx]
         bbox = custom_prediction[str(image_idx)]['bbox']
         bbox_labels = custom_prediction[str(image_idx)]['bbox_labels']
@@ -245,11 +253,15 @@ if __name__ == "__main__":
     
         img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
                         box_topk, rel_topk, box_scores=bbox_scores, rel_scores=all_rel_scores, filterlabels=args.filterlabels)
-        imgname =  "1-%s_scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
+        imgname =  "%s_1scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
         img.save(os.path.join(output_dir, imgname))
 
-        annname = "2-%s_labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
+        annname = "%s_2labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
         with open(os.path.join(output_dir, annname), "w") as text_file:
             text_file.write(ann_str)
+
+        c = c + 1
+        if c%100 == 0:
+            print("Processed {} predictions.".format(c))
 
     print("Saved visualizations to: ", output_dir)

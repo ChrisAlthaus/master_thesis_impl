@@ -7,13 +7,13 @@ import time
 import csv
 
 _NUMGPUS = 1#2#1#2#1 #default parameters for 4 GPUs
-_IMS_PER_BATCH = 10#12#8#4#8 #2 #default: 8
+_IMS_PER_BATCH = 12#12#8#4#8 #2 #default: 8
 #scalefactor to get right learning rate & keep same number of epochs
 scalefactor = 2#8/_IMS_PER_BATCH 
 _LR = 0.00125 #0.002/_IMS_PER_BATCH #0.00125 #0.0005 #0.0015 #0.00075 #0.001/scalefactor#0.0025 #original: 0.001
 _ADD_ITER = 25000
 _MAX_ITER = (50000 + _ADD_ITER) * scalefactor
-_STEPS_PERC = [0.6, 0.8, 0.9, 0.95] #[0.4, 0.6, 0.8, 0.9, 0.95]#original: [0.6, 0.9]
+_STEPS_PERC = [0.6, 0.8, 0.9] #[0.6, 0.8, 0.9, 0.95] #[0.4, 0.6, 0.8, 0.9, 0.95]#original: [0.6, 0.9]
 _STEPS = [(perc * _MAX_ITER) for perc in _STEPS_PERC]
 _GAMMA = 0.5 #original: 0.1
 _VAL_PERIOD = 10000 #* scalefactor
@@ -38,6 +38,8 @@ _DATASET_SELECTS = ['trainandval-subset', 'val-subset', 'default-styletransfer',
 _DATASET_SELECT = _DATASET_SELECTS[1]
 _ADD_NOTES = 'X-101-FPN-32-8 (like cpkt) & Lr now really like previous run & More LR-steps with gamma(0.5) & GN enabled! & Like /faster_rcnn_training/11-12_19-22-41 (Default MinSize-Step because of low validation acc on multiple, ...) & Right Scale factor(not like last run before='
 _ADD_NOTES = 'X-101-FPN-32-8 (not like cpkt) & Batchsize=10 with 1 GPU & Other params like /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-20_15-29-23 ,but more epochs and longer first lr plateau'
+_ADD_NOTES = 'R-101-FPN (like cpkt) & Batchsize=12 with 1 GPU & Other params like /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-20_15-29-23 ,but more epochs and longer first lr plateau'
+
 
 resume_cpkt = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/11-12_19-22-41/model_final.pth'
 resume = False #True #False
@@ -55,7 +57,7 @@ os.makedirs(logdir)
 params = {'datasetselect': _DATASET_SELECT, 
 			'gpus': _NUMGPUS, 
 			'trainbatchsize': int(_IMS_PER_BATCH), 
-			'testbatchsize': 2, #4, 
+			'testbatchsize': 8, #4, 
 			'lr': _LR, 
 			'steps': tuple(map(int,_STEPS)), 
 			'gamma': _GAMMA,
@@ -76,7 +78,7 @@ with open(paramconfig, 'w') as f:
 
 #Note: X-101-32-8-FPN ~2GB more RAM than R-101-FPN architecture
 #	  -> X-101-32-8-FPN and batchsize of 4 ~ 10000MiB
-configfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_X_101_32_8_FPN_1x.yaml'
+configfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_R_101_FPN_1x.yaml'
 	#'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_R_101_FPN_1x.yaml'
 	#'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_X_101_32_8_FPN_1x.yaml'
 
