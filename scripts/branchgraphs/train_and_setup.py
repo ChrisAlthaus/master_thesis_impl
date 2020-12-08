@@ -195,10 +195,10 @@ predictdir = outrun_dir #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmar
 
 cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} -visrandom"\
                             .format(predictdir)
-print(cmd)
-
-if os.system(cmd):
-    raise RuntimeError('Scene graph visualization failed.')
+if _PRINT_CMDS:
+    print(cmd)
+if _EXEC_CMDS:
+    os.system(cmd)
 
 print("VISUALIZE SCENEGRAPH DONE.")
 

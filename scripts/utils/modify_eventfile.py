@@ -70,7 +70,7 @@ if __name__ == '__main__':
         event_swapfields(args.eventfile, outputfile, swap)
         print("Output directory: ", outputdir)
 
-     if args.mode == 'swap-scenegraph-reltrain-evaluations':
+    if args.mode == 'swap-scenegraph-reltrain-evaluations':
         eventdir = os.path.dirname(args.eventfile)
         eventname = os.path.split(args.eventfile)[1]
         outputdir = os.path.join(eventdir, 'eventfile-swapped')

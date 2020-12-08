@@ -26,6 +26,7 @@ def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument('-config_file', help='Path to the model file.')
+    parser.add_argument('-dataset', help='String descriptor of the dataset used for evaluation.')
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
@@ -41,7 +42,8 @@ def main():
             mode='val',
             is_distributed=False
         )
-
+    print(val_data_loaders)
+    exit(1)
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
 
@@ -57,7 +59,7 @@ def main():
     checkpointer = DetectronCheckpointer(cfg, model, save_dir=model_dir)
     _ = checkpointer.load()
     
-    dataset_name = cfg.DATASETS.VAL
+    dataset_name = (args.dataset,)
 
     output_dir = os.path.join(model_dir, '.eval')
     if not os.path.exists(output_dir):
@@ -74,7 +76,7 @@ def main():
     valresults = run_val(cfg, dataset_name, model, val_data_loaders[0], False, None)
     savetocsv(valresults, output_dir)
 
-
+    
 
 def run_val(cfg, datasetname, model, val_data_loader, distributed, logger):
     torch.cuda.empty_cache()
