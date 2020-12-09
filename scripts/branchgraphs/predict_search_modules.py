@@ -69,10 +69,10 @@ def predict_scenegraph(imagepath):
     fusion_type = _FUSION_TYPES[0]
     contextlayer_type = _CONTEXTLAYER_TYPES[0] 
 
-    topkboxes = 4#10
-    topkrels = 10#20
-    treshboxes = 0.2
-    treshrels = 0.2
+    topkboxes = 10#-1#10
+    topkrels = 20#75#20
+    treshboxes = 0.1
+    treshrels = 0.1
 
     print("Logfile: ", logfile)
     masterport = random.randint(10020, 10100)
@@ -140,7 +140,7 @@ def transform_into_g2vformat(anndir, relasnodes=True):
     out_dir = anndir #old: "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single"
     logfile = os.path.join(logpath, '3-transform.txt')
 
-    if os.system("python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/graphdescriptors.py \
+    if os.system("python3.6 /home/althausc/master_thesis_impl/scripts/graph_descriptors/graphdescriptors.py \
                     -file {} \
                     -imginfo {} \
                     -outputdir {} \
@@ -148,7 +148,7 @@ def transform_into_g2vformat(anndir, relasnodes=True):
         raise RuntimeError('Transform predictions failed.')
 
     outrun_dir = latestdir(out_dir)
-    graphfile = os.path.join(outrun_dir, 'graphs-topk.json')
+    graphfile = os.path.join(outrun_dir, 'graphdescriptors.json')
     print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT DONE.")
     print("Graphfile: ",graphfile)
     return graphfile
@@ -156,8 +156,9 @@ def transform_into_g2vformat(anndir, relasnodes=True):
 def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
-    modeldir = '/home/althausc/master_thesis_impl/graph2vec/models/22_16-47-04' #'/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49'
-    g2v_model = os.path.join(modeldir, 'g2vmodel') 
+    modeldir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3'
+
+    g2v_model = os.path.join(modeldir, filewithname(modeldir, 'g2vmodel'))
     labelvecpath = os.path.join(modeldir, 'labelvectors-topk.json')
     inputfile = graphfile   #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-25_15-23-04/graphs-topk.json'
                             #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-23_14-52-00/graphs-topk.json' #graphfile
@@ -181,7 +182,7 @@ def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     outrun_dir = latestdir(out_dir)
 
     print("GRAPH2VEC PREDICTION & RETRIEVAL DONE.")
-    filename = os.path.join(outrun_dir,"topkresults.json")
+    filename = os.path.join(outrun_dir, "topkresults.json")
     with open(filename, 'r') as f:
         json_data = json.load(f)
         print("Results: ", json_data)

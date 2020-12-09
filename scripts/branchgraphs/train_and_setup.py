@@ -151,7 +151,7 @@ treshrels = 0.2
 
 masterport = random.randint(10020, 10100)
 
-jobname = 'graph2vec-train'
+jobname = 'graphprediction'
 logfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/logs/%s.txt'%datetime.datetime.now().strftime('%m-%d_%H-%M-%S')
 
 #Note: - MODEL.PRETRAINED_DETECTOR_CKPT same functionality as OUTPUT_DIR (but OUTPUT_DIR used for model loading)
@@ -232,13 +232,12 @@ model_dir = '/home/althausc/master_thesis_impl/graph2vec/models'
 valepoch = 5
 valsize = 0.2
 evaltopk = 100
-plotepoch = 20
 saveepoch = 20
 
 cmd = ("python3.6 /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py "+ \
             "--input-path {} --output-path {} --workers 4 --dimensions 128 --epochs 1 --wl-iterations 2 --down-sampling 0.0001 "+ \
-			"--epochsave {} --valeval {} --valsize {} --plotepoch {} --evaltopk {}")\
-				.format(inputfile, 'notused', saveepoch, valepoch, valsize, plotepoch, evaltopk)
+			"--epochsave {} --valeval {} --valsize {} --evaltopk {}")\
+				.format(inputfile, 'notused', saveepoch, valepoch, valsize, evaltopk)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:

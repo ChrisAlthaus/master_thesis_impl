@@ -9,6 +9,9 @@ import time
 import itertools
 import numpy as np
 
+import sys
+sys.path.append('/home/althausc/master_thesis_impl/scripts/scenegraph')
+
 from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VALID_RELLABELS
 
 def parameter_parser():
@@ -45,12 +48,12 @@ def main(args):
         raise ValueError("Json file does not exist.")
     if not os.path.isdir(args.outputdir):
         raise ValueError("Output directory does not exist.")
-
-    output_dir = os.path.join(args.outputdir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    
+    output_dir = os.path.join(os.path.dirname(args.file), '.descriptors') #datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    else:
-        raise ValueError("Output directory %s already exists."%output_dir)
+    #else:
+    #    raise ValueError("Output directory %s already exists."%output_dir)
 
     data = None
     with open(args.file, "r") as f:
@@ -65,10 +68,10 @@ def main(args):
     #   every dict item represents one image prediction
     #       ->fields are:   bbox (80, 4)    (sizes may differ)
     #                       bbox_labels (80,)
-    #                       bbox_values (80,)
+    #                       bbox_scores (80,)
     #                       rel_pairs (6320, 2)
     #                       rel_labels (6320,)
-    #                       rel_values (6320,)
+    #                       rel_scores (6320,)
     #                       rel_all_values (6320, 51)
     #
     #Graph2Vec file format (output):
@@ -76,8 +79,8 @@ def main(args):
     #           -imgpath
     #           -edges (indices pairs, refering to feature field)
     #           -features: dict mapping ind->bbox/rel label
-    #           -box_values: dict mapping ind->bbox score
-    #           -rel_values: dict mapping ind->rel score
+    #           -box_scores: dict mapping ind->bbox score
+    #           -rel_scores: dict mapping ind->rel score
 
     idx_to_files = imginfo["idx_to_files"]
     ind_to_classes = imginfo["ind_to_classes"]
@@ -102,21 +105,18 @@ def main(args):
     for idx, preds in list(data.items()):
 
         box_labels = preds['bbox_labels']   #assumption: model just supports valid labels
-        box_values = preds['bbox_values']
         rels = preds['rel_pairs']
-        rel_values = preds['rel_values']
-        rel_labels = preds['rel_labels']
 
         if len(rels)<= 0 or len(box_labels)<= 1:
             c_noann = c_noann + 1
             continue
 
         b_valid = preds['bbox_labels'] 
-        b_values = preds['bbox_values']
+        b_values = preds['bbox_scores']
         b_indices = list(range(0,len(b_valid)))
         b_classes = list(map(lambda x: ind_to_classes[x], b_valid))
         r_valid = preds['rel_pairs']
-        r_values = preds['rel_values']
+        r_values = preds['rel_scores']
         r_labels = preds['rel_labels']
         r_classes =  list(map(lambda x: ind_to_predicates[x], r_labels))
 
@@ -138,14 +138,14 @@ def main(args):
 
             graph = {'edges': r_valid_plus, 'features': {ind:c_label for ind,c_label in list(zip(b_indices,b_classes))}}
             graph['features'].update({ind:r_label for ind,r_label in list(zip(r_indices,r_classes))})
-            graph.update({'box_values': {ind:b_score for ind,b_score in list(zip(b_indices,b_values))}})
-            graph.update({'rel_values': {ind:r_score for ind,r_score in list(zip(r_indices,r_values))}})
+            graph.update({'box_scores': {ind:b_score for ind,b_score in list(zip(b_indices,b_values))}})
+            graph.update({'rel_scores': {ind:r_score for ind,r_score in list(zip(r_indices,r_values))}})
 
         else:    #e.g. triple person - before - mountain -> edges (not labeled!): {(person,mountain)}
             graph = {'edges': r_valid, 'features': {ind:c_label for ind,c_label in list(zip(b_indices,b_classes))}}
             graph.update()
-            graph.update({'box_values': {ind:b_score for ind,b_score in list(zip(b_indices,b_values))}})
-            graph.update({'rel_values': r_values})
+            graph.update({'box_scores': {ind:b_score for ind,b_score in list(zip(b_indices,b_values))}})
+            graph.update({'rel_scores': r_values})
 
         graphs[idx_to_files[int(idx)]] = graph
 
@@ -156,7 +156,7 @@ def main(args):
 
 
     print("Number of graphs in output file: ",len(graphs))
-    outfile_name = "graphs-topk.json"
+    outfile_name = "graphdescriptors.json"
     with open(os.path.join(output_dir, outfile_name), 'w') as f:
         print("Writing to file: ",os.path.join(output_dir, outfile_name))
         json.dump(graphs, f)   
@@ -183,7 +183,7 @@ def main(args):
             labelvectors.append({'imagefile': idx_to_files[int(idx)], 'boxvector': box_labelvector.tolist(), 'relvector': rels_labelvector.tolist()})
 
         print("Number of labelvectors in output file: ",len(data))
-        outfile_name = "labelvectors-topk.json"
+        outfile_name = "labelvectors.json"
         with open(os.path.join(output_dir, outfile_name), 'w') as f:
             print("Writing to file: ",os.path.join(output_dir, outfile_name))
             json.dump(labelvectors, f) 

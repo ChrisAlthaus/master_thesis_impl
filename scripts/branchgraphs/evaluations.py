@@ -64,8 +64,9 @@ logdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkp
 logfile = os.path.join(logdir, '{}.log'.format(datetime.datetime.now().strftime('%m-%d_%H-%M-%S')))
 
 cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
-       "{} python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/utils/evalmodel.py -config_file {} "+\
-                                                            "-dataset {} MODEL.PRETRAINED_DETECTOR_CKPT {}  GLOVE_DIR {}")\
+       "{} python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/utils/evalmodel.py "+\
+                                    "-config_file {} -dataset {} MODEL.PRETRAINED_DETECTOR_CKPT {}  GLOVE_DIR {} "+\
+                                    "MODEL.ROI_RELATION_HEAD.USE_GT_BOX False MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False TEST.IMS_PER_BATCH 1")\
                                                 .format(jobname, logfile, gpu_cmd, configfile, valset, modeldir, glovedir)
 print(cmd)
 

@@ -37,16 +37,10 @@ def main():
     
     args = parser.parse_args()
 
-    val_data_loaders = make_data_loader(
-            cfg,
-            mode='val',
-            is_distributed=False
-        )
-    print(val_data_loaders)
-    exit(1)
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
 
+    cfg.DATASETS.VAL = (args.dataset,)
     cfg.MODEL.LOAD_DATASETSTATS_PATH = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3/VG_stanford_filtered_with_attribute_train_statistics.cache'
     cfg.freeze()
     print(cfg)
@@ -59,7 +53,7 @@ def main():
     checkpointer = DetectronCheckpointer(cfg, model, save_dir=model_dir)
     _ = checkpointer.load()
     
-    dataset_name = (args.dataset,)
+    dataset_name = cfg.DATASETS.VAL 
 
     output_dir = os.path.join(model_dir, '.eval')
     if not os.path.exists(output_dir):
@@ -72,6 +66,11 @@ def main():
         f.write("Model: %s"%model_dir + os.linesep)
         f.write("Dataset name: %s"%dataset_name + os.linesep)
 
+    val_data_loaders = make_data_loader(
+            cfg,
+            mode='val',
+            is_distributed=False
+        )
 
     valresults = run_val(cfg, dataset_name, model, val_data_loaders[0], False, None)
     savetocsv(valresults, output_dir)
@@ -80,7 +79,7 @@ def main():
 
 def run_val(cfg, datasetname, model, val_data_loader, distributed, logger):
     torch.cuda.empty_cache()
-    iou_types = ("bbox",) #("segm",)("keypoints",)("relations", )("attributes", )
+    iou_types = ("relations",) #("segm",)("keypoints",)("relations", )("attributes", )
 
     dataset_results, score = inference(
                                 cfg,
@@ -95,6 +94,7 @@ def run_val(cfg, datasetname, model, val_data_loader, distributed, logger):
                                 output_folder=None,
                                 logger=logger,
                     )
+    torch.cuda.empty_cache()
     return dataset_results
 
 

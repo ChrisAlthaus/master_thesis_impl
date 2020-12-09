@@ -70,7 +70,7 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
             skipped_indices.append(i)
             if _DEBUG:
                 print("Delete bbox of class {} because not in valid labels".format(ind_to_classes[l], box_scores[i]))
-        if len(b_labels) >= _BOXES_TOPK:
+        if len(b_labels) >= _BOXES_TOPK and _BOXES_TOPK != -1:
             break
         
     #print("Number of valid boxes: ",b_labels)
@@ -101,7 +101,7 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
             if _DEBUG:
                 print("Delete rel of class {} ,because of delted bboxes".format(ind_to_predicates[rel_labels[i]], rel_scores[i]))
             delc = delc + 1
-        if len(r_data)>_RELS_TOPK:
+        if len(r_data)>_RELS_TOPK and _RELS_TOPK != -1:
             break
 
     print("Pevious number of rels: {}, Reduced number of rels: {}".format(len(rels), len(r_data)))   

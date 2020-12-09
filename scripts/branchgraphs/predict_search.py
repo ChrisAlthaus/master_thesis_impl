@@ -117,10 +117,11 @@ print("Output Directory: %s\n"%out_dir)
 
 # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
 print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
-modeldir = latestdir('/home/althausc/master_thesis_impl/graph2vec/models') #'/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49'
-g2v_model = os.path.join(modeldir, filewithname(modeldir, 'g2vmodel')) 
-labelvecpath = os.path.join(modeldir, 'labelvectors-topk.json')
-inputfile = os.path.join(outrun_dir, 'graphs-topk.json')
+modeldir = '/home/althausc/master_thesis_impl/graph2vec/models/12-09_15-45-57/' #latestdir('/home/althausc/master_thesis_impl/graph2vec/models') #'/home/althausc/master_thesis_impl/graph2vec/models/09/22_09-58-49'
+
+g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-09_15-45-57/g2vmodelc7711d1024e100' #os.path.join(modeldir, filewithname(modeldir, 'g2vmodel')) 
+labelvecpath = 'test' #os.path.join(modeldir, 'labelvectors-topk.json')
+inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-08_18-42-37/.descriptors/graphdescriptors.json' #os.path.join(outrun_dir, 'graphs-topk.json')
 _REWEIGHT_MODES = ['jaccard', 'euclid']
 
 topk = 10
