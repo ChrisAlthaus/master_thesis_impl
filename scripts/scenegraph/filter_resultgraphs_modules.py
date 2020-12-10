@@ -11,6 +11,10 @@ import numpy as np
 
 from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VALID_RELLABELS
 
+import sys
+sys.path.insert(0,'/home/althausc/master_thesis_impl/scripts/utils')
+from statsfunctions import getwhiskersvalues
+
 #Can be used for scene graph prediction topk filtering before saving
 #Otherwise much too large (~7MB/prediction)
 #Used in: Scene-Graph-Benchmark.pytorch/maskrcnn_benchmark/engine/inference.py
@@ -52,6 +56,13 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
     b_scores = []
     b_indices = [] 
     skipped_indices = []
+
+    #statistics
+    boxnums = []
+    relsnums = []
+    newboxnums = []
+    newrelsnums = []
+
     for i, l in enumerate(box_labels):
         if ind_to_classes[l] in VALID_BBOXLABELS:
             if box_scores[i]>=_SCORE_THRESH_BOXES:
@@ -79,7 +90,11 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
     rel_labels = preds['rel_labels']
     rel_scores = preds['rel_scores']
     
-    print("Pevious number of boxes: {}, Reduced number of boxes: {}".format(len(box_labels), len(b_data)))
+    if _DEBUG:
+        print("Pevious number of boxes: {}, Reduced number of boxes: {}".format(len(box_labels), len(b_data)))
+    boxnums.append(len(box_labels))
+    newboxnums.append(len(b_data))
+
     #filter out unvalid relations
     r_data = []
     r_scores = []
@@ -103,33 +118,37 @@ def get_topkpredictions(preds, topk_boxes, topk_rels, filtertresh_boxes, filtert
             delc = delc + 1
         if len(r_data)>_RELS_TOPK and _RELS_TOPK != -1:
             break
-
-    print("Pevious number of rels: {}, Reduced number of rels: {}".format(len(rels), len(r_data)))   
+    
+    if _DEBUG:
+        print("Pevious number of rels: {}, Reduced number of rels: {}".format(len(rels), len(r_data)))   
+    relsnums.append(len(rels))
+    newrelsnums.append(len(r_data))
 
     #align rels indices to match the new box ordering
     b_indices_map = dict()
     for i,b_ind in enumerate(b_indices):
         b_indices_map[b_ind] = i
-    #print("b_indices_map: ",b_indices_map)
-    #print("r_data: ",r_data)
+
     for rel in r_data:
         rel[0] = b_indices_map[rel[0]]
-        rel[1] = b_indices_map[rel[1]]   
+        rel[1] = b_indices_map[rel[1]] 
 
-    #print("r_data: ",r_data)
-    """for i in skipped_indices:
-        for rel in r_data:
-            if rel[0] > i:
-                rel[0] = rel[0] - 1
-            if rel[1] > i:
-                rel[1] = rel[1] - 1
-    print("skipped: ",skipped_indices)
-    print("r_data: ",r_data)"""
+      
+    #Print statistics
+    stats = {'Raw bbox statistics': getwhiskersvalues(boxnums),
+             'Reduced bbox statistics': getwhiskersvalues(newboxnums),
+             'Raw rels statistics': getwhiskersvalues(relsnums),
+             'Reduced rels statistics': getwhiskersvalues(newrelsnums),
+    }
+
+    #for name, stat in stats.items():
+    #    print(name)
+    #    print(stat)
 
     pred_filtered = {'bbox': b_data, 'bbox_labels': b_labels, 'bbox_scores': b_scores, 
                     'rel_pairs': r_data, 'rel_labels': r_labels, 'rel_scores': r_scores}
 
-    return pred_filtered
+    return pred_filtered, stats
     
 
     

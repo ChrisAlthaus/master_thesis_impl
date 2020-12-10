@@ -144,10 +144,12 @@ effect_type = _EFFECT_TYPES[1]
 fusion_type = _FUSION_TYPES[0]
 contextlayer_type = _CONTEXTLAYER_TYPES[0] 
 
-topkboxes = 4#10
-topkrels = 10#20
-treshboxes = 0.2
-treshrels = 0.2
+topkboxes = -1 #4#10
+topkrels = 75#10#20
+#fine-tuned by visual inspection 
+# -> abstract art predictions should be partially prevented (/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_09-47-30/.visimages/5878_1scenegraph.jpg)
+treshboxes = 0.12 
+treshrels = 0.1
 
 masterport = random.randint(10020, 10100)
 
@@ -209,11 +211,10 @@ print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT")
 pred_imginfo = os.path.join(outrun_dir, 'custom_data_info.json')
 pred_file = os.path.join(outrun_dir, 'custom_prediction.json')
 relasnodes = True
-out_dir = "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/graphs"
 
-cmd = ("python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/graphdescriptors.py "+ \
-	         		"-file {} -imginfo {} -outputdir {} -build_labelvectors {} ")\
-					.format(pred_file, pred_imginfo, out_dir, '-relsasnodes' if relasnodes else ' ')
+cmd = ("python3.6 /home/althausc/master_thesis_impl/scripts/graph_descriptors/graphdescriptors.py "+ \
+	         		"-file {} -imginfo {} -build_labelvectors {} ")\
+					.format(pred_file, pred_imginfo, '-relsasnodes' if relasnodes else ' ')
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:

@@ -18,7 +18,6 @@ def parameter_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-file', help='Path to the prediction graph file.')
     parser.add_argument('-imginfo', help='Path to the image info file.')
-    parser.add_argument('-outputdir')
     parser.add_argument('-boxestresh', type=float, default=0.01)
     parser.add_argument('-relstresh', type=float, default=0.01)
     parser.add_argument('-boxestopk', type=int, default=20)
@@ -28,6 +27,7 @@ def parameter_parser():
 
     args = parser.parse_args()
     return args
+#TODO: expand short graphs /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single/12-10_12-47-19/.descriptors/graphdescriptors.json-short
 
 #Transform the input graph prediction file (bbox, bbox_labels,...) to the necessary 
 #Graph2Vec file format (edgeindices, boxlabels, ...). 
@@ -46,8 +46,6 @@ def parameter_parser():
 def main(args):
     if not os.path.isfile(args.file) or not os.path.isfile(args.imginfo):
         raise ValueError("Json file does not exist.")
-    if not os.path.isdir(args.outputdir):
-        raise ValueError("Output directory does not exist.")
     
     output_dir = os.path.join(os.path.dirname(args.file), '.descriptors') #datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
     if not os.path.exists(output_dir):

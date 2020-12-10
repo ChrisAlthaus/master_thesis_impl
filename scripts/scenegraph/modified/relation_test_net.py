@@ -64,8 +64,7 @@ def main():
             backend="nccl", init_method="env://"
         )
         synchronize()
-    print("TEST1")
-    #exit(1)
+
     cfg.merge_from_file(args.config_file)
 
     #modified: config for postprocessing & prevent from loading dataset (costly)   
@@ -77,7 +76,6 @@ def main():
     cfg.MODEL.LOAD_DATASETSTATS_PATH = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3/VG_stanford_filtered_with_attribute_train_statistics.cache'
     #modified end
 
-    print("TEST2")
     print(args.opts)
     cfg.merge_from_list(args.opts)
     
@@ -92,11 +90,8 @@ def main():
     logger.info("Collecting env info (might take some time)")
     logger.info("\n" + collect_env_info())
 
-    print("TEST3")
     model = build_detection_model(cfg)
-    print("TEST4.1")
     model.to(cfg.MODEL.DEVICE)
-    print("TEST4.2")
 
     # Initialize mixed-precision if necessary
     use_mixed_precision = cfg.DTYPE == 'float16'
@@ -106,7 +101,6 @@ def main():
 
     checkpointer = DetectronCheckpointer(cfg, model, save_dir=output_dir)
     _ = checkpointer.load(cfg.MODEL.WEIGHT)
-    print("TEST5")
 
     iou_types = ("bbox",)
     if cfg.MODEL.MASK_ON:
@@ -119,7 +113,6 @@ def main():
         iou_types = iou_types + ("attributes", )
     output_folders = [None] * len(cfg.DATASETS.TEST)
     dataset_names = cfg.DATASETS.TEST
-    print("TEST6")
 
     #modified: Create output directory & Save config/flags
     cfg.defrost()

@@ -1,3 +1,4 @@
+#Path: /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py
 """Graph2Vec module."""
 
 import json
@@ -13,6 +14,7 @@ from gensim.test.utils import get_tmpfile
 from gensim.models.callbacks import CallbackAny2Vec
 import os, sys
 import datetime
+import time
 import shutil
 import dill
 import random
@@ -21,6 +23,9 @@ import matplotlib.pyplot as plt
 
 sgraphscript_dir = '/home/althausc/master_thesis_impl/scripts/scenegraph'
 sys.path.insert(0,sgraphscript_dir) 
+sys.path.insert(0, '/home/althausc/master_thesis_impl/scripts/utils') 
+
+from statsfunctions import getwhiskersvalues
 
 class WeisfeilerLehmanMachine:
     """
@@ -56,14 +61,19 @@ class WeisfeilerLehmanMachine:
             #print("f1= ",self.features)
             degs = [self.features[neb] for neb in nebs]
             #print("Degrees: ",degs)
+            #Create sub-graph from current nodelabel including itself and all neighboring nodelabels
+            #Subgraph is an unordered list of labels
             features = [str(self.features[node])]+sorted([str(deg) for deg in degs])
             #print("f= ",features)
+            #Concatenating labels
             features = "_".join(features)
             #print("f= ",features)
+            #Computing hash for each subgraph
             hash_object = hashlib.md5(features.encode())
             hashing = hash_object.hexdigest()
             #print("h= ",hashing)
             new_features[node] = hashing
+            #exit(1)
         self.extracted_features = self.extracted_features + list(new_features.values())
         #print("Extracted: ",self.extracted_features)
         
@@ -74,6 +84,8 @@ class WeisfeilerLehmanMachine:
         The method does a series of WL recursions.
         """
         for _ in range(self.iterations):
+            #Doing feature extraction with reference to computed per-node features of last iteration (self.features)
+            #Each iteration goes deeper into the graph
             self.features = self.do_a_recursion()
 
 
@@ -96,6 +108,9 @@ def dataset_reader(dataitem):   #modified
         features = nx.degree(graph)
 
     features = {int(k): v for k, v in features.items()}
+    #print("graph: ",dataitem["edges"])
+    #print("features: ", features)
+    #exit(1)
     return graph, features#, name
 
 def feature_extractor(filename, graphdata, rounds):    #modified
@@ -128,7 +143,7 @@ def save_embedding(output_path, model, files, dimensions):
     out = out.sort_values(["type"])
     out.to_csv(output_path, index=None)
 
-    print("Wrote graph embedding to file: ",output_path)
+    print("Wrote graph embedding to: ",os.path.dirname(output_path))
 
 def save_prediction_emb(output_path, emb, dimensions):  #not used
     assert len(emb) == dimensions
@@ -140,7 +155,7 @@ def save_prediction_emb(output_path, emb, dimensions):  #not used
 
 
 
-def getSimilarityScore(valdocs, model, log, topk):
+def getSimilarityScore(valdocs, model, topk, stepsinfer):
     #Querying with same images & specify similarities between the best-matching which should be the input image
     num_docs = topk
     dim = model.vector_size
@@ -148,49 +163,59 @@ def getSimilarityScore(valdocs, model, log, topk):
     evalscore = 0
     numdocs_found = 0
     ranks = []
+    start = time.time()
 
     for doc in valdocs:
         imgname = doc.tags[0]
         #model.random.seed(0)
-        vector = model.infer_vector(doc.words)
+        #print(doc.words)
+        #print(imgname)
+        vector = model.infer_vector(doc.words, alpha=0.025, steps=stepsinfer)
         sims = model.docvecs.most_similar([vector], topn = num_docs)
         for r,item in enumerate(sims):
+            #print(r,item)
             if item[0] == imgname:
                 evalscore = evalscore + item[1]
                 numdocs_found = numdocs_found + 1
                 ranks.append(r+1)
                 break
+                #exit(1)
+        #exit(1)
+    #print(ranks)
+    #exit(1)
 
+    end = time.time()
+    #print("Validation took {} seconds".format(end-start))
     #print("Number of matched documents in top-%d = %d"%(num_docs, numdocs_found))
     #print("Mean rank number: ",sum(ranks)/len(ranks) if numdocs_found != 0 else 'Nan')
      
     mrank = sum(ranks)/len(ranks) if numdocs_found != 0 else 'Nan'
     return evalscore, mrank, numdocs_found
     
-def getcallback(docs_collection, epochnum = 1, log=None, istrain=True, topk=100):
+def getcallback(docs_collection, epochnum = 1, logdir=None, istrain=True, topk=100, stepsinfer=100):
     #Monitoring the loss value of every epoch
     class SimilarityCallback(CallbackAny2Vec):
         def __init__(self):
             self.epoch = 1
             self.docs = docs_collection
             self.epochnum = epochnum
-            self.log = log
+            self.logdir = logdir
+            self.csvfile = getlogforlosses(self.logdir, istrain)
+            self.stepsinfer
 
         def on_epoch_end(self, model):
             if self.epoch % self.epochnum == 0:
-                score, mrank, numfound = getSimilarityScore(self.docs, model, self.log, topk)
-                if istrain is False:
-                    print("Validation on %d images -> Epoch %d, Evaluation Score: %f, Mean Rank: %s, Num docs matched: %d/%d"\
-                                                                        %(len(self.docs),self.epoch,score, str(mrank), numfound, len(self.docs)))
-                else:
-                    print("Epoch %d, Evaluation Score: %f, Mean Rank: %s, Num docs matched: %d/%d"%(self.epoch,score, str(mrank), numfound, len(self.docs)))
+                score, mrank, numfound = getSimilarityScore(self.docs, model, topk, self.stepsinfer)
 
-                with open(self.log, 'a') as f:
+                #if istrain is False:
+                #    print("Validation on %d images"%len(self.docs))
+                print("Epoch %d, Evaluation Score: %f, Mean Rank: %s, Num docs matched: %d/%d"%(self.epoch, score, str(mrank), numfound, len(self.docs)))
+
+                #Write evaluation results to csv file
+                with open(self.csvfile, 'a') as f:
                     writer = csv.writer(f, delimiter='\t')
-                    if istrain:
-                        writer.writerow([self.epoch, score, mrank, numfound, 'notused', 'notused', 'notused'])
-                    else:
-                        writer.writerow([self.epoch, 'notused', 'notused', 'notused', score, mrank, numfound])
+                    writer.writerow([self.epoch, score, mrank, numfound, len(self.docs)])
+
             self.epoch += 1
 
     return SimilarityCallback()
@@ -217,19 +242,19 @@ def getcallback_epochsaver(modeldir, epochnum):
     return EpochSaver(modeldir, epochnum)
 
 
-def getcallback_logplot(log, epochnum, saveimgpath):
+def getcallback_logplot(outputpath, epochnum):  #TODO:implement seperate graphs and muliptle
     class PlotCallback(CallbackAny2Vec):
         def __init__(self):
             self.epoch = 1
-            self.log = log
             self.epochnum = epochnum
             self.imgpath = saveimgpath
+            self.filepath =  os.path.join(outputpath, 'loss_log.jpg')
 
         def on_epoch_end(self, model):
             if self.epoch % self.epochnum == 0:
                 print("Plotting Log")
                 headers = ['Epoch','Train Loss', 'Train Mean Rank', 'Train Matched Docs', 'Val Loss', 'Val Mean Rank', 'Val Matched Docs']
-                df = pd.read_csv(self.log, delimiter='\t', names=headers)
+                df = pd.read_csv(delimiter='\t', names=headers)
 
                 def isfloat(x):
                     try:
@@ -280,7 +305,8 @@ def getvaldocs(graphs, args):
     from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VALID_RELLABELS
 
     _NUM_EXCHANGE_LABEL = 0.1
-    graphs = graphs[:args.valsize]
+    val_numimgs = int(len(graphs)*args.valsize)
+    graphs = graphs[:val_numimgs]
     for filename, g in graphs:
         exchangenum = int(len(g['features'])* _NUM_EXCHANGE_LABEL)
         sample = dict(random.sample(g['features'].items(), exchangenum))
@@ -290,25 +316,56 @@ def getvaldocs(graphs, args):
             elif v in VALID_RELLABELS:
                 sample[k] = random.choice(VALID_RELLABELS)
         g['features'].update(sample) 
-    print("\nFeature extraction for validation dataset started.\n")
-    document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in tqdm(graphs))
-    print("\nOptimization started.\n")
+    print("\nFeature extraction for validation dataset ({} graphs) started.\n".format(len(graphs)))
+    document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in graphs) #tqdm(graphs))
+
     return document_collections
 
-def getlogforlosses(outdir): 
-    with open(os.path.join(outdir, 'trainval_losses.csv'), 'w') as f:
+def getlogforlosses(outdir, istrain): 
+    filename = 'train_losses.csv' if istrain else 'val_losses.csv'
+    with open(os.path.join(outdir, filename), 'w') as f:
         writer = csv.writer(f, delimiter='\t')
-        headers = ['Epoch','Train Loss', 'Train Mean Rank', 'Train Matched Docs', 'Val Loss', 'Val Mean Rank', 'Val Matched Docs']
+        if istrain:
+            headers = ['Epoch','Train Loss', 'Train Mean Rank', 'Train Matched Docs', 'Num Docs'] 
+        else:
+            headers = ['Epoch', 'Val Loss', 'Val Mean Rank', 'Val Matched Docs', 'Num Docs']
         writer.writerow(headers)
-    return os.path.join(outdir, 'trainval_losses.csv')
+    return os.path.join(outdir, filename)
 
-def saveconfig(outdir, args, numtraindocs):
-    with open(os.path.join(outdir, 'config.csv'), 'w') as f:
+def saveconfig(output_dir, args, numtraindocs, doclenstats):
+    #Writing config to file
+    print(args)
+    with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
+        f.write("Src Input Path: %s"%args.input_path + os.linesep)
+        f.write("Vector dimensions: %s"%args.dimensions + os.linesep)
+        f.write("Down-Sampling: %s"%args.down_sampling + os.linesep)
+        f.write("Learning rate: %s"%args.learning_rate + os.linesep)
+        f.write("Min count: %s"%args.min_count + os.linesep)
+        f.write("Wl-iterations: %s"%args.wl_iterations + os.linesep)
+        f.write("Steps Inference: %d"%args.steps_inference + os.linesep)
+
+        f.write("Epochs: %s"%args.epochs + os.linesep)
+        f.write("Epochsave: %s"%args.epochsave + os.linesep)
+
+        f.write("Number of graphs: %d"%numtraindocs + os.linesep)
+        f.write("Statistics of feature number per graph: %s"%doclenstats + os.linesep)
+
+
+    #Write entry to the csv overview file
+    filepath = '/home/althausc/master_thesis_impl/graph2vec/models/run_configs.csv'
+    if not os.path.exists(filepath):
+        with open(filepath, 'w') as f:
+            writer = csv.writer(f, delimiter='\t')
+            headers = ['Folder', 'Epochs', 'Trainsize', 'Valsize', 'Dim', 'Min-Count', 'WL-Iterations', 'LR', 'Down-Sampling', 'EvalTopk']
+            writer.writerow(headers)
+
+    foldername = os.path.basename(output_dir)       
+    row = [foldername, args.epochs, numtraindocs, args.valsize, args.dimensions, args.min_count, args.wl_iterations,
+                                args.learning_rate, args.down_sampling, args.evaltopk]
+    with open(filepath, 'a') as f:
         writer = csv.writer(f, delimiter='\t')
-        headers = ['Epochs', 'Trainsize', 'Valsize', 'Dim', 'Min-Count', 'WL-Iterations', 'LR', 'Down-Sampling', 'EvalTopk']
-        writer.writerow(headers)
-        writer.writerow([args.epochs, numtraindocs, args.valsize, args.dimensions, args.min_count, args.wl_iterations,
-                                args.learning_rate, args.down_sampling, args.evaltopk])
+        writer.writerow(row)
+    print("Sucessfully wrote hyper-parameter row to configs file.")
 
 def main(args):
     """
@@ -322,35 +379,56 @@ def main(args):
     with open(args.input_path, "r") as f:
         data = json.load(f)  
         
-    modeldir = os.path.join('/home/althausc/master_thesis_impl/graph2vec/models', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    modeldir = os.path.join('/home/althausc/master_thesis_impl/graph2vec/models', datetime.datetime.now().strftime('%m-%d_%H-%M-%S')) 
     if not os.path.exists(modeldir):
         os.makedirs(modeldir)
     else:
         raise ValueError("Output directory %s already exists."%modeldir)
 
-    #Save configuration
-    saveconfig(modeldir, args, len(data))
-    
+    logdir = os.path.join(modeldir, '.logs')
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+    else:
+        raise ValueError("Output directory %s already exists."%logdir)
+
     graphs = list(data.items()) #[(filename, graph) ... , (filename, graph)]
                                 #graph = {'edges': ... , 'features': ... , 'box_scores': ... , 'rel_scores': ...}
     print("Number of training graphs: ",len(graphs))
-    print("\nFeature extraction for train dataset started.\n")
-    document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in tqdm(graphs))
-    print("\nOptimization started.\n")
-    
+    print("\nFeature extraction for train dataset ({} graphs) started.\n".format(len(graphs)))
+    document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in graphs) #tqdm(graphs))
+
+    #Stats to show words (features) per document (graph)
+    doclengths = [len(d.words) for d in document_collections]
+    doclenstats = getwhiskersvalues(doclengths)
+
+    #Save configuration & stats
+    saveconfig(modeldir, args, len(data), doclenstats)
+
     documents_validation = getvaldocs(graphs, args)
-    logpath = getlogforlosses(modeldir)
-    c_eval_val = getcallback(documents_validation, epochnum=args.valeval, log=logpath, istrain=False, topk=args.evaltopk)
-    c_eval_train = getcallback(document_collections, log=logpath)
+   
+    c_eval_val = getcallback(documents_validation, epochnum=args.valeval, logdir= logdir, istrain=False, topk=args.evaltopk, stepsinfer=args.steps_inference)
+    c_eval_train = getcallback(document_collections, epochnum=args.traineval, logdir= logdir, stepsinfer=args.steps_inference)
     c_epochsaver = getcallback_epochsaver(modeldir, args.epochsave)
 
-    plotfile = os.path.join(modeldir, 'loss_log.jpg')
-    c_loss_plotter = getcallback_logplot(logpath, args.plotepoch, plotfile)
+    #Plot train & val curves at end of training
+    #c_loss_plotter = getcallback_logplot(modeldir, args.epochs)
 
+    #Training the Word2Vec model
     #Some parameters:
     #   sample (float, optional) – The threshold for configuring which higher-frequency words are randomly downsampled, useful range is (0, 1e-5).
     #   min_count (int, optional) – Ignores all words with total frequency lower than this.
-    #Training the Word2Vec model
+    
+    #Explanation of parameters:
+    #   - document_collections: list of tagged documents (tagged document has fields tags & words)
+    #   - min_count: exclude words with a frequency lower than this treshold from training
+    #   - sample: threshold for configuring which higher-frequency words are randomly downsampled
+    #   - epochs: Number of iterations (epochs) over the corpus
+
+
+    #Notes:
+    # -For a fully deterministically-reproducible run, you must also limit the model to a single worker thread (workers=1)
+    # -Epoch values of 10-20 or more are most common in published results
+    print("\nOptimization started.\n")
     model = Doc2Vec(document_collections,
                     vector_size=args.dimensions,
                     window=0,
@@ -361,7 +439,7 @@ def main(args):
                     epochs=args.epochs,
                     alpha=args.learning_rate,
                     compute_loss=True,
-                    callbacks=[c_eval_train, c_eval_val, c_epochsaver, c_loss_plotter])
+                    callbacks=[c_eval_train, c_eval_val, c_epochsaver])
     print(type(graphs))
 
     #save storage
@@ -372,15 +450,14 @@ def main(args):
     save_embedding(graph_emb_file, model, filenames , args.dimensions)
     
 
-
     #Copy corresponding input training graph file to the model directory, for easier finding
-    labelvectopk = os.path.join(os.path.dirname(args.input_path), 'labelvectors_topk.json')
+    labelvectopk = os.path.join(os.path.dirname(args.input_path), 'labelvectors-topk.json')
     if os.path.isfile(labelvectopk):
-        shutil.copyfile(labelvectopk, os.path.join(modeldir, 'labelvectors_topk.json'))
-        print("Copied %s -> %s ."%(labelvectopk, os.path.join(modeldir, 'labelvectors_topk.json')))
+        shutil.copyfile(labelvectopk, os.path.join(modeldir, 'labelvectors-topk.json'))
+        print("Copied %s -> %s ."%(labelvectopk, os.path.join(modeldir, 'labelvectors-topk.json')))
     else:
         print("Couldn't copy labelvector file from %s, because not existing."%os.path.dirname(args.input_path))
-        
+   
 if __name__ == "__main__":
     args = parameter_parser()
     main(args)

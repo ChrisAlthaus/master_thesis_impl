@@ -43,6 +43,9 @@ import shutil
 import sys
 sys.path.append('/home/althausc/master_thesis_impl/scripts/scenegraph')
 from visualizeimgs import draw_image
+import maskrcnn_benchmark
+print(os.path.abspath(maskrcnn_benchmark.__file__))
+exit(1)
 
 
 
@@ -195,10 +198,10 @@ def train(cfg, local_rank, distributed, logger):
 
     print_first_grad = True
     for iteration, (images, targets, _) in enumerate(train_data_loader, start_iter):
-        print(get_rank())
-        print("images: ",images)
-        print("targets: ",targets)
-        exit(1)
+        #print(get_rank())
+        #print("images: ",images)
+        #print("targets: ",targets)
+        #exit(1)
         
         #modified: don't stop when seeing a target without a box annotation (very rare)
         if any(len(target) < 1 for target in targets):
@@ -499,17 +502,26 @@ def main():
     cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER = params['contextlayer']
     cfg.MODEL.ROI_RELATION_HEAD.REQUIRE_BOX_OVERLAP = params['require_bboxoverlap']
     cfg.MODEL.ATTRIBUTE_ON = params['attribute_on']
+
     cfg.SOLVER.IMS_PER_BATCH = params['trainbatchsize']
     cfg.TEST.IMS_PER_BATCH = params['testbatchsize']
-    cfg.DTYPE = params['dtype']
+
     cfg.SOLVER.MAX_ITER = params['maxiterations']
     cfg.SOLVER.VAL_PERIOD = params['valperiod']
-    cfg.SOLVER.BASE_LR = params['lr']
-    cfg.SOLVER.STEPS = tuple(params['steps']) #not used
-    cfg.SOLVER.SCHEDULE.FACTOR = params['gamma']
-    cfg.INPUT.MIN_SIZE_TRAIN = params['minscales']
     cfg.SOLVER.CHECKPOINT_PERIOD = params['cpktperiod']
     cfg.SOLVER.PRE_VAL = params['preval']
+    print("Info: Num epochs ~= {}".format(cfg.SOLVER.MAX_ITER/cfg.TEST.IMS_PER_BATCH))
+
+    cfg.SOLVER.BASE_LR = params['lr']
+    cfg.SOLVER.SCHEDULE.TYPE = params['lrscheduler']
+    cfg.SOLVER.STEPS = tuple(params['steps']) 
+    cfg.SOLVER.SCHEDULE.FACTOR = params['gamma']
+    cfg.SOLVER.SCHEDULE.PATIENCE = params['patience']
+    cfg.SOLVER.GAMMA = params['gamma']
+
+    cfg.INPUT.MIN_SIZE_TRAIN = params['minscales']
+    cfg.DTYPE = params['dtype']
+
     cfg.DATASETS.SELECT = params['datasetselect']
     cfg.GLOVE_DIR = params['glovedir']
     cfg.MODEL.PRETRAINED_DETECTOR_CKPT = params['pretrainedcpkt']

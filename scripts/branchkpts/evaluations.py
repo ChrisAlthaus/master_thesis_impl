@@ -41,14 +41,14 @@ if _CREATE_FOLDERS:
 logfile = os.path.join(logdir, 'log-detailed-eval.txt')
 
 cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
-       "{} python3.6 /home/althausc/master_thesis_impl/coco-analyze/run_analysis.py {} {} {} {} {}")\
+       "{} python3.6 -u /home/althausc/master_thesis_impl/coco-analyze/run_analysis.py {} {} {} {} {}")\
                                                 .format(jobname, logfile, gpu_cmd, gtannfile, predfile, outdir, teamname, version)
 print(cmd)
 os.system(cmd)
 
 outrun_dir = latestdir(outdir)
 print("Output Directory: %s\n"%outdir)
-#exit(1)
+exit(1)
 
 # ----------------- EVALUATE POSEFIX PREDICTIONS WITH DETAILED EVALUATION ---------------------
 print("DETAILED POSEFIX EVALUATION:")

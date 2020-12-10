@@ -69,8 +69,8 @@ def predict_scenegraph(imagepath):
     fusion_type = _FUSION_TYPES[0]
     contextlayer_type = _CONTEXTLAYER_TYPES[0] 
 
-    topkboxes = 10#-1#10
-    topkrels = 20#75#20
+    topkboxes = -1#10
+    topkrels = 75#20
     treshboxes = 0.1
     treshrels = 0.1
 
@@ -108,16 +108,16 @@ def predict_scenegraph(imagepath):
         raise RuntimeError('Scene graph prediction failed.')
 
     print("SCENE GRAPH PREDICTION DONE.")
-    outrun_dir = latestdir(out_dir)
+    predicdir = latestdir(out_dir)
     print('')
-    return outrun_dir
+    return predicdir
 
-def visualize_scenegraph(anndir, filterlabels = True):
+def visualize_scenegraph(predicdir, filterlabels = True):
     print("VISUALIZE SCENEGRAPH ...")
     logfile = os.path.join(logpath, '2-visualize.txt')
 
     cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} {} &> {}"\
-                                .format(anndir, '-filterlabels' if filterlabels else ' ', logfile)
+                                .format(predicdir, '-filterlabels' if filterlabels else ' ', logfile)
     print(cmd)
     if os.system(cmd):
         raise RuntimeError('Scene graph visualization failed.')
@@ -137,18 +137,15 @@ def transform_into_g2vformat(anndir, relasnodes=True):
 
     pred_imginfo = os.path.join(anndir, 'custom_data_info.json')
     pred_file = os.path.join(anndir, 'custom_prediction.json')
-    out_dir = anndir #old: "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single"
     logfile = os.path.join(logpath, '3-transform.txt')
 
     if os.system("python3.6 /home/althausc/master_thesis_impl/scripts/graph_descriptors/graphdescriptors.py \
                     -file {} \
                     -imginfo {} \
-                    -outputdir {} \
-                    {} &> {}".format(pred_file, pred_imginfo, out_dir, '-relsasnodes' if relasnodes else ' ', logfile)):
+                    {} &> {}".format(pred_file, pred_imginfo, '-relsasnodes' if relasnodes else ' ', logfile)):
         raise RuntimeError('Transform predictions failed.')
 
-    outrun_dir = latestdir(out_dir)
-    graphfile = os.path.join(outrun_dir, 'graphdescriptors.json')
+    graphfile = os.path.join(anndir, '.descriptors', 'graphdescriptors.json')
     print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT DONE.")
     print("Graphfile: ",graphfile)
     return graphfile
@@ -156,22 +153,26 @@ def transform_into_g2vformat(anndir, relasnodes=True):
 def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
-    modeldir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3'
+    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-10_10-31-58/g2vmodelc9211d1024e200'
 
-    g2v_model = os.path.join(modeldir, filewithname(modeldir, 'g2vmodel'))
-    labelvecpath = os.path.join(modeldir, 'labelvectors-topk.json')
+    graphdir = os.path.dirname(graphfile)
+    labelvecpath = os.path.join(graphdir, 'labelvectors-topk.json')
     inputfile = graphfile   #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-25_15-23-04/graphs-topk.json'
                             #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-23_14-52-00/graphs-topk.json' #graphfile
     print('inputfile:', inputfile)
     topk = k
     logfile = os.path.join(logpath, '4-retrieval.txt')
 
+    wliters = 3
+    steps = 100
+    print("wliters: ", wliters)
+
     if reweight:
         if os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py \
                         --model {} --inputpath {} \
-    				    --inference --topk {} \
+    				    --inference --wl-iterations {} --steps-infer {} --topk {} \
                         --reweight --reweightmode {} \
-                        --labelvecpath {} &> {}".format(g2v_model, inputfile, topk, r_mode, labelvecpath, logfile)):
+                        --labelvecpath {} &> {}".format(g2v_model, inputfile, wliters, steps, topk, r_mode, labelvecpath, logfile)):
             raise RuntimeError('Scene graph search failed.')            
     else:
         if os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --inputpath {} \
@@ -189,18 +190,31 @@ def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
 
     return filename
 
-def getImgs(topkresults):
+def getImgs(topkresults, drawgraphs = False):
     #topkresults format [(filepath1, score1), ... ]
 
     print("Reading from file: ",topkresults)
     with open (topkresults, "r") as f:
-        topkdata = json.load(f)
+        json_data = json.load(f)
 
+    imagedir = json_data['imagedir']
+    del json_data['imagedir']
+
+    if drawgraphs:
+        graphvisdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-08_18-42-37/.visimages'
+        imagedir = graphvisdir
+
+    rankedlist = sorted(json_data.items(), key= lambda x: int(x[0]))
     imgs = []
     scores = []
-    for item in topkdata:
-        imgs.append(Image.open(item[0][2:]))
-        scores.append(item[1])
+    for item in rankedlist:
+        if drawgraphs:
+            basename, suffix = os.path.splitext(item[1]['filename'])
+            gfilename = '{}_1scenegraph{}'.format(basename, suffix) 
+            imgs.append(Image.open(os.path.join(imagedir,gfilename)))
+        else:
+            imgs.append(Image.open(os.path.join(imagedir,item[1]['filename'])))
+        scores.append(item[1]['relscore'])
     
     return imgs, scores
 
@@ -228,13 +242,13 @@ def drawborder(imgpath):
 def treshIndex(tresh, rankedlist):
     with open (rankedlist, "r") as f:
         data = json.load(f)
+    
+    del data['imagedir']
 
     k = 0
-    for item in data:
+    for item in data.values():
         print(item)
-        if item[1]< tresh:
-            break
-        else:
+        if item['relscore']>= tresh:
             k = k + 1
     return k
 

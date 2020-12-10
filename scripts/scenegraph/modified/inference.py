@@ -57,6 +57,11 @@ def compute_on_dataset(model, data_loader, device, synchronize_gather=True, time
             results_dict.update(
                 {img_id: result for img_id, result in zip(image_ids, output)}
             )
+
+        #modified    
+        if i%100 == 0:
+            print("Processed so far {} images".format(i))
+        #modified end
     torch.cuda.empty_cache()
     return results_dict
 
@@ -175,10 +180,10 @@ from filter_resultgraphs_modules import get_topkpredictions
 
 def custom_sgg_post_precessing(predictions, cfg):
 
-    boxes_topk = cfg['topkboxes']
-    rels_topk = cfg['topkrels']
-    filtertresh_boxes = cfg['filtertresh_boxes']
-    filtertresh_rels = cfg['filtertresh_rels']
+    boxes_topk = cfg.TEST.POSTPROCESSING.TOPKBOXES
+    rels_topk = cfg.TEST.POSTPROCESSING.TOPKRELS
+    filtertresh_boxes = cfg.TEST.POSTPROCESSING.TRESHBOXES
+    filtertresh_rels = cfg.TEST.POSTPROCESSING.TRESHRELS
 
     output_dict = {}
     for idx, boxlist in enumerate(predictions):
@@ -218,7 +223,11 @@ def custom_sgg_post_precessing(predictions, cfg):
         
         #modified
         #output_dict[idx] = current_dict
-        output_dict[idx] = get_topkpredictions(current_dict, boxes_topk, rels_topk, filtertresh_boxes, filtertresh_rels)
+        output_dict[idx], stats = get_topkpredictions(current_dict, boxes_topk, rels_topk, filtertresh_boxes, filtertresh_rels)
+        with open(os.path.join(cfg.DETECTED_SGG_DIR, 'stats.txt'), 'a') as f:
+            for name, statsstr in stats.items():
+                f.write(name + os.linesep)
+                f.write(statsstr + os.linesep)
         #modified end
     return output_dict
     

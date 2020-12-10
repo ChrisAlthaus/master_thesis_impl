@@ -10,6 +10,8 @@ import itertools
 from PIL import Image
 import cv2
 
+import ipyplot
+
 
 def latestdir(dir):
     diritems = [os.path.join(dir, d) for d in os.listdir(dir)]
@@ -218,7 +220,7 @@ def getImgs(rankingfile):
     scores = []
     for item in rankedlist:
         #imgs.append(Image.open(item[1]['filepath']))
-        imgs.append(Image.open(os.path.join(imagedir,item[1]['filepath'])))
+        imgs.append(Image.open(os.path.join(imagedir, item[1]['filepath'])))
         scores.append(item[1]['relscore'])
     
     return imgs, scores

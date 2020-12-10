@@ -3,6 +3,7 @@ import argparse
 import json
 import datetime
 import numpy as np
+import copy
 
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from gensim.test.utils import get_tmpfile
@@ -42,7 +43,9 @@ def main():
     parser.add_argument("--topk", type=int, default=10,
                         help="Number of returned similar documents.")
     parser.add_argument("--wl-iterations", type=int, default=2,
-    	                help="Number of Weisfeiler-Lehman iterations. Default is 2.")                    
+    	                help="Number of Weisfeiler-Lehman iterations. Default is 2.") 
+    parser.add_argument("--steps-infer", type=int, default=100,
+    	                help="Number of steps for the doc2vec inference function.")                          
     args = parser.parse_args()
 
     #Given an input graph in the graph2vec-format search for the topk most similar graphs.
@@ -60,6 +63,18 @@ def main():
     print("\nFeature extraction started.\n")
     document_collections = Parallel(n_jobs=1)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in tqdm(graphs))
     print("\nOptimization started.\n")
+
+    #Extend too small features if necessary with itself (because bad performace of small features)
+    for k,d in enumerate(document_collections):
+        print("Feature length of document {} = {}".format(k, len(d.words)))
+        basefeatures = copy.deepcopy(d.words)
+        print(type(d.words))
+        add = False
+        while len(d.words)<= 200:
+            d.words.extend(basefeatures)
+            add = True
+        if add:
+            print("Extended feature from length {} to length {}".format(len(basefeatures), len(d.words)))
 
     print("Feature [0]: ", document_collections[0])
 
@@ -83,7 +98,7 @@ def main():
         #For a more stable representation, increase the number of steps to assert a stricket convergence.  
         #model.random.seed(0)
         print("test")
-        vector = model.infer_vector(document_collections[0].words, steps=100) #TODO: do eval of best step size, Only 1 graph?? TODO:batch of graphs
+        vector = model.infer_vector(document_collections[0].words, steps=args.steps_infer) #TODO: do eval of best step size, Only 1 graph?? TODO:batch of graphs
         sims = model.docvecs.most_similar([vector], topn = args.topk)
         print("Top k similarities (with cos-sim): ",sims)
 

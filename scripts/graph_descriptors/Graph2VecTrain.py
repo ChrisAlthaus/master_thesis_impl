@@ -6,18 +6,21 @@ import os
 import time
 import csv
 
-inputfile = ' /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-08_18-42-37/.descriptors/graphdescriptors.json'
+inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-09_17-22-49/.descriptors/graphdescriptors.json'
+    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-08_18-42-37/.descriptors/graphdescriptors.json'
 
-epochs = 100
+epochs = 200
 traineval_epoch = 10
 valeval_epoch = 10
 saveepoch = 100
 valsize = 0.2
 evaltopk = 100
 
-dimensionsize = 1024 #1024 #32 #128
+dimensionsize = 128 #64 #128 #2048 #1024 #32 #128
 wliters = 3
-downsampling = 0.0001
+downsampling = 0.0001 #default: 0.0001
+lr = 0.05 #0.025 #default: 0.025
+stepsinfer = 100 #50 #100
 
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh'
 jobname = 'graph2vec-train%s'%datetime.datetime.now().strftime('%d-%H-%M-%S')
@@ -27,9 +30,9 @@ logfile = os.path.join(logdir, '%s.log'%datetime.datetime.now().strftime('%m-%d-
 
 cmd =  ("sbatch -w devbox4 -J {} -o {} "+ \
             "{} python3.6 -u /home/althausc/master_thesis_impl/graph2vec/src/graph2vec.py "+ \
-            "--input-path {} --output-path {} --workers 4 --dimensions {} --epochs {} --wl-iterations {} --down-sampling {} "+ \
+            "--input-path {} --output-path {} --workers 4 --dimensions {} --epochs {} --wl-iterations {} --down-sampling {} --learning-rate {} --steps-inference {} "+ \
 			"--epochsave {} --traineval {} --valeval {} --valsize {} --evaltopk {}")\
-				.format(jobname, logfile, gpu_cmd, inputfile, 'notused', dimensionsize, epochs, wliters, downsampling, 
+    			.format(jobname, logfile, gpu_cmd, inputfile, 'notused', dimensionsize, epochs, wliters, downsampling, lr, stepsinfer,
                         saveepoch, traineval_epoch, valeval_epoch, valsize, evaltopk)
 print(cmd)
 os.system(cmd)
