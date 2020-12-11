@@ -157,11 +157,13 @@ def save_prediction_emb(output_path, emb, dimensions):  #not used
 
 def getSimilarityScore(valdocs, model, topk, stepsinfer):
     #Querying with same images & specify similarities between the best-matching which should be the input image
-    num_docs = topk
+    evalscore = 0
+    numdocs_r20 = 0
+    numdocs_r50 = 0
+    numdocs_r100 = 0
+
     dim = model.vector_size
 
-    evalscore = 0
-    numdocs_found = 0
     ranks = []
     start = time.time()
 
@@ -171,26 +173,41 @@ def getSimilarityScore(valdocs, model, topk, stepsinfer):
         #print(doc.words)
         #print(imgname)
         vector = model.infer_vector(doc.words, alpha=0.025, steps=stepsinfer)
-        sims = model.docvecs.most_similar([vector], topn = num_docs)
+        sims = model.docvecs.most_similar([vector], topn=topk)
         for r,item in enumerate(sims):
             #print(r,item)
             if item[0] == imgname:
                 evalscore = evalscore + item[1]
-                numdocs_found = numdocs_found + 1
+                if r+1<=100:
+                    numdocs_r100 = numdocs_r100 + 1
+                if r+1<=50:
+                    numdocs_r50 = numdocs_r50 + 1
+                if r+1<=20:
+                    numdocs_r20 = numdocs_r20 + 1
+
                 ranks.append(r+1)
                 break
-                #exit(1)
-        #exit(1)
     #print(ranks)
-    #exit(1)
 
     end = time.time()
     #print("Validation took {} seconds".format(end-start))
     #print("Number of matched documents in top-%d = %d"%(num_docs, numdocs_found))
     #print("Mean rank number: ",sum(ranks)/len(ranks) if numdocs_found != 0 else 'Nan')
      
-    mrank = sum(ranks)/len(ranks) if numdocs_found != 0 else 'Nan'
-    return evalscore, mrank, numdocs_found
+    mrank = sum(ranks)/len(ranks) if len(ranks) != 0 else 'Nan'
+    mscore = evalscore/len(ranks)
+
+    num_docs = len(valdocs)
+    print(numdocs_r20, num_docs)
+    print(numdocs_r50, num_docs)
+    print(numdocs_r100, num_docs)
+    print("-"*20)
+
+    r20 = numdocs_r20/num_docs
+    r50 = numdocs_r50/num_docs
+    r100 = numdocs_r100/num_docs
+    recalls = {'r@20': r20, 'r@50': r50, 'r@100': r100}
+    return mscore, mrank, recalls
     
 def getcallback(docs_collection, epochnum = 1, logdir=None, istrain=True, topk=100, stepsinfer=100):
     #Monitoring the loss value of every epoch
@@ -200,21 +217,21 @@ def getcallback(docs_collection, epochnum = 1, logdir=None, istrain=True, topk=1
             self.docs = docs_collection
             self.epochnum = epochnum
             self.logdir = logdir
-            self.csvfile = getlogforlosses(self.logdir, istrain)
-            self.stepsinfer
+            self.csvfile = getlogforlosses(self.logdir, istrain, topk)
+            self.stepsinfer = stepsinfer
 
         def on_epoch_end(self, model):
             if self.epoch % self.epochnum == 0:
-                score, mrank, numfound = getSimilarityScore(self.docs, model, topk, self.stepsinfer)
+                mscore, mrank, recalls = getSimilarityScore(self.docs, model, topk, self.stepsinfer)
 
                 #if istrain is False:
                 #    print("Validation on %d images"%len(self.docs))
-                print("Epoch %d, Evaluation Score: %f, Mean Rank: %s, Num docs matched: %d/%d"%(self.epoch, score, str(mrank), numfound, len(self.docs)))
+                print("Epoch %d, Mean Score: %f, Mean Rank: %s, Recalls: %s, Num documents: %d"%(self.epoch, mscore, str(mrank), str(recalls), len(self.docs)))
 
                 #Write evaluation results to csv file
                 with open(self.csvfile, 'a') as f:
                     writer = csv.writer(f, delimiter='\t')
-                    writer.writerow([self.epoch, score, mrank, numfound, len(self.docs)])
+                    writer.writerow([self.epoch, mscore, mrank, recalls['r@20'], recalls['r@50'], recalls['r@100'], len(self.docs)])
 
             self.epoch += 1
 
@@ -253,7 +270,7 @@ def getcallback_logplot(outputpath, epochnum):  #TODO:implement seperate graphs 
         def on_epoch_end(self, model):
             if self.epoch % self.epochnum == 0:
                 print("Plotting Log")
-                headers = ['Epoch','Train Loss', 'Train Mean Rank', 'Train Matched Docs', 'Val Loss', 'Val Mean Rank', 'Val Matched Docs']
+                headers = ['Epoch', 'Train Loss', 'Train Mean Rank', 'Train Matched Docs', 'Val Loss', 'Val Mean Rank', 'Val Matched Docs']
                 df = pd.read_csv(delimiter='\t', names=headers)
 
                 def isfloat(x):
@@ -302,9 +319,12 @@ def getcallback_logplot(outputpath, epochnum):  #TODO:implement seperate graphs 
 def getvaldocs(graphs, args):
     #Get an partially unseen validation set by modifying some node classes
     #Image name stay the same to allow for similarity evaluation
+    #Important parameters:
+    #   - _NUM_EXCHANGE_LABEL: Fraction of labels from the union of bbox & rels prediction labels,
+    #                          which should be resampled randomly from all valid labels
     from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS, VALID_RELLABELS
 
-    _NUM_EXCHANGE_LABEL = 0.1
+    _NUM_EXCHANGE_LABEL = 0.2
     val_numimgs = int(len(graphs)*args.valsize)
     graphs = graphs[:val_numimgs]
     for filename, g in graphs:
@@ -321,14 +341,14 @@ def getvaldocs(graphs, args):
 
     return document_collections
 
-def getlogforlosses(outdir, istrain): 
+def getlogforlosses(outdir, istrain, topk): 
     filename = 'train_losses.csv' if istrain else 'val_losses.csv'
     with open(os.path.join(outdir, filename), 'w') as f:
         writer = csv.writer(f, delimiter='\t')
         if istrain:
-            headers = ['Epoch','Train Loss', 'Train Mean Rank', 'Train Matched Docs', 'Num Docs'] 
+            headers = ['Epoch','Train Mean Score(@%d)'%topk, 'Train Mean Rank(@%d)'%topk, 'R@20' , 'R@50' , 'R@100', 'Num Docs'] 
         else:
-            headers = ['Epoch', 'Val Loss', 'Val Mean Rank', 'Val Matched Docs', 'Num Docs']
+            headers = ['Epoch', 'Val Mean Score(@%d)'%topk, 'Val Mean Rank(@%d)'%topk, 'R@20' , 'R@50' , 'R@100', 'Num Docs']
         writer.writerow(headers)
     return os.path.join(outdir, filename)
 
@@ -348,7 +368,7 @@ def saveconfig(output_dir, args, numtraindocs, doclenstats):
         f.write("Epochsave: %s"%args.epochsave + os.linesep)
 
         f.write("Number of graphs: %d"%numtraindocs + os.linesep)
-        f.write("Statistics of feature number per graph: %s"%doclenstats + os.linesep)
+        f.write("Statistics of feature number per graph:\n%s"%doclenstats + os.linesep)
 
 
     #Write entry to the csv overview file
@@ -366,6 +386,9 @@ def saveconfig(output_dir, args, numtraindocs, doclenstats):
         writer = csv.writer(f, delimiter='\t')
         writer.writerow(row)
     print("Sucessfully wrote hyper-parameter row to configs file.")
+
+def evaluatemodel(docs, stepsinfer=100):
+    print(str(getSimilarityScore(valdocs, model, topk, stepsinfer)))
 
 def main(args):
     """
@@ -396,6 +419,18 @@ def main(args):
     print("Number of training graphs: ",len(graphs))
     print("\nFeature extraction for train dataset ({} graphs) started.\n".format(len(graphs)))
     document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in graphs) #tqdm(graphs))
+
+    if args.min_featuredim != -1:
+        c_extended = 0
+        for k,d in enumerate(document_collections):
+            if len(d.words)<= args.min_featuredim:
+                basefeatures = copy.deepcopy(d.words)
+                add = False
+                while len(d.words)<= args.min_featuredim:
+                    d.words.extend(basefeatures)
+                    add = True
+                c_extended = c_extended + 1
+        print("Extended {} features to minimal length of {}".format(c_extended, args.min_featuredim))
 
     #Stats to show words (features) per document (graph)
     doclengths = [len(d.words) for d in document_collections]

@@ -54,7 +54,7 @@ parser.add_argument('-target',
 args = parser.parse_args()
 
 
-if not os.path.isfile(args.model_cp):
+if not os.path.isfile(args.model_cp) and args.model_cp != 'baseline':
     raise ValueError("Model file path not exists.")
 if args.image_path is not None:
     if not os.path.isfile(args.image_path):
@@ -83,7 +83,10 @@ def main():
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) 
     #cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml") 
-    cfg.MODEL.WEIGHTS = args.model_cp #uncomment for default checkpoint provided by authors
+    if args.model_cp != 'baseline': # no cfg.MODEL.WEIGHTS = default checkpoint provided by authors
+        cfg.MODEL.WEIGHTS = args.model_cp 
+    else:
+        cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")
 
     #cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
     cfg.MODEL.DEVICE= 'cuda' #'cpu'
@@ -109,7 +112,7 @@ def main():
     with torch.no_grad():
         print("START PREDICTION")
         #Providing prediction for single and multiple images
-        batchsize = 10#2#10
+        batchsize = 8#2#10 #10-> OOM error
         #Percent of predictions not used
         notused = []
         #Number of images with no predictions
@@ -179,7 +182,7 @@ def main():
 
 
     #output format of keypoints: (x, y, v), v indicates visibility— v=0: not labeled (in which case x=y=0), v=1: labeled but not visible, and v=2: labeled and visible  
-    with open(os.path.join(output_dir,"maskrcnn_predictions.json"), 'w') as f:
+    with open(os.path.join(output_dir, "maskrcnn_predictions.json"), 'w') as f:
         json.dump(outputs, f, separators=(', ', ': '))
 
     # ------------------------------- SAVE RUN CONFIG -------------------------------

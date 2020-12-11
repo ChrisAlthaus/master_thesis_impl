@@ -45,7 +45,9 @@ def main():
     parser.add_argument("--wl-iterations", type=int, default=2,
     	                help="Number of Weisfeiler-Lehman iterations. Default is 2.") 
     parser.add_argument("--steps-infer", type=int, default=100,
-    	                help="Number of steps for the doc2vec inference function.")                          
+    	                help="Number of steps for the doc2vec inference function.")
+    parser.add_argument("--min-featuredim", type=int, default=136, 
+    	                help="Extend feature by itself when too small. Mean feature length of train dataset may be a good choice (disable: -1).")                        
     args = parser.parse_args()
 
     #Given an input graph in the graph2vec-format search for the topk most similar graphs.
@@ -67,10 +69,12 @@ def main():
     #Extend too small features if necessary with itself (because bad performace of small features)
     for k,d in enumerate(document_collections):
         print("Feature length of document {} = {}".format(k, len(d.words)))
+        if args.min_featuredim == -1:
+            break
+
         basefeatures = copy.deepcopy(d.words)
-        print(type(d.words))
         add = False
-        while len(d.words)<= 200:
+        while len(d.words)<= args.min_featuredim:
             d.words.extend(basefeatures)
             add = True
         if add:

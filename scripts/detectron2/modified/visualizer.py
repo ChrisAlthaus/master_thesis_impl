@@ -605,6 +605,9 @@ class Visualizer:
         num_instances = None
         if boxes is not None:
             boxes = self._convert_boxes(boxes)
+            #modified: convert box format, since coco-eval conflict solved with box format change
+            boxes = BoxMode.convert(boxes, BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)
+            #modified end
             num_instances = len(boxes)
         if masks is not None:
             masks = self._convert_masks(masks)
@@ -840,13 +843,15 @@ class Visualizer:
             self.draw_text('%.2f'%math.degrees(angle), [(l1midx+l2midx)/2, (l1midy+l2midy)/2], color='w', colorbox='green', alpha=0.5, font_size=4)
         return self.output
 
-    def draw_gpddescriptor_jjo(self, kptsjj_os):
-        for kpt,orientation in kptsjj_os:
-            #print("Draw Line: ",[jx, lmidx], [jy, lmidy])
-            endx = kpt[0] + orientation[0] * 10
-            endy = kpt[1] + orientation[1] * 10
+    def draw_gpddescriptor_jjo(self, kptsjj_os, kptdists):
+        for i,(kpt,orientation) in enumerate(kptsjj_os):
+            dx = orientation[0] * kptdists[i]/3
+            dy = orientation[1] * kptdists[i]/3
+            endx = kpt[0] + dx
+            endy = kpt[1] + dy
 
-            self.draw_line([kpt[0], endx, [kpt[1], endy, color='r', linestyle='-', linewidth=1)
+            #self.draw_line([kpt[0], endx], [kpt[1], endy], color='r', linestyle='-', linewidth=1)
+            self.output.ax.arrow(kpt[0], kpt[1], dx, dy, color='r', head_width=6, head_length=6, zorder=10)
         return self.output
     #modified end
 

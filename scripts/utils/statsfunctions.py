@@ -16,8 +16,11 @@ def getwhiskersvalues(values):
     actual_hival = np.max(wiskhi)
     actual_loval = np.min(wisklo)
 
-    Qs = [actual_loval, loval, Q1, median, Q3, hival, actual_hival]
-    Qname = ["Actual LO", "Q1-1.5xIQR", "Q1", "median", "Q3", "Q3+1.5xIQR", 
-             "Actual HI"]
-    logstr = ''.join(["{}:{} ".format(a,b) for a,b in zip(Qname,Qs)])
+    minv = np.min(values)
+    maxv = np.max(values)
+
+    Qs = [minv, actual_loval, loval, Q1, median, Q3, hival, actual_hival, maxv]
+    Qname = ["Min", "Actual LO", "Q1-1.5xIQR", "Q1", "median", "Q3", "Q3+1.5xIQR", 
+             "Actual HI", "Max"]
+    logstr = ''.join(["\t{}:{} \n".format(a,b) for a,b in zip(Qname,Qs)])
     return logstr

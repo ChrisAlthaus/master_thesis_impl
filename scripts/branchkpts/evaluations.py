@@ -44,11 +44,10 @@ cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
        "{} python3.6 -u /home/althausc/master_thesis_impl/coco-analyze/run_analysis.py {} {} {} {} {}")\
                                                 .format(jobname, logfile, gpu_cmd, gtannfile, predfile, outdir, teamname, version)
 print(cmd)
-os.system(cmd)
 
 outrun_dir = latestdir(outdir)
 print("Output Directory: %s\n"%outdir)
-exit(1)
+#exit(1)
 
 # ----------------- EVALUATE POSEFIX PREDICTIONS WITH DETAILED EVALUATION ---------------------
 print("DETAILED POSEFIX EVALUATION:")
@@ -80,8 +79,10 @@ predfile = '/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO
 gtannfile = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
 outdir = '/home/althausc/master_thesis_impl/results/posedetection/maskrcnn' #'/home/althausc/master_thesis_impl/results/posedetection/posefix'
 
-cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/evaluateCOCOresults.py -predictions {} -gt_ann {} -outputdir {}"\
-                                                .format(predfile, gtannfile, outdir)
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/evaluateCOCOresults.py -predictions {} -gt_ann {} -outputdir {}"\
+                                                .format(gpu_cmd, predfile, gtannfile, outdir)
 print(cmd)
 
 outrun_dir = latestdir(outdir)
@@ -95,8 +96,10 @@ gtannfile = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/pe
 imagedir = '/home/althausc/nfs/data/coco_17_medium/val2017_styletransfer'
 outdir = '/home/althausc/master_thesis_impl/results/posedetection/maskrcnn' #'/home/althausc/master_thesis_impl/results/posedetection/posefix'
 
-cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/evaluateCOCOresults.py -model_cp {} -imagedir {} -gt_annotations {} -outputdir {}"\
-                                                .format(model_cp, imagedir, gtannfile, outdir)
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+
+cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/evaluateCOCOresults.py -model_cp {} -imagedir {} -gt_annotations {} -outputdir {}"\
+                                                .format(gpu_cmd, model_cp, imagedir, gtannfile, outdir)
 print(cmd)
 
 outrun_dir = latestdir(outdir)

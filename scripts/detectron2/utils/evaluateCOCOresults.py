@@ -40,6 +40,7 @@ if args.model_cp:
     cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target train {} -visrandom"\
                                                     .format(gpu_cmd, args.model_cp, args.imagedir, topk, score_tresh, '-styletransfered' if styletransfered else ' ')
     print(cmd)
+    exit(1)
     os.system(cmd)
     time.sleep(10)
 
@@ -92,6 +93,9 @@ cocoEval.evaluate()
 cocoEval.accumulate()
 cocoEval.summarize()
 evalstr = evalstr + cocoEval.evalresults + os.linesep
+
+with open(os.path.join(os.path.dirname(predictionfile), '.eval'), 'a') as f:
+    f.write("Short summary: " + os.path.join(outputdir, 'evaluations.txt') + os.linesep)
 
 with open(os.path.join(outputdir, 'evaluations.txt'), 'w') as f:
     f.write(evalstr)

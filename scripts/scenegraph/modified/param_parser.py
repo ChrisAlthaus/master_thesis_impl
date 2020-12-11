@@ -61,15 +61,20 @@ def parameter_parser():
                         default=0.0001,
 	                help="Down sampling rate of features. Default is 0.0001.")
 
-    parser.add_argument("--valsize",
+    parser.add_argument("--traineval",
                         type=int,
                         default=10,
+	                    help="When (which epoch) to evaluate model on train dataset.")
+
+    parser.add_argument("--valsize",
+                        type=float,
+                        default=0.1,
 	                help="Size of validation dataset.")
 
     parser.add_argument("--valeval",
                         type=int,
                         default=5,
-	                help="When to evaluate model on validation dataset.")
+	                help="When (which epoch) to evaluate model on validation dataset.")
 
     parser.add_argument("--evaltopk",
                         type=int,
@@ -80,5 +85,14 @@ def parameter_parser():
                         type=int,
                         default=20,
 	                help="Epoch at which to plot the loss log.")
+
+    parser.add_argument("--steps-inference",
+                        type=int,
+                        default=100)
+
+    parser.add_argument("--min-featuredim",
+                        type=int,
+                        default=100)
+
 
     return parser.parse_args()

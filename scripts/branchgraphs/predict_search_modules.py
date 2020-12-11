@@ -153,7 +153,8 @@ def transform_into_g2vformat(anndir, relasnodes=True):
 def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
-    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-10_10-31-58/g2vmodelc9211d1024e200'
+    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-11_11-11-43/g2vmodelc9211d128e100'
+                #'/home/althausc/master_thesis_impl/graph2vec/models/12-10_10-31-58/g2vmodelc9211d1024e200'
 
     graphdir = os.path.dirname(graphfile)
     labelvecpath = os.path.join(graphdir, 'labelvectors-topk.json')
@@ -164,6 +165,7 @@ def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     logfile = os.path.join(logpath, '4-retrieval.txt')
 
     wliters = 3
+    min_featuredim = 136 #-1 #136
     steps = 100
     print("wliters: ", wliters)
 
@@ -176,7 +178,7 @@ def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
             raise RuntimeError('Scene graph search failed.')            
     else:
         if os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --inputpath {} \
-    				 --inference --topk {} &> {}".format(g2v_model, inputfile, topk, logfile)):
+    				 --inference --min-featuredim {} --topk {} &> {}".format(g2v_model, inputfile, min_featuredim, topk, logfile)):
             raise RuntimeError('Scene graph search failed.')         
 
     out_dir = '/home/althausc/master_thesis_impl/retrieval/out/scenegraphs/'
