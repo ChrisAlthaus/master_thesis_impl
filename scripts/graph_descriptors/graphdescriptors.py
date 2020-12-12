@@ -229,6 +229,8 @@ def getwhiskersvalues(values):
     #Computes the box-plot whiskers values.
     #Computed values: min, low_whiskers, Q1, median, Q3, high_whiskers, max
     #Ordering differs from whiskers plot ordering.
+    if len(values)<=0:
+        return 'Not enough datapoints (empty list) to compute statistics'
     Q1, median, Q3 = np.percentile(np.asarray(values), [25, 50, 75])
     IQR = Q3 - Q1
 

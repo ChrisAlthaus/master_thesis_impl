@@ -40,8 +40,8 @@ def main():
                         help="Include the box & rel labels to reweight the top k results.")
     parser.add_argument("--reweightmode", default='jaccard', help="Mode for similarity calculations between labelvectors.")
     parser.add_argument("--labelvecpath", help="Path to the g2v training set composed of all graphs.")
-    parser.add_argument("--topk", type=int, default=10,
-                        help="Number of returned similar documents.")
+    parser.add_argument("--topk", type=int, default=100,
+                        help="Number of returned similar documents.") 
     parser.add_argument("--wl-iterations", type=int, default=2,
     	                help="Number of Weisfeiler-Lehman iterations. Default is 2.") 
     parser.add_argument("--steps-infer", type=int, default=100,
@@ -61,6 +61,7 @@ def main():
 
     graphs = list(data.items()) #(filename, graph)
                                 #graph = {'edges': ... , 'features': ... , 'box_scores': ... , 'rel_scores': ...}
+    
     # ------------------------------ Feature Extraction of Input Graph(s) ---------------------------------
     print("\nFeature extraction started.\n")
     document_collections = Parallel(n_jobs=1)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in tqdm(graphs))
@@ -80,8 +81,6 @@ def main():
         if add:
             print("Extended feature from length {} to length {}".format(len(basefeatures), len(d.words)))
 
-    print("Feature [0]: ", document_collections[0])
-
     # ------------------------ Get most similar topk graphs with corresponding image ---------------------
     if args.inference:
         with open(args.model,'rb') as f:
@@ -95,8 +94,12 @@ def main():
 
         print("Doc2Vec state: ")
         print(', '.join("%s: %s" % item for item in vars(model).items()))
-        print("feature: ",document_collections)
+        print("Features of documents: ",document_collections)
         print(type(document_collections))
+
+        if len(document_collections)<= 0:
+            saveresults([], output_dir)
+            return
 
         #Subsequent calls to the inference function may infer different representations for the same document. 
         #For a more stable representation, increase the number of steps to assert a stricket convergence.  
@@ -261,7 +264,10 @@ def saveresults(ranking, output_dir):
         outdata[r] = {"filename": fname, "relscore": float(item[1])}
     
     assert all(x == prefixes[0] for x in prefixes)
-    outdata['imagedir'] = prefixes[0]
+    if len(ranking)==0:
+        outdata['imagedir'] = 'not enough annotations'
+    else:
+        outdata['imagedir'] = prefixes[0]
     
     with open(os.path.join(output_dir, 'topkresults.json'), 'w') as f:
         print("Writing to file: ",os.path.join(output_dir, 'topkresults.json'))

@@ -47,7 +47,7 @@ def is_styletranfered_img(imgpath):
 _PRINT_CMDS = True #False
 _PREDICT_POSEFIX = False
 
-def predict(imgpath):
+def predict(imgpath, queue):
     # ----------------- MASK-RCNN PREDICTIONS ---------------------
     print("MASK-RCNN PREDICTION ...")
     maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch/model_final.pth'
@@ -68,7 +68,7 @@ def predict(imgpath):
         raise RuntimeError('Mask RCNN Prediction failed.')
 
     outrun_dir = latestdir(out_dir)
-    print("MASK-RCNN PREDICTION DONE.")
+    print("MASK-RCNN PREDICTION DONE.\n")
 
     # ----------------- POSEFIX PREDICTIONS ---------------------
     if _PREDICT_POSEFIX:
@@ -116,12 +116,19 @@ def predict(imgpath):
     if os.system("{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -vistresh {} {} &> {}"\
                                                                         .format(ubuntu_cmd, inputfile, imagespath, outputdir, tresh, transform_arg, logfile)):
         raise RuntimeError('Visualize prediction failed.')
-    print("VISUALIZE POSEFIX PREDICTIONS DONE.")
+    print("VISUALIZE POSEFIX PREDICTIONS DONE.\n")
 
     annpath = inputfile
-    return annpath
+    imgpath = os.path.join(outputdir, "%s_overlay.jpg"%os.path.splitext(os.path.basename(imgpath))[0])
 
-def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=False):
+
+
+    if queue:
+        queue.put({'keypoints':[annpath, imgpath]})
+        return
+    return annpath, imgpath
+
+def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=False, queue=None):
     # ------------------------ GPD DESCRIPTORS ------------------------
     print("CALCULATE GPD DESCRIPTORS ...")
     #methodgpd = 0 #['JcJLdLLa_reduced', 'JLd_all']
@@ -153,28 +160,31 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=Fals
     outrun_dir = latestdir(out_dir)
 
     gpdfile = filewithname(outrun_dir, 'geometric_pose_descriptor')
+    if queue:
+        queue.put({'gpdfile': gpdfile})
+        return
     return gpdfile
 
-def search(gpdfile, method_search, rankingtype, gpdtype, method_insert, tresh=None):
+def search(gpdfile, method_search, rankingtype, method_insert='RAW', queue=None):
     # -------------------------- ELASTIC SEARCH -----------------------------
-    print("SEARCH FOR GPD IN DATABASE:")
+    print("SEARCH FOR GPD IN DATABASE...")
 
     inputfile = gpdfile
     logfile = os.path.join(logpath, '5-search.txt')
     print("GPD file: ",inputfile)
     _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
-    _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
+    #_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
     _METHODS_INSERT = ['CLUSTER', 'RAW']
     _RANKING_TYPES = ['average', 'max', 'querymultiple']
-    print(gpdtype)
     assert method_search in _METHODS_SEARCH
-    assert gpdtype in _GPD_TYPES
+    #assert gpdtype in _GPD_TYPES
     assert method_insert in _METHODS_INSERT
     assert rankingtype in _RANKING_TYPES
 
     #method_search = 'COSSIM' #['COSSIM', 'DISTSUM'] #testing
 
     #evaltresh_on = True
+    tresh = -1 #deprected
 
     #Querying on the database images
     if method_search == 'COSSIM':
@@ -182,27 +192,33 @@ def search(gpdfile, method_search, rankingtype, gpdtype, method_insert, tresh=No
         #res = input("Do you want to evaluate the treshold on the gpu clustering first? [yes/no]")
         #if res == 'yes':
         #    os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -method_search {} -evaltresh".format(inputfile, method_search))
-        if tresh is None:
-            tresh = float(input("Please specify a similarity treshold for cossim result list: "))
         
         cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -rankingtype {} "+ \
-                                                                                            "-gpd_type {} -method_insert {} -tresh {} &> {}")\
-                                                                                                .format(inputfile, method_search, rankingtype, gpdtype, method_insert, tresh, logfile)
+                                                                                            "-method_insert {} -tresh {} &> {}")\
+                                                                                                .format(inputfile, method_search, rankingtype, method_insert, tresh, logfile)
         if _PRINT_CMDS:
             print(cmd)
         os.system(cmd)
     else:
         cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -rankingtype {} "+ \
-                                                                                            "-gpd_type {} -method_insert {} &> {}")\
-                                                                                                .format(inputfile, method_search, rankingtype, gpdtype, method_insert, logfile)
+                                                                                            "-method_insert {} &> {}")\
+                                                                                                .format(inputfile, method_search, rankingtype, method_insert, logfile)
         if _PRINT_CMDS:
             print(cmd)
         os.system(cmd)
     print('\n\n')
+    print("SEARCH FOR GPD IN DATABASE DONE.")
 
     outrun_dir = latestdir('/home/althausc/master_thesis_impl/retrieval/out/humanposes')
     rankingfile = os.path.join(outrun_dir, 'result-ranking.json')
+    
+    with open(rankingfile, 'r') as f:
+        json_data = json.load(f)
+        print("GPD search returned {} results.".format(len(json_data)))
 
+    if queue:
+        queue.put({'gpdrankingfile': rankingfile})
+        return
     return rankingfile 
 
 
@@ -220,7 +236,7 @@ def getImgs(rankingfile):
     scores = []
     for item in rankedlist:
         #imgs.append(Image.open(item[1]['filepath']))
-        imgs.append(Image.open(os.path.join(imagedir, item[1]['filepath'])))
+        imgs.append(Image.open(os.path.join(imagedir, item[1]['filename'])))
         scores.append(item[1]['relscore'])
     
     return imgs, scores

@@ -170,7 +170,8 @@ def main():
         print("Number of images with no predictions: ", len(nopreds))
         print("Number of images with predictions: ", len(image_paths) - len(nopreds))
 
-        print("Mean number of poses per image: ", len(outputs)/(len(image_paths) - len(nopreds)))
+        if len(image_paths)-len(nopreds)>0:
+            print("Mean number of poses per image: ", len(outputs)/(len(image_paths) - len(nopreds)))
 
     # ------------------------------ SAVE PREDICTIONS ------------------------------
     output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/art_predictions', args.target)
@@ -226,7 +227,7 @@ def main():
             for kpt_list in pred_out["instances"].pred_keypoints.cpu():
                 kpt_list = kpt_list.numpy()
                 visability_means.append(np.sum(kpt_list[:,2])/len(kpt_list))
-            #Debugging end
+            #Debugging end /home/althausc/nfs/data/coco_17_medium/val2017_styletransfer/000000000785_050351.jpg
 
         print("Visabilitiy score stats:")
         #print("Mean: ", visability_means)
@@ -236,8 +237,9 @@ def main():
 
         #Draw filtered predictions ?!
         print("Draw topk + treshold predictions...")
-        for preds in get_combined_predictions(outputs):
-            visualize_and_save(preds['imagepath'], visdir, preds, args, 'topk', topk=_TOPK)
+        for img_path, preds in zip(image_paths, get_combined_predictions(outputs)):
+            print(preds)
+            visualize_and_save(img_path, visdir, preds, args, 'topk', topk=_TOPK)
         print("Draw topk + treshold predictions done.")
 
         print("Visualize done.")
@@ -265,6 +267,7 @@ def main():
 def visualize_and_save(img_path, output_dir, preds, args, mode, topk=None):
     if mode == 'all':
         #Draw unfiltered predictions
+        print(img_path)
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(preds["instances"].to("cpu"), args.vistresh)
         img_name = os.path.basename(img_path)
@@ -275,6 +278,9 @@ def visualize_and_save(img_path, output_dir, preds, args, mode, topk=None):
 
     elif mode == 'topk':
         #Draw topk predictions
+        print(img_path)
+        print(MetadataCatalog)
+        print(Visualizer)
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
     
         obj = Instances(image_size=preds["imagesize"])

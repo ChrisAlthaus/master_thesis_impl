@@ -73,7 +73,7 @@ if _DEBUG:
 
 #Min score used for cossim #deprecated?
 if args.tresh is None:
-    _SIMILARITY_TRESH = 0.95
+    _SIMILARITY_TRESH = 0.95 #not used yet
 else:
     _SIMILARITY_TRESH = args.tresh 
 #Method 1 uses Cosinus-Similarity for comparing features with features in db produced by visual codebook preprocessing, 
@@ -741,7 +741,7 @@ def saveResults(image_ids, rel_scores, output_dir, image_dir):
             imgname = "%s.jpg"%imgid
         else:
             imgname = imgid
-        imagemetadata[rank] = {'filepath': imgname, 'relscore': relscore}
+        imagemetadata[rank] = {'filename': imgname, 'relscore': relscore}
     
     json_file = 'result-ranking'
     with open(os.path.join(output_dir, json_file+'.json'), 'w') as f:

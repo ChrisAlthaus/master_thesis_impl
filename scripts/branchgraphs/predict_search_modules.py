@@ -41,7 +41,7 @@ def filewithname(dir, searchstr):
             return os.path.join(dir,item)
     return None
 
-def predict_scenegraph(imagepath):
+def predict(imagepath, queue):
     #Create a tmp image dir
     img_dir = os.path.join('/home/althausc/master_thesis_impl/scripts/branchgraphs/.images/singledirs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
     if not os.path.exists(img_dir):
@@ -74,7 +74,7 @@ def predict_scenegraph(imagepath):
     treshboxes = 0.1
     treshrels = 0.1
 
-    print("Logfile: ", logfile)
+    #print("Logfile: ", logfile)
     masterport = random.randint(10020, 10100)
 
     os.chdir('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch')
@@ -107,13 +107,12 @@ def predict_scenegraph(imagepath):
     if os.system(cmd):
         raise RuntimeError('Scene graph prediction failed.')
 
-    print("SCENE GRAPH PREDICTION DONE.")
+    print("SCENE GRAPH PREDICTION DONE.\n")
     predicdir = latestdir(out_dir)
-    print('')
-    return predicdir
 
-def visualize_scenegraph(predicdir, filterlabels = True):
     print("VISUALIZE SCENEGRAPH ...")
+    #Whether to show only valid labels or all labels from prediction
+    filterlabels = True #False 
     logfile = os.path.join(logpath, '2-visualize.txt')
 
     cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} {} &> {}"\
@@ -122,35 +121,48 @@ def visualize_scenegraph(predicdir, filterlabels = True):
     if os.system(cmd):
         raise RuntimeError('Scene graph visualization failed.')
 
-    print("VISUALIZE SCENEGRAPH DONE.")
+    print("VISUALIZE SCENEGRAPH DONE.\n")
     outrun_dir = latestdir('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single')
                         #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize'
     outrun_dir = os.path.join(outrun_dir, '.visimages')
     files = [os.path.join(outrun_dir, f) for f in os.listdir(outrun_dir) if os.path.isfile(os.path.join(outrun_dir, f))]
     imgpath, ann = sorted(files, key=lambda x: os.path.splitext(os.path.basename(x))[0])
     #print(sorted(files, key=lambda x: os.path.splitext(os.path.basename(x))[0]))
-    return imgpath, ann
+    annstr = ''
+    with open(ann, 'r') as f:
+        annstr = f.read()
 
-def transform_into_g2vformat(anndir, relasnodes=True):
+    if queue:
+        queue.put({'scenegraph':[predicdir, imgpath, annstr]})
+        return
+    return predicdir, imgpath, annstr
+
+def transform_into_g2vformat(anndir, relasnodes=True, queue=None):
     # ----------------- TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ---------------
     print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ...")
 
     pred_imginfo = os.path.join(anndir, 'custom_data_info.json')
     pred_file = os.path.join(anndir, 'custom_prediction.json')
     logfile = os.path.join(logpath, '3-transform.txt')
-
-    if os.system("python3.6 /home/althausc/master_thesis_impl/scripts/graph_descriptors/graphdescriptors.py \
+    
+    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/graph_descriptors/graphdescriptors.py \
                     -file {} \
                     -imginfo {} \
-                    {} &> {}".format(pred_file, pred_imginfo, '-relsasnodes' if relasnodes else ' ', logfile)):
+                    {} &> {}".format(pred_file, pred_imginfo, '-relsasnodes' if relasnodes else ' ', logfile)
+    print(cmd)
+    if os.system(cmd):
         raise RuntimeError('Transform predictions failed.')
 
     graphfile = os.path.join(anndir, '.descriptors', 'graphdescriptors.json')
     print("TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT DONE.")
     print("Graphfile: ",graphfile)
+
+    if queue:
+        queue.put({'graphfile': graphfile})
+        return
     return graphfile
 
-def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
+def search(graphfile, reweight=False, r_mode='jaccard', queue=None):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
     g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-11_11-11-43/g2vmodelc9211d128e100'
@@ -161,7 +173,7 @@ def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     inputfile = graphfile   #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-25_15-23-04/graphs-topk.json'
                             #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-23_14-52-00/graphs-topk.json' #graphfile
     print('inputfile:', inputfile)
-    topk = k
+    topk = 100
     logfile = os.path.join(logpath, '4-retrieval.txt')
 
     wliters = 3
@@ -177,8 +189,10 @@ def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
                         --labelvecpath {} &> {}".format(g2v_model, inputfile, wliters, steps, topk, r_mode, labelvecpath, logfile)):
             raise RuntimeError('Scene graph search failed.')            
     else:
-        if os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --inputpath {} \
-    				 --inference --min-featuredim {} --topk {} &> {}".format(g2v_model, inputfile, min_featuredim, topk, logfile)):
+        cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --inputpath {} " +\
+    				 "--inference --min-featuredim {} --topk {} &> {}").format(g2v_model, inputfile, min_featuredim, topk, logfile)
+        print(cmd)
+        if os.system(cmd):
             raise RuntimeError('Scene graph search failed.')         
 
     out_dir = '/home/althausc/master_thesis_impl/retrieval/out/scenegraphs/'
@@ -188,7 +202,12 @@ def search_topk(graphfile, k, reweight=False, r_mode='jaccard'):
     filename = os.path.join(outrun_dir, "topkresults.json")
     with open(filename, 'r') as f:
         json_data = json.load(f)
-        print("Results: ", json_data)
+        #print("Results: ", json_data)
+    print("Graph search returned {} results.".format(len(json_data)-1))
+
+    if queue:
+        queue.put({'graphrankingfile': filename})
+        return
 
     return filename
 

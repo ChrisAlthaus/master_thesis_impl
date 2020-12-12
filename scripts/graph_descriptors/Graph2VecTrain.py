@@ -7,11 +7,13 @@ import time
 import csv
 
 inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-09_17-22-49/.descriptors/graphdescriptors.json'
+    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.descriptors/graphdescriptors.json'
+    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-09_17-22-49/.descriptors/graphdescriptors.json'
     #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-08_18-42-37/.descriptors/graphdescriptors.json'
 
-epochs = 100
-traineval_epoch = 10
-valeval_epoch = 10
+epochs = 40
+traineval_epoch = 5
+valeval_epoch = 5
 saveepoch = 20
 valsize = 0.2
 evaltopk = 100
