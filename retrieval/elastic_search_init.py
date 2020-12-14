@@ -171,8 +171,11 @@ def main():
         assert _INDEX in _INDICES_ALL, "Index %s not found."%_INDEX
         es.indices.refresh(index=_INDEX)
         #data format: {'1': [featurevector], ... , 'n': [featurevector]}
-        imgids_final = []
-        
+        if len(data) <= 0:
+            saveResults([], [], output_dir, _SRCIMG_DIR)
+            return
+
+        imgids_final = []   
         results = []
         numElemAll = es.cat.count(_INDEX, params={"format": "json"})[0]['count']
         print("Total documents in the index: %d."%int(numElemAll))
@@ -620,8 +623,8 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
     assert c_ids == len(score_sums)
     print("Number of processed search result gpds: ", c_gpds)
     print("Number of unique imagids: ",len(score_sums))
-    print("Every imgid has in average {} returned descriptors".format(c_gpds/len(score_sums)))
-    print("Raw averagescore statistics:", logscorestats(list(score_sums.values())))
+    print("Every imgid has in average {} returned descriptors".format(c_gpds/len(score_sums))) # if c_gpds>=1 else 0)))
+    print("Raw averagescore statistics:", logscorestats(list(score_sums.values()))) # if c_gpds>=1 else 0) )
 
     bestk = sorted(score_sums.items(), key=lambda x: x[1], reverse=True)[:k]
    

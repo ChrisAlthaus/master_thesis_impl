@@ -28,6 +28,10 @@ import datetime
 import json
 import random
 
+import sys
+sys.path.insert(0, '/home/althausc/master_thesis_impl/scripts/utils') 
+from statsfunctions import getwhiskersvalues
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-model_cp','-mc',required=True, 
@@ -125,6 +129,8 @@ def main():
             inputs = []
             for img_path in image_paths[i:i+batchsize]:
                 img = cv2.imread(img_path)
+                if img is None:
+                    continue
                 inputs.append(img)
 
             #Prediction output:
@@ -171,7 +177,7 @@ def main():
         print("Number of images with predictions: ", len(image_paths) - len(nopreds))
 
         if len(image_paths)-len(nopreds)>0:
-            print("Mean number of poses per image: ", len(outputs)/(len(image_paths) - len(nopreds)))
+            print("Mean number of poses per image: ", len(outputs)/(len(image_paths) - len(nopreds)))   
 
     # ------------------------------ SAVE PREDICTIONS ------------------------------
     output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/art_predictions', args.target)
@@ -188,6 +194,12 @@ def main():
 
     # ------------------------------- SAVE RUN CONFIG -------------------------------
     if args.target == 'train':
+        #Statistics: number of poses per image
+        numposes_per_image = []
+        for itemgroup in get_combined_predictions(outputs):
+            numposes_per_image.append(len(itemgroup['bboxes']))
+        statisticsstr = getwhiskersvalues(numposes_per_image)
+
         #Writing config to file
         with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
             f.write("Src Image Folder: %s"%(args.image_folder if args.image_folder is not None else args.image_path) + os.linesep)
@@ -195,6 +207,11 @@ def main():
             f.write("Topk: %d"%args.topk + os.linesep)
             f.write("Score Treshold: %f"%args.score_tresh + os.linesep)
             f.write("Number of images: %d"%len(image_paths) + os.linesep)
+            f.write("Percentage of not used predictions (averaged): %f"%np.mean(notused) + os.linesep)
+            f.write("Number of images with no predictions: %d"%len(nopreds) + os.linesep)
+            f.write("Number of images with predictions: %d"%(len(image_paths) - len(nopreds)) + os.linesep)
+            f.write("Statistics of poses/image: \n%s"%statisticsstr + os.linesep)
+
     elif args.target == 'eval':
         #Writing config to file
         with open(os.path.join(output_dir, 'config.txt'), 'a') as f:

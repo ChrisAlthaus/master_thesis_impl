@@ -96,8 +96,8 @@ def transform_into_gpd_and_g2vfeature(kpt_annpath, g_annpath, methodgpd='JcJLdLL
 
 def search(gpdfile, graphfile, gpdmsearch='L2', gpdrankingtype='max'):
     method_insert='RAW'
-    rw = False #True
-    rm = 'jaccard' #'euclid' 
+    rw = False #True #not used
+    rm = 'jaccard' #'euclid' #not used
 
     q = Queue()
     processes = [ Process(target = kptm.search, args=(gpdfile, gpdmsearch, gpdrankingtype, method_insert, q)),
@@ -120,7 +120,7 @@ def search(gpdfile, graphfile, gpdmsearch='L2', gpdrankingtype='max'):
     return rets_dict['gpdrankingfile'], rets_dict['graphrankingfile']
 
 
-def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, weight_branches = 0.5):
+def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, rankingmode='everynthweighted', weight_branches = 0.5):
     # Format of input files: 
     # {
     #"imagedir": "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer",
@@ -148,63 +148,77 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, weight_branche
 
     #assert kpt_imagedir == graph_imagedir, 'Keypoint imagedir {} not equal to scene graph imagedir {}.'\
     #                                        .format(kpt_imagedir, graph_imagedir)
-    #imagedir = kpt_imagedir
-    imagedir = [kpt_imagedir, graph_imagedir]
 
     kpt_data = sorted(list(kpt_data.items()), key=lambda x: x[0])
     graph_data = sorted(list(graph_data.items()), key=lambda x: x[0])
 
-    mergedtopk = []
-
+    mergedtopk = {'imagedir': [kpt_imagedir, graph_imagedir]}
     c_graphs = 0
     c_kpts = 0
 
-    if weight_branches<=0.5:
-        everynthgraph = int(1/weight_branches)
-        for k in range(0, topk):
-            if (k+1)%everynthgraph == 0 and c_graphs<len(graph_data):
-                mergedtopk.append(graph_data[c_graphs])
-                c_graphs= c_graphs + 1
-            else:
-                if c_kpts<len(kpt_data):
-                    mergedtopk.append(kpt_data[c_kpts])
-                    c_kpts = c_kpts + 1
-    else:
-        everynthkpts = int(1/(1-weight_branches))
-        for k in range(0, topk):
-            if (k+1)%everynthkpts == 0 and c_kpts<len(kpt_data):
-                mergedtopk.append(kpt_data[c_kpts])
-                c_kpts = c_kpts + 1
-            else:
-                if c_graphs<len(graph_data):
-                    mergedtopk.append(graph_data[c_graphs])
+    kpos = 0
+    #First get all intersections
+    for pos1,item1 in list(kpt_data.items()):
+        for pos2,item2 in list(graph_data.items()):
+            if os.path.basename(item1['filename']) == os.path.basename(item2['filename']):
+                mergedtopk[str(kpos)] = {'filename': item1['filename'], 'krelscore': item1['relscore'], 'grelscore': item2['relscore'], 'posmerged': '{}{}'.format(pos1,pos2)}
+                del graph_data[pos2]
+                del kpt_data[pos1]
+                kpos = kpos + 1
+
+    #Add label for seeing source of ranked items
+    for _,item in graph_data:
+        item.update({'type': 'graph'})
+    for _,item in kpt_data:
+        item.update({'type': 'kpts'})
+
+    #Modes for the remaining topk image lists
+    #   1. 'everynthweighted': take every nth image from either keypoints or graphs,
+    #                          dependent on the weighting parameter
+    #   2. 'highestscore': merge result & process in descreasing score order
+    if rankingmode == 'everynthweighted':
+        if weight_branches<=0.5:
+            everynthgraph = int(1/weight_branches)
+            for k in range(0, topk):
+                if (k+1)%everynthgraph == 0 and c_graphs<len(graph_data):
+                    mergedtopk[str(k+kpos)] = graph_data[c_graphs][1]
                     c_graphs= c_graphs + 1
-
-    return imagedir,mergedtopk
-
-def getImgs(imagedir, topkresults):
-    #topkresults format [(filepath1, score1), ... ]
-
-    #print("Reading from file: ",topkresults)
-    #with open (topkresults, "r") as f:
-    #    topkdata = json.load(f)
-    topkdata = topkresults
-
-    imgs = []
-    scores = []
-    for item in topkdata:
-        if os.path.isfile(os.path.join(imagedir[0], item[1]['filename'])):
-            imgs.append(Image.open(os.path.join(imagedir[0], item[1]['filename'])))
+                else:
+                    if c_kpts<len(kpt_data):
+                        mergedtopk[str(k+kpos)] = kpt_data[c_kpts][1]
+                        c_kpts = c_kpts + 1
         else:
-            imgs.append(Image.open(os.path.join(imagedir[1], item[1]['filename'])))
-        scores.append(item[1]['relscore'])
-    
-    return imgs, scores
+            everynthkpts = int(1/(1-weight_branches))
+            for k in range(0, topk):
+                if (k+1)%everynthkpts == 0 and c_kpts<len(kpt_data):
+                    mergedtopk[str(k+kpos)] = kpt_data[c_kpts][1]
+                    c_kpts = c_kpts + 1
+                else:
+                    if c_graphs<len(graph_data):
+                        mergedtopk[str(k+kpos)] = graph_data[c_graphs][1]
+                        c_graphs= c_graphs + 1
 
-"""
-def getImgs(topkresults, drawgraphs = False):
+    elif rankingmode == 'highestscore':
+        merged = kpt_data + graph_data
+        merged.sort(key=lambda x: x[1]['relscore'], reverse=True)
+
+        for _, item in merged:
+             mergedtopk[str(kpos)] = item
+             kpos = kpos + 1
+
+    #Save merged results list to file
+    savedir = '/home/althausc/master_thesis_impl/retrieval/out/bothtogether'
+    outputdir = os.path.join(savedir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    os.makedirs(outputdir)
+
+    topkfile = os.path.join(outputdir, 'topkmerged.json')
+    with open(topkfile, 'w') as f:
+        json.dump(mergedtopk, f, indent=4, separators=(',', ': '))
+
+    return topkfile
+
+def getImgs(topkresults, drawgraphs=None, drawkpts=None):
     #topkresults format [(filepath1, score1), ... ]
-
     print("Reading from file: ",topkresults)
     with open (topkresults, "r") as f:
         json_data = json.load(f)
@@ -212,23 +226,33 @@ def getImgs(topkresults, drawgraphs = False):
     imagedir = json_data['imagedir']
     del json_data['imagedir']
 
-    if drawgraphs:
-        graphvisdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-08_18-42-37/.visimages'
-        imagedir = graphvisdir
+    topkdata = sorted(json_data.items(), key= lambda x: int(x[0])) 
 
-    rankedlist = sorted(json_data.items(), key= lambda x: int(x[0]))
+    drawkptsdir = ''
+    drawgraphdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.visimages'
+
     imgs = []
     scores = []
-    for item in rankedlist:
-        if drawgraphs:
-            basename, suffix = os.path.splitext(item[1]['filename'])
-            gfilename = '{}_1scenegraph{}'.format(basename, suffix) 
-            imgs.append(Image.open(os.path.join(imagedir,gfilename)))
+    for item in topkdata:
+        print(item)
+        if os.path.isfile(os.path.join(imagedir[0], item[1]['filename'])):
+            if drawkpts:
+                basename, suffix = os.path.splitext(item[1]['filename'])
+                kfilename = '{}_overlay{}'.format(basename, suffix) 
+                imgs.append(Image.open(os.path.join(drawkptsdir, kfilename)))
+            else:
+                imgs.append(Image.open(os.path.join(imagedir[0], item[1]['filename'])))
         else:
-            imgs.append(Image.open(os.path.join(imagedir,item[1]['filename'])))
+            if drawgraphs:
+                basename, suffix = os.path.splitext(item[1]['filename'])
+                gfilename = '{}_1scenegraph{}'.format(basename, suffix) 
+                imgs.append(Image.open(os.path.join(drawgraphdir, gfilename)))
+            else:
+                imgs.append(Image.open(os.path.join(imagedir[1], item[1]['filename'])))
         scores.append(item[1]['relscore'])
-    
-    return imgs, scores"""
+
+    return imgs, scores
+
 
 def drawborder(imgpath):
     im = cv2.imread(imgpath)

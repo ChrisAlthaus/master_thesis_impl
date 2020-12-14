@@ -165,7 +165,8 @@ def transform_into_g2vformat(anndir, relasnodes=True, queue=None):
 def search(graphfile, reweight=False, r_mode='jaccard', queue=None):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
-    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-11_11-11-43/g2vmodelc9211d128e100'
+    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-12_10-34-58-kaggle-from-here-on/g2vmodelc65839d128e40'
+                #'/home/althausc/master_thesis_impl/graph2vec/models/12-11_11-11-43/g2vmodelc9211d128e100'
                 #'/home/althausc/master_thesis_impl/graph2vec/models/12-10_10-31-58/g2vmodelc9211d1024e200'
 
     graphdir = os.path.dirname(graphfile)
@@ -177,7 +178,7 @@ def search(graphfile, reweight=False, r_mode='jaccard', queue=None):
     logfile = os.path.join(logpath, '4-retrieval.txt')
 
     wliters = 3
-    min_featuredim = 136 #-1 #136
+    min_featuredim = 132 #136 #-1 #136
     steps = 100
     print("wliters: ", wliters)
 

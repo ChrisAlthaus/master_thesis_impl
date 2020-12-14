@@ -29,16 +29,20 @@ class COCOTrainer(DefaultTrainer):
         if cfg.INPUT.RESIZE_SHORTEST_EDGE:
             augmentations.append(T.ResizeShortestEdge(cfg.INPUT.MIN_SIZE_TRAIN, cfg.INPUT.MAX_SIZE_TRAIN, cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING))
 
-        if cfg.DATA_FLIP_ENABLED:
-            augmentations.append(T.RandomFlip(_PROB_LOW, horizontal=True))
-        if cfg.ROTATION_ENABLED:
-            augmentations.append(T.RandomApply(T.RandomRotation([-15,15]), prob=_PROB_LOW))
-        if cfg.COLOR_AUGM_ENABLED:
-            augmentations.append(T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25), prob=_PROB_HIGH))
-            augmentations.append(T.RandomApply(transform=T.RandomContrast(intensity_min=0.76, intensity_max=1.25), prob=_PROB_HIGH)) 
-            augmentations.append(T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25), prob=_PROB_HIGH))
-        if cfg.INPUT.CROP.ENABLED:
-            augmentations.append(T.RandomApply(T.RandomCrop("relative_range", [0.9, 0.9]), prob=_PROB_HIGH))
+        if cfg.DATA_AUGMENTATION:
+            if cfg.DATA_FLIP_ENABLED:
+                augmentations.append(T.RandomFlip(_PROB_LOW, horizontal=True))
+            if cfg.ROTATION_ENABLED:
+                augmentations.append(T.RandomApply(T.RandomRotation([-15,15]), prob=_PROB_LOW))
+            if cfg.COLOR_AUGM_ENABLED:
+                augmentations.append(T.RandomApply(transform=T.RandomBrightness(intensity_min=0.75, intensity_max=1.25), prob=_PROB_HIGH))
+                augmentations.append(T.RandomApply(transform=T.RandomContrast(intensity_min=0.76, intensity_max=1.25), prob=_PROB_HIGH)) 
+                augmentations.append(T.RandomApply(transform=T.RandomSaturation(intensity_min=0.75, intensity_max=1.25), prob=_PROB_HIGH))
+            if cfg.INPUT.CROP.ENABLED:
+                augmentations.append(T.RandomApply(T.RandomCrop("relative_range", [0.9, 0.9]), prob=_PROB_HIGH))
+                #augmentations.append(T.RandomApply(T.RandomCrop("relative_range", [0.9, 0.9]), prob=_PROB_LOW))
+                #augmentations.append(T.RandomApply(T.RandomCrop("relative_range", [0.5, 0.2]), prob=_PROB_LOW))
+
 
         #return build_detection_train_loader(cfg, mapper=mapper) #test if different result, maybe error in DatasetMapper?!
         return build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations= augmentations))

@@ -15,7 +15,7 @@ from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS
 #Save image overlayed by graphs (labeled bboxes and relationship). Additional save bbox and relationship annotations
 #as easy-readable text to file.
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-predictdir')
     parser.add_argument('-filterlabels', action='store_true', 
@@ -24,8 +24,6 @@ if __name__ == "__main__":
     parser.add_argument('-boxestopk', default=-1, type=int, help='Only draw best scored first k boxes')
     parser.add_argument('-relstopk', default=-1, type=int, help='Only draw best scored first k relationships')
     parser.add_argument('-visrandom', action='store_true', help='Only draw random subset of predictions.')
-
-
     args = parser.parse_args()
 
     # load the following to files from DETECTED_SGG_DIR
@@ -33,6 +31,51 @@ if __name__ == "__main__":
     info_dir = os.path.join(args.predictdir, 'custom_data_info.json')
     custom_prediction = json.load(open(pred_dir))
     custom_data_info = json.load(open(info_dir))
+
+
+    #output_dir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    output_dir = os.path.join(args.predictdir, '.visimages')
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    else:
+        print("Warning: Output directory %s already exists."%output_dir)
+
+    box_topk = args.boxestopk # select top k bounding boxes
+    rel_topk = args.relstopk # select top k relationships
+    ind_to_classes = custom_data_info['ind_to_classes']
+    ind_to_predicates = custom_data_info['ind_to_predicates']
+
+    c = 0
+    if args.visrandom:
+        ids = random.sample(list(range(len(custom_data_info['idx_to_files']))), 100)
+    else:
+        ids = list(range(len(custom_data_info['idx_to_files'])))
+
+    for image_idx in ids:
+        image_path = custom_data_info['idx_to_files'][image_idx]
+        bbox = custom_prediction[str(image_idx)]['bbox']
+        bbox_labels = custom_prediction[str(image_idx)]['bbox_labels']
+        bbox_scores = custom_prediction[str(image_idx)]['bbox_scores']
+        all_rel_labels = custom_prediction[str(image_idx)]['rel_labels']
+        all_rel_scores = custom_prediction[str(image_idx)]['rel_scores']
+        all_rel_pairs = custom_prediction[str(image_idx)]['rel_pairs']
+    
+        img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
+                        box_topk, rel_topk, box_scores=bbox_scores, rel_scores=all_rel_scores, filterlabels=args.filterlabels)
+        imgname =  "%s_1scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.save(os.path.join(output_dir, imgname))
+
+        annname = "%s_2labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
+        with open(os.path.join(output_dir, annname), "w") as text_file:
+            text_file.write(ann_str)
+
+        c = c + 1
+        if c%100 == 0:
+            print("Processed {} predictions.".format(c))
+
+    print("Saved visualizations to: ", output_dir)
 
 
 def get_filterinds():
@@ -224,44 +267,4 @@ def get_size(image_size):
 
 
 if __name__ == "__main__":
-    #output_dir = os.path.join('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/visualize', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
-    output_dir = os.path.join(args.predictdir, '.visimages')
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    else:
-        print("Warning: Output directory %s already exists."%output_dir)
-
-    box_topk = args.boxestopk # select top k bounding boxes
-    rel_topk = args.relstopk # select top k relationships
-    ind_to_classes = custom_data_info['ind_to_classes']
-    ind_to_predicates = custom_data_info['ind_to_predicates']
-
-    c = 0
-    if args.visrandom:
-        ids = random.sample(list(range(len(custom_data_info['idx_to_files']))), 100)
-    else:
-        ids = list(range(len(custom_data_info['idx_to_files'])))
-
-    for image_idx in ids:
-        image_path = custom_data_info['idx_to_files'][image_idx]
-        bbox = custom_prediction[str(image_idx)]['bbox']
-        bbox_labels = custom_prediction[str(image_idx)]['bbox_labels']
-        bbox_scores = custom_prediction[str(image_idx)]['bbox_scores']
-        all_rel_labels = custom_prediction[str(image_idx)]['rel_labels']
-        all_rel_scores = custom_prediction[str(image_idx)]['rel_scores']
-        all_rel_pairs = custom_prediction[str(image_idx)]['rel_pairs']
-    
-        img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
-                        box_topk, rel_topk, box_scores=bbox_scores, rel_scores=all_rel_scores, filterlabels=args.filterlabels)
-        imgname =  "%s_1scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
-        img.save(os.path.join(output_dir, imgname))
-
-        annname = "%s_2labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
-        with open(os.path.join(output_dir, annname), "w") as text_file:
-            text_file.write(ann_str)
-
-        c = c + 1
-        if c%100 == 0:
-            print("Processed {} predictions.".format(c))
-
-    print("Saved visualizations to: ", output_dir)
+    main()

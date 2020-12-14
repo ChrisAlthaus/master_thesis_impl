@@ -6,9 +6,9 @@ import os
 import time
 import csv
 
-inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-09_17-22-49/.descriptors/graphdescriptors.json'
-    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.descriptors/graphdescriptors.json'
-    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-09_17-22-49/.descriptors/graphdescriptors.json'
+inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.descriptors/graphdescriptors.json'
+    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.descriptors/graphdescriptors.json' #/nfs/data/iart/kaggle/img
+    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-09_17-22-49/.descriptors/graphdescriptors.json' #/home/althausc/nfs/data/coco_17/test_original10k
     #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-08_18-42-37/.descriptors/graphdescriptors.json'
 
 epochs = 40
@@ -18,7 +18,7 @@ saveepoch = 20
 valsize = 0.2
 evaltopk = 100
 
-dimensionsize = 128 #64 #128 #2048 #1024 #32 #128
+dimensionsize = 512 #64 #128 #2048 #1024 #32 #128
 wliters = 3
 downsampling = 0.0001 #default: 0.0001
 lr = 0.025 #0.025 #default: 0.025

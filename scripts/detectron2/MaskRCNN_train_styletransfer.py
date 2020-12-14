@@ -133,6 +133,7 @@ def main():
     #cfg.INPUT.CROP.SIZE = [0.9, 0.9]
     cfg.INPUT.CROP.ENABLED = c_params['dataaugm'] #False #True
     
+    cfg.DATA_AUGMENTATION = c_params['dataaugm']
     cfg.DATA_FLIP_ENABLED = c_params['dataaugm'] #False #True
     cfg.ROTATION_ENABLED = c_params['dataaugm'] #False #True
     cfg.COLOR_AUGM_ENABLED = c_params['dataaugm'] #False #True

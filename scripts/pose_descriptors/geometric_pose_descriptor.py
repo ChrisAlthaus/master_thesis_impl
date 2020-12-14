@@ -151,7 +151,7 @@ def main():
         f.write("Number input predictions: %d"%len(json_data) + os.linesep)
         f.write("Number calculated descriptors: %d"%c + os.linesep)
         f.write("Number of input prediction filtered out: %d"%fc + os.linesep)
-        f.write("Dimension of descriptor: %d"%len(json_out[0]['gpd']) + os.linesep) 
+        f.write("Dimension of descriptor: %d"%(len(json_out[0]['gpd']) if len(json_out)>=1 else 0) + os.linesep) 
         if args.flip:
             f.write("Flip: %s"%args.flip + os.linesep)
         f.write(_ADDNOTES)

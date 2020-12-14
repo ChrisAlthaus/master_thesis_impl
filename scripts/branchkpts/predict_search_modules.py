@@ -119,9 +119,9 @@ def predict(imgpath, queue):
     print("VISUALIZE POSEFIX PREDICTIONS DONE.\n")
 
     annpath = inputfile
-    imgpath = os.path.join(outputdir, "%s_overlay.jpg"%os.path.splitext(os.path.basename(imgpath))[0])
-
-
+    #prevent against no keypoint predictions, so no overlayed image
+    if os.path.isfile(os.path.join(outputdir, "%s_overlay.jpg"%os.path.splitext(os.path.basename(imgpath))[0])):
+        imgpath = os.path.join(outputdir, "%s_overlay.jpg"%os.path.splitext(os.path.basename(imgpath))[0])
 
     if queue:
         queue.put({'keypoints':[annpath, imgpath]})

@@ -193,10 +193,15 @@ outrun_dir = latestdir(out_dir)
 # ------------------------------ VISUALIZE PREDICTIONS -------------------------------
 print("VISUALIZE SCENEGRAPH ...")
 
-predictdir = outrun_dir #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-07_14-09-00' #e.g.
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh'
+jobname = 'graphvisualization'
 
-cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} -visrandom"\
-                            .format(predictdir)
+predictdir = outrun_dir #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-07_14-09-00' #e.g.
+logfile = o.path.join(predictdir, 'vislog.txt')
+
+cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
+             "{} python3.6 -u /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} -visrandom")\
+                            .format(jobname, logfile, gpu_cmd, predictdir)
 if _PRINT_CMDS:
     print(cmd)
 if _EXEC_CMDS:

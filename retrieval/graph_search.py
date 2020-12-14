@@ -271,7 +271,7 @@ def saveresults(ranking, output_dir):
     
     with open(os.path.join(output_dir, 'topkresults.json'), 'w') as f:
         print("Writing to file: ",os.path.join(output_dir, 'topkresults.json'))
-        json.dump(outdata, f)
+        json.dump(outdata, f, indent=4, separators=(',', ': '))
 
 if __name__ == "__main__":
     main()  
