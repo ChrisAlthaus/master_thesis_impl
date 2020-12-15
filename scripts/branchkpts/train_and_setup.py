@@ -75,7 +75,7 @@ outrun_dir = latestdir(out_dir)
 print("Output Directory: %s\n"%out_dir)
 
 
-# ---------- PREPROCESS PREDICTIONS ------------
+# ---------- PREPROCESS PREDICTIONS (OPTIONAL) ------------
 print("PREPROCESS MASK-RCNN PREDICTIONS FOR POSEFIX TRAINING:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh'
 predictionpath = os.path.join(outrun_dir, 'maskrcnn_predictions.json')
@@ -97,7 +97,7 @@ outrun_dir = latestdir(out_dir)
 print("Output Directory: %s\n"%out_dir)
 
 
-# ----------------- POSEFIX TRAIN ---------------------
+# ----------------- POSEFIX TRAIN (OPTIONAL) ---------------------
 #Also see: master_thesis_impl/scripts/posefix/GridSearchTrain.py
 print("POSEFIX TRAINING:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
@@ -120,7 +120,7 @@ outrun_dir = latestdir(out_dir)
 print("Output Directory: %s\n"%out_dir)
 
 
-# ----------------- POSEFIX PREDICTIONS ---------------------
+# ----------------- POSEFIX PREDICTIONS (OPTIONAL) ---------------------
 print("POSEFIX PREDICTIONS:")
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D3.sh'
 inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
@@ -139,6 +139,24 @@ if _EXEC_CMDS:
 outrun_dir = latestdir(out_dir)
 out_dir = os.path.join('/home/althausc/master_thesis_impl/PoseFix_RELEASE/output/result/COCO/', target)
 print("Output Directory: %s\n"%out_dir)
+
+# --------------------- VISUALIZE PREDICTIONS (OPTIONAL) ------------------------
+print("VISUALIZE PREDICTIONS: (Optional)")
+inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
+imagespath = 'imgpath-here'
+outputdir = os.path.join(os.path.dirname(inputfile), '.images')
+
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
+jobname ='visimages'
+logfile = os.path.join(os.path.dirname(inputfile), '.vislog.txt')
+
+cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
+        "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -transformid")\
+                                                                    .format(jobname, logfile, gpu_cmd, inputfile, imagespath, outputdir)
+if _PRINT_CMDS:
+    print(cmd)
+if _EXEC_CMDS:
+    os.system(cmd)
 
 
 # ------------------------ GPD DESCRIPTORS ------------------------
@@ -170,7 +188,7 @@ outrun_dir = latestdir(out_dir)
 print("Output Directory: %s\n"%out_dir)
 
 
-# ------------------------- CLUSTERING ------------------------------
+# ------------------------- CLUSTERING (OPTIONAL) ------------------------------
 print("CLUSTERING (optional):")
 clust_on = True
 val_on = True
@@ -213,13 +231,19 @@ print("Output Directory: %s\n"%out_dir)
 
 # -------------------------- ELASTIC Database INSERT -----------------------------
 print("ELASTIC DATABASE INSERT:")
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh'
+jobname = 'dbinsert'
+
+logfile = os.path.join(out_dir, '.insertlog.txt')
+
 if clust_on:
     inputfile = filewithname(outrun_dir, 'codebook_mapping.txt')
     print("Clustering file: ",inputfile)
 
     method_insert = 'CLUSTER' #['CLUSTER', 'RAW'] 
-    cmd = "python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
-                                                                                            .format(inputfile, method_insert, img_dir, methodgpd)
+    cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
+            "{} python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
+                                                                                            .format(jobname, logfile, gpu_cmd, inputfile, method_insert, img_dir, methodgpd)
     if _PRINT_CMDS:
         print(cmd)
     if _EXEC_CMDS:
@@ -229,8 +253,9 @@ else:
     print("GPD file: ",inputfile)
 
     method_insert = 'RAW' #['CLUSTER', 'RAW'] 
-    cmd = "python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
-                                                                                            .format(inputfile, method_insert, img_dir, methodgpd)
+     cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
+            "{} python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
+                                                                                            .format(jobname, logfile, gpu_cmd, inputfile, method_insert, img_dir, methodgpd)
     if _PRINT_CMDS:
         print(cmd)
     if _EXEC_CMDS:

@@ -129,6 +129,9 @@ def main():
     print("Original number of json predictions: ",len(json_data))
     print("Number of calculated descriptors: ",c)
 
+    numimages = len(set([item['image_id'] for item in json_data]))
+    numimagesres = len(set([item['image_id'] for item in json_out]))
+
     #Apply Principal Component Analysis either from scratch or trained model for 
     #dimension reduction of computed GPDs.
     if args.pca is not None:
@@ -147,10 +150,14 @@ def main():
         f.write("Keypoint threshold: %d"%_KPTS_THRESHOLD + os.linesep)
         f.write("Ref(s): %s"%str(_REFs) + os.linesep)
         f.write("Normalization: %s"%str(_NORM) + os.linesep)
-        f.write("PCA dimension: %s"%(str(args.pca) if args.pca is not None else 'not used')+ os.linesep)
+        f.write("PCA dimension: %s"%(str(args.pca) if args.pca is not None else 'not used')+ os.linesep + os.linesep)
+        
         f.write("Number input predictions: %d"%len(json_data) + os.linesep)
         f.write("Number calculated descriptors: %d"%c + os.linesep)
         f.write("Number of input prediction filtered out: %d"%fc + os.linesep)
+        f.write("Number of unique input images (w.r. to predictions): %d"%numimages + os.linesep)
+        f.write("Number of unique output images (w.r. to filtered predictions): %d"%numimagesres + os.linesep + os.linesep)
+
         f.write("Dimension of descriptor: %d"%(len(json_out[0]['gpd']) if len(json_out)>=1 else 0) + os.linesep) 
         if args.flip:
             f.write("Flip: %s"%args.flip + os.linesep)

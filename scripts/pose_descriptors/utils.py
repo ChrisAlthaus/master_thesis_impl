@@ -15,12 +15,13 @@ def normalizevec(featurevector, rangemin=0, rangemax=1, mask=False):
             else:
                 maskvalid.append(True)
         subvec = [n for n,l in zip(featurevector, maskvalid) if l is True]
-        if max(subvec) != min(subvec):
-            normsubvec = [ (x-min(subvec)) * (rangemax - rangemin)/(max(subvec) - min(subvec)) + rangemin for x in subvec]
-        else:
-            #relation description not possible when same values or just on entry
-            print("Info: relation description not possible")
-            normsubvec = [-1 for _ in subvec]
+        if len(subvec)>0:
+            if max(subvec) != min(subvec):
+                normsubvec = [ (x-min(subvec)) * (rangemax - rangemin)/(max(subvec) - min(subvec)) + rangemin for x in subvec]
+            else:
+                #relation description not possible when same values or just on entry
+                print("Info: relation description not possible")
+                normsubvec = [-1 for _ in subvec]
 
         normvec = []
         c_valid = 0

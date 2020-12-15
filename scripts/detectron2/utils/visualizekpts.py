@@ -16,6 +16,7 @@ import itertools
 #Treshold for score possible.
 #Image folder corresponding to input file annotations needed.
 
+#sbatch -w devbox4 -J visimages -o /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.vislog.txt /home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/maskrcnn_predictions.json -imagespath /nfs/data/iart/kaggle/img/ -outputdir /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-file', required=True,
@@ -45,7 +46,6 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
                                               keypoint_connection_rules=KEYPOINT_CONNECTION_RULES)
 
     for pred_group in grouped_by_imageid:
-        print(pred_group)
         imgid = str(list(pred_group.keys())[0])
         preds = list(pred_group.values())[0]
 
@@ -58,8 +58,9 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
             imgname_out = "{}_{}.jpg".format(imgid, suffix)
             img_path = os.path.join(imagedir, imgname)
 
-        print(img_path)
-        img = cv2.imread(img_path, 0)
+        img = cv2.imread(img_path)
+        if img is None:
+            continue
         height, width = img.shape[:2]
 
         instances = Instances((height, width))
@@ -90,7 +91,7 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
         instances.pred_keypoints = torch.Tensor(keypoints)
         
 
-        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(instances, vistresh)
 
         cv2.imwrite(os.path.join(outputdir, imgname_out),out.get_image()[:, :, ::-1])

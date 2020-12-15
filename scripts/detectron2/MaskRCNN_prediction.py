@@ -44,8 +44,10 @@ parser.add_argument('-topk', type=int, default=20,
                     help='Filter the predictions and take best k poses.')
 parser.add_argument('-score_tresh', type=float, default=0.5,
                     help='Filter detected poses based on a score treshold.')
-parser.add_argument('-vis','-visualize', action='store_true',
-                    help='Specify to visualize predictions on images & save.')
+parser.add_argument('-visunfiltered', action='store_true',
+                    help='Specify to visualize unfiltered/all predictions on images & save.')
+parser.add_argument('-visfiltered', action='store_true',
+                    help='Specify to visualize filtered/reduced predictions on images & save.')
 parser.add_argument('-visrandom','-validate', action='store_true',
                     help='Specify to randomy visualize k predictions.')
 parser.add_argument('-vistresh', type=float, default=0.0,   
@@ -231,35 +233,37 @@ def main():
     visdir = os.path.join(output_dir, '.visimages')
     if not os.path.exists(visdir):
         os.makedirs(visdir)
+    visability_means = []
 
-    if args.vis:
+    if args.visunfiltered:
+        #Draw all predictions of the model
         print("Visualize the predictions onto the original image(s) ...")
-        visability_means = []
+        
         print("Draw all/unfiltered predictions...")
         #Draw unfiltered predictions
         for img_path, pred_out in zip(image_paths, outputs_raw):
             visualize_and_save(img_path, visdir, pred_out, args, 'all')
 
-            #Debugging
+            #Statistics
             for kpt_list in pred_out["instances"].pred_keypoints.cpu():
                 kpt_list = kpt_list.numpy()
                 visability_means.append(np.sum(kpt_list[:,2])/len(kpt_list))
-            #Debugging end /home/althausc/nfs/data/coco_17_medium/val2017_styletransfer/000000000785_050351.jpg
-
-        print("Visabilitiy score stats:")
-        #print("Mean: ", visability_means)
-        Q1, median, Q3 = np.percentile(visability_means, [25, 50, 75])
-        print("Min: {} , Q1: {}, Median: {}, Q3: {}, Max: {}".format(min(visability_means), Q1, median, Q3 ,max(visability_means)))
         print("Draw all/unfiltered predictions done.")
 
-        #Draw filtered predictions ?!
+    if args.visfiltered:
+         #Draw only filtered predictions
         print("Draw topk + treshold predictions...")
         for img_path, preds in zip(image_paths, get_combined_predictions(outputs)):
             print(preds)
-            visualize_and_save(img_path, visdir, preds, args, 'topk', topk=_TOPK)
+            visualize_and_save(img_path, visdir, preds, args, 'treshtopk')
         print("Draw topk + treshold predictions done.")
 
-        print("Visualize done.")
+        #Statistics
+        for pred in outputs:
+            kpt_list = pred['keypoints']
+            print(kpt_list)
+            print(type(kpt_list))
+            visability_means.append(np.sum(kpt_list[2::3])/len(kpt_list))
 
     if args.visrandom:
         print("Random visualization for validation purposes ...")
@@ -274,18 +278,39 @@ def main():
             #Draw topk predictions
             if any(x['imagepath'] == img_path for x in preds_comb):
                 pred_searched = next(item for item in preds_comb if item["imagepath"] == img_path)
-                visualize_and_save(img_path, visdir, pred_searched, args, 'topk', topk=_TOPK)
+                visualize_and_save(img_path, visdir, pred_searched, args, 'treshtopk')
 
+            #Statistics
+            for kpt_list in pred_out["instances"].pred_keypoints.cpu():
+                kpt_list = kpt_list.numpy()
+                visability_means.append(np.sum(kpt_list[2::3])/len(kpt_list))
         print("Random visualization done.")
+        
+    
+    visstatstr = getwhiskersvalues(visability_means)
+    #Writing config to file
+    with open(os.path.join(output_dir, '.visstats.txt'), 'a') as f:
+        f.write("Visualization mode: ")
+        if args.visunfiltered:
+            f.write("all unfiltered" + os.linesep)
+        if args.visfiltered:
+            f.write("all filtered" + os.linesep)
+        if args.visrandom:
+            f.write("random unfiltered" + os.linesep)
+        f.write("Visability means stats: \n%s"%visstatstr + os.linesep)
+
+   
 
     print("Output directory: ",output_dir)
 
 
-def visualize_and_save(img_path, output_dir, preds, args, mode, topk=None):
+def visualize_and_save(img_path, output_dir, preds, args, mode):
     if mode == 'all':
         #Draw unfiltered predictions
-        print(img_path)
-        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        img = cv2.imread(img_path)
+        if img is None:
+            return
+        v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(preds["instances"].to("cpu"), args.vistresh)
         img_name = os.path.basename(img_path)
         if out == None:
@@ -293,12 +318,12 @@ def visualize_and_save(img_path, output_dir, preds, args, mode, topk=None):
         cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
         
 
-    elif mode == 'topk':
+    elif mode == 'treshtopk':
         #Draw topk predictions
-        print(img_path)
-        print(MetadataCatalog)
-        print(Visualizer)
-        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        img = cv2.imread(img_path)
+        if img is None:
+            return
+        v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
     
         obj = Instances(image_size=preds["imagesize"])
         obj.set('scores', torch.Tensor(preds["scores"]))

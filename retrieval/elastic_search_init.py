@@ -104,6 +104,8 @@ if args.method_search:
 #_INDEX = 'bitseq4' 
 #_INDEX = '2vecstest' 
 _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
+_INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn'
+
 print("Current index: ",_INDEX)
 
 _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation
@@ -130,7 +132,7 @@ def main():
         with open (args.file, "r") as f:
             data = f.read()
         data = eval(data)  
-    print(data)
+
     output_dir = None
     if args.search_data:
         output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/humanposes', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
@@ -157,11 +159,12 @@ def main():
 
     
     if args.insert_data:
-        if args.method_insert == _METHODS_INS[0]:
+        if args.method_insert == _METHODS_INS[0]: #Cluster
+            print("Test sample at position 0:", data[0])
             createIndex(es, len(list(data.keys())[0]), _METHODS_INS[0], _SRCIMG_DIR)
             insertdata_cluster(args, data, es)
-        elif args.method_insert == _METHODS_INS[1]:
-            print(data[0])
+        elif args.method_insert == _METHODS_INS[1]: #Raw
+            print("Test sample at position 0:", data[0])
             createIndex(es, len(data[0]['gpd']), _METHODS_INS[1], _SRCIMG_DIR)
             insertdata_raw(args, data, es)
 
@@ -312,27 +315,28 @@ def createIndex(es, dim, mode, imgdir):
                 "imageid": {
                     "type": "text"
                 },
-                 "imid": {
-                    "type": "integer"
-                },
                 "score": {
                     "type": "float"
-                },
-                varname: {
-                    "type": "dense_vector",
-                    "dims": dim
-                },
+                },  
                 #Used to get the descriptor values in the script
                 '{}-array'.format(varname): {
                     "type": "double" #"half_float"
                 },
-                'tempvec': {
-                    "type": "double" #"half_float"
-                },
                 "mask": {
-                    "type" : "keyword"#,
+                    "type" : "keyword"
                     #"index" : False
-                }    
+                }
+                
+                # "imid": {
+                #    "type": "integer"
+                #},
+                #varname: {
+                #    "type": "dense_vector",
+                #    "dims": dim
+                #}, 
+                #'tempvec': {
+                #    "type": "double" #"half_float"
+                #},    
             }               
         }
     }
@@ -353,12 +357,11 @@ def createIndex(es, dim, mode, imgdir):
 def insertdoc(es, data, metadata, id, featurelabel):
     doc = {
     'imageid': metadata['image_id'],
-    'imid': int(metadata['image_id']),
     'score': metadata['score'],
-    featurelabel: list(data[featurelabel]),
     '{}-array'.format(featurelabel): list(data[featurelabel]),
-    'mask': data['mask'],
-    'tempvec':  list(np.random.randint(2, size=(4,))) #[0,0,0,0] #list(data[featurelabel]) # [-100 for i in range(len(data[featurelabel]))]
+    'mask': data['mask']
+    #featurelabel: list(data[featurelabel]),
+    #'tempvec':  list(np.random.randint(2, size=(4,))) #[0,0,0,0] #list(data[featurelabel]) # [-100 for i in range(len(data[featurelabel]))]
     }
 
     res = es.index(index=_INDEX, id=id, body=doc) 
@@ -379,7 +382,8 @@ def query(es, descriptor, size, method):
 
     #Metrics:
     #   1. Cos-Similarity Score: higher value means closer/better match (unlike cossim defined normaly)!
-    print("QUERY:", featurevector)
+    if _DEBUG:
+        print("QUERY:", featurevector)
     if method == _METHODS_SEARCH[0]: #COSSIM
 
         request = { "size": size,
@@ -481,6 +485,7 @@ def query(es, descriptor, size, method):
                   #             -query: /home/althausc/master_thesis_impl/posedescriptors/out/query/11-13_13-35-19/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt10n1.json
                   
     elif method == _METHODS_SEARCH[2]: #L2-distance
+
          request = { "size": size,
             "query": {
                 "script_score": {
@@ -528,7 +533,7 @@ def query(es, descriptor, size, method):
         raise ValueError()
     try :
         res= es.search(index=_INDEX, 
-                        body=request, explain=True, search_type='dfs_query_then_fetch')
+                        body=request, explain=True, search_type='dfs_query_then_fetch', request_timeout=20)
     except elasticsearch.ElasticsearchException as es1:  
         print("Error when querying for feature vector ",featurevector)
        

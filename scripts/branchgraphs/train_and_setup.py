@@ -197,7 +197,7 @@ gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh
 jobname = 'graphvisualization'
 
 predictdir = outrun_dir #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-07_14-09-00' #e.g.
-logfile = o.path.join(predictdir, 'vislog.txt')
+logfile = os.path.join(predictdir, 'vislog.txt')
 
 cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
              "{} python3.6 -u /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} -visrandom")\

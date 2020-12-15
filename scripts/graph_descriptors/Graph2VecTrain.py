@@ -12,14 +12,14 @@ inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out
     #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-08_18-42-37/.descriptors/graphdescriptors.json'
 
 epochs = 40
-traineval_epoch = 5
-valeval_epoch = 5
+traineval_epoch = 10
+valeval_epoch = 10
 saveepoch = 20
 valsize = 0.2
 evaltopk = 100
 
-dimensionsize = 512 #64 #128 #2048 #1024 #32 #128
-wliters = 3
+dimensionsize = 128 #512 #64 #128 #2048 #1024 #32 #128
+wliters = 2
 downsampling = 0.0001 #default: 0.0001
 lr = 0.025 #0.025 #default: 0.025
 stepsinfer = 100 #20 #50 #100
