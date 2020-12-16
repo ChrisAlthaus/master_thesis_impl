@@ -214,7 +214,7 @@ def search(gpdfile, method_search, rankingtype, method_insert='RAW', queue=None)
     
     with open(rankingfile, 'r') as f:
         json_data = json.load(f)
-        print("GPD search returned {} results.".format(len(json_data)))
+        print("GPD search returned {} results.".format(len(json_data)-1))
 
     if queue:
         queue.put({'gpdrankingfile': rankingfile})

@@ -155,16 +155,18 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, rankingmode='e
     mergedtopk = {'imagedir': [kpt_imagedir, graph_imagedir]}
     c_graphs = 0
     c_kpts = 0
-
+   
     kpos = 0
     #First get all intersections
-    for pos1,item1 in list(kpt_data.items()):
-        for pos2,item2 in list(graph_data.items()):
+    for pos1,item1 in kpt_data:
+        for pos2,item2 in graph_data:
             if os.path.basename(item1['filename']) == os.path.basename(item2['filename']):
-                mergedtopk[str(kpos)] = {'filename': item1['filename'], 'krelscore': item1['relscore'], 'grelscore': item2['relscore'], 'posmerged': '{}{}'.format(pos1,pos2)}
-                del graph_data[pos2]
-                del kpt_data[pos1]
+                mergedtopk[str(kpos)] = {'filename': item1['filename'], 'krelscore': item1['relscore'], 'grelscore': item2['relscore'],
+                                         'relscore': (item1['relscore'] + item2['relscore'])/2, 'posmerged': '{}{}'.format(pos1,pos2)}
+                del graph_data[graph_data.index((pos2,item2))]
+                del kpt_data[kpt_data.index((pos1,item1))]
                 kpos = kpos + 1
+    print("Number of intersections = {}".format(len(mergedtopk)-1))
 
     #Add label for seeing source of ranked items
     for _,item in graph_data:
@@ -177,7 +179,15 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, rankingmode='e
     #                          dependent on the weighting parameter
     #   2. 'highestscore': merge result & process in descreasing score order
     if rankingmode == 'everynthweighted':
-        if weight_branches<=0.5:
+        if weight_branches == 0.0:
+            for k in range(0, topk):
+                mergedtopk[str(kpos+k)] = kpt_data[k][1]
+
+        elif weight_branches == 1.0:
+            for k in range(0, topk):
+                mergedtopk[str(kpos+k)] = graph_data[k][1]
+
+        elif weight_branches<=0.5:
             everynthgraph = int(1/weight_branches)
             for k in range(0, topk):
                 if (k+1)%everynthgraph == 0 and c_graphs<len(graph_data):
@@ -186,7 +196,7 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, rankingmode='e
                 else:
                     if c_kpts<len(kpt_data):
                         mergedtopk[str(k+kpos)] = kpt_data[c_kpts][1]
-                        c_kpts = c_kpts + 1
+                        c_kpts = c_kpts + 1              
         else:
             everynthkpts = int(1/(1-weight_branches))
             for k in range(0, topk):
@@ -231,6 +241,14 @@ def getImgs(topkresults, drawgraphs=None, drawkpts=None):
     drawkptsdir = ''
     drawgraphdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.visimages'
 
+    def getimg(imgpath):
+        try:
+            img = Image.open(imgpath)
+        except Exception as e: #Guard against too large images
+            print(e)
+            img = Image.new('RGB', (600, 400), (0,0,0))
+        return img
+
     imgs = []
     scores = []
     for item in topkdata:
@@ -239,16 +257,16 @@ def getImgs(topkresults, drawgraphs=None, drawkpts=None):
             if drawkpts:
                 basename, suffix = os.path.splitext(item[1]['filename'])
                 kfilename = '{}_overlay{}'.format(basename, suffix) 
-                imgs.append(Image.open(os.path.join(drawkptsdir, kfilename)))
+                imgs.append(getimg(os.path.join(drawkptsdir, kfilename)))
             else:
-                imgs.append(Image.open(os.path.join(imagedir[0], item[1]['filename'])))
+                imgs.append(getimg(os.path.join(imagedir[0], item[1]['filename'])))
         else:
             if drawgraphs:
                 basename, suffix = os.path.splitext(item[1]['filename'])
                 gfilename = '{}_1scenegraph{}'.format(basename, suffix) 
-                imgs.append(Image.open(os.path.join(drawgraphdir, gfilename)))
+                imgs.append(getimg(os.path.join(drawgraphdir, gfilename)))
             else:
-                imgs.append(Image.open(os.path.join(imagedir[1], item[1]['filename'])))
+                im = getimg(os.path.join(imagedir[0], item[1]['filename']))
         scores.append(item[1]['relscore'])
 
     return imgs, scores

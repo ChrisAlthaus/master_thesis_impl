@@ -112,11 +112,10 @@ def predict(imagepath, queue):
 
     print("VISUALIZE SCENEGRAPH ...")
     #Whether to show only valid labels or all labels from prediction
-    filterlabels = True #False 
     logfile = os.path.join(logpath, '2-visualize.txt')
 
-    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} {} &> {}"\
-                                .format(predicdir, '-filterlabels' if filterlabels else ' ', logfile)
+    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/scenegraph/visualizeimgs.py -predictdir {} &> {}"\
+                                .format(predicdir, logfile)
     print(cmd)
     if os.system(cmd):
         raise RuntimeError('Scene graph visualization failed.')

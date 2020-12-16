@@ -146,12 +146,12 @@ inputfile = os.path.join(outrun_dir,"maskrcnn_predictions.json")
 imagespath = 'imgpath-here'
 outputdir = os.path.join(os.path.dirname(inputfile), '.images')
 
-gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/tensorflow_srun-G1D4.sh'
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh'
 jobname ='visimages'
 logfile = os.path.join(os.path.dirname(inputfile), '.vislog.txt')
 
 cmd = ("sbatch -w devbox4 -J {} -o {} "+ \
-        "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -transformid")\
+        "{} python3.6 -u /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file {} -imagespath {} -outputdir {} -transformid")\
                                                                     .format(jobname, logfile, gpu_cmd, inputfile, imagespath, outputdir)
 if _PRINT_CMDS:
     print(cmd)
@@ -198,23 +198,30 @@ ks = [10,20] #[kmin, kmax] for validation methods
 inputfile = filewithname(outrun_dir, 'geometric_pose_descriptor')
 print("GPD file: ",inputfile)
 
+gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh'
+jobname = 'clusterdesc'
+logfile = '/home/althausc/master_thesis_impl/posedescriptors/clustering/eval/logs/%s.txt'%(datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+
 if clust_on:    
     for val in valmethods:
         if val != valmethods[3]:
-            cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -val {} -validateks {} {}"\
-                                                                                                                        .format(inputfile, val, ks[0], ks[1])
+            cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
+                     "{} python3.6 -u /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -val {} -validateks {} {}")\
+                                                                                    .format(jobname, logfile, gpu_cmd, inputfile, val, ks[0], ks[1])
         else:
-            cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -val {}"\
-                                                                                                                        .format(inputfile, val)
+            cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
+                    "{} python3.6 -u /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -val {}")\
+                                                                                    .format(jobname, logfile, gpu_cmd, inputfile, val)
                                                                                                                         
         if _PRINT_CMDS:
             print(cmd)
         if _EXEC_CMDS:
             os.system(cmd)
-        #out_dir = '/home/althausc/master_thesis_impl/posedescriptors/clustering/eval'
+        out_dir = '/home/althausc/master_thesis_impl/posedescriptors/clustering/eval'
+        print("Output Directory: %s\n"%out_dir) 
         
-    k = 100#input('Please enter the number of clusters used for gpds: ')
-    cmd = "python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -buildk {}".format(inputfile, k)
+    k = 100
+    cmd = "python3.6 -u /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors {} -buildk {}".format(inputfile, k)
     if _PRINT_CMDS:
         print(cmd)
     if _EXEC_CMDS:

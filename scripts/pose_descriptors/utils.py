@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.decomposition import PCA
+import json
 import warnings
 import matplotlib.pyplot as plt
 np.seterr(all = "raise")
@@ -151,6 +152,26 @@ def angle(l1,l2):
     #python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/geometric_pose_descriptor.py -inputFile /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/11-24_15-33-23/maskrcnn_predictions.json -mode JcJLdLLa_reduced -target insert
 
     return np.arccos(np.clip(np.dot(j1_norm, j2_norm), -1.0, 1.0))
+
+
+def replace_unvalidentries(inputdescriptor, mode='JcJLdLLa_reduced'):
+    #Function replaces the missing pose descriptor values (-1's) with the values of the descriptor of a neutral pose.
+    if mode == 'JcJLdLLa_reduced':
+        ngpdpath = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    elif mode == 'JLd_all_direct':
+        ngpdpath = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    elif mode == 'JJo_reduced':
+        ngpdpath = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    else:
+        raise ValueError()
+     
+    with open (ngpdpath, "r") as f:
+        neutralgpd = json.load(f)[0]
+    
+    for l in range(len(inputdescriptor)):
+        if inputdescriptor[l] == -1:
+            inputdescriptor[l] = neutralgpd['gpd'][l]
+
 
 
    

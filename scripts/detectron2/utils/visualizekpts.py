@@ -11,6 +11,8 @@ import os
 import cv2
 import torch
 import itertools
+from PIL import Image
+import numpy as np
 
 #Visualizes human pose keypoints given by input file.
 #Treshold for score possible.
@@ -30,7 +32,7 @@ def main():
 
     data = None
     with open(args.file, "r") as f:
-        data = json.load(f)   
+        data = json.load(f)
 
     grouped_by_imageid = [{k: list(g)} for k, g in itertools.groupby(sorted(data, key=lambda x:x['image_id']), lambda x: x['image_id'])]
     print("Visualize the predictions onto the original image(s) ...")
@@ -45,7 +47,7 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
                                               keypoint_flip_map=COCO_PERSON_KEYPOINT_FLIP_MAP,
                                               keypoint_connection_rules=KEYPOINT_CONNECTION_RULES)
 
-    for pred_group in grouped_by_imageid:
+    for i, pred_group in enumerate(grouped_by_imageid):
         imgid = str(list(pred_group.keys())[0])
         preds = list(pred_group.values())[0]
 
@@ -57,10 +59,16 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
             imgname = "%s.jpg"%(imgid)
             imgname_out = "{}_{}.jpg".format(imgid, suffix)
             img_path = os.path.join(imagedir, imgname)
+        
+        try:
+            img = np.array(Image.open(img_path))
+        except Exception as e: #Guard against too large images
+            print(e)
+            continue
 
-        img = cv2.imread(img_path)
         if img is None:
             continue
+
         height, width = img.shape[:2]
 
         instances = Instances((height, width))
@@ -90,14 +98,19 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
             instances.pred_boxes = torch.Tensor(boxes)    
         instances.pred_keypoints = torch.Tensor(keypoints)
         
-
+        print(img.shape)
         v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(instances, vistresh)
 
-        cv2.imwrite(os.path.join(outputdir, imgname_out),out.get_image()[:, :, ::-1])
+        imgout = Image.fromarray(out.get_image()[:, :, ::-1])
+        imgout.save(os.path.join(outputdir, imgname_out))
+        #cv2.imwrite(os.path.join(outputdir, imgname_out),out.get_image()[:, :, ::-1])
 
         if out == None:
             print("img is none")
+
+        if (i+1)%1 == 0:
+            print("Processed {} images so far.".format(i+1))
 
 def getvisualized(image, gtinstances):
     #Shape of image= (H,W,C)

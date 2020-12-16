@@ -17,6 +17,11 @@ from collections import OrderedDict
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from PIL import Image
+
+import sys
+sys.path.append('/home/althausc/master_thesis_impl/scripts/pose_descriptors')
+from utils import replace_unvalidentries
 
 #Used to build a clustering based on the k-means algorithm from the input GPD descriptors.
 #An evaluation option creates evaluation visualizations for choosing the right k.
@@ -28,6 +33,7 @@ parser.add_argument("-validateMethod", "-val", help="Helping wih choosing the ri
 parser.add_argument("-validateks", "-ks", nargs=2, type=int, help="Range for ks (kmin,kmax) used for evaluation method.")
 parser.add_argument("-modelState", "-model", help="Choosing model state of k-means clustering.")
 parser.add_argument("-buildk", help="Building kmeans with specific k.", type=int)
+parser.add_argument("-imagedir", help="Base image directory for TSNE-visualization.", type=str)
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
 
@@ -60,16 +66,25 @@ def main():
     # ------------------------------- EVALUATION BASED ON NUMBER(S) OF CLUSTERS K ---------------------------------   
     if args.validateMethod is not None:
         descriptors = []
+        imageids = []
 
         for i, item in enumerate(json_data):
             descriptors.append(item['gpd'])
+            imageids.append(item['image_id'])
+
+        #Replace unvalid entries -1 with values of neutral pose gpd, because clustering sensitive to outlier -1
+        #->other values in ranges [0,1] & [0,3.14]
+        for descr in descriptors:
+            replace_unvalidentries(descr, mode='JcJLdLLa_reduced')
+
         descriptors = np.array(descriptors)
+        imageids = np.array(imageids)
 
         if args.validateMethod == 'ELBOW':
             #Elbow method: > Within-Cluster-Sum of Squared Errors (WSS) for different values of k
             #              > idea: choose the k for which WSS first starts to diminish
             kmin, kmax = args.validateks
-            ks, sse = calculate_WSS(descriptors, kmin, kmax)
+            ks, sse = calculate_WSS(descriptors, kmin, kmax, stepsize=10)
 
             df = pd.DataFrame({'k':ks , 'sse':sse})
             ax = sns.relplot(x="k", y="sse", sort=False, kind="line", markers=True, data=df)
@@ -83,7 +98,7 @@ def main():
             X = getdummydataset()
             ks, silouettes = calc_silouette_scores(X, 3, 6, plot_clustersilhouettes = True, output_dir= output_dir)"""
             kmin, kmax = args.validateks
-            ks, silouettes = calc_silouette_scores(descriptors, kmin, kmax, plot_clustersilhouettes = True, output_dir= output_dir)
+            ks, silouettes = calc_silouette_scores(descriptors, kmin, kmax, stepsize=10, plot_clustersilhouettes=True, output_dir=output_dir)
 
             df = pd.DataFrame({'k':ks , 'silouette score':silouettes})
             ax = sns.relplot(x="k", y='silouette score', sort=False, kind="line", markers=True, data=df)
@@ -93,14 +108,46 @@ def main():
         elif args.validateMethod == 'T-SNE':
             #Visualize the clustering of descriptors with t-sne algorithm
             k, _ = args.validateks
+            #Only consider a subset of the descriptors because of computational costs
+            sampleindxs = np.random.choice(len(descriptors), size=100, replace=False)
+            descriptors = descriptors[sampleindxs]
+            imageids = imageids[sampleindxs]
+
             X_embedded, labels = calc_tsne(descriptors, k)
 
-            df = pd.DataFrame({'x':X_embedded[:,0] , 'y':X_embedded[:,1], 'labels': labels})
+            #Visualize random sampled T-SNE points on grid
+            X_embedded_sampled = X_embedded[np.random.choice(len(X_embedded), size=100, replace=False)]
+            df = pd.DataFrame({'x':X_embedded_sampled[:,0] , 'y':X_embedded_sampled[:,1], 'labels': labels})
             fig, ax = plt.subplots(figsize=(16,10))
             g = ax.scatter(df['x'],df['y'], c=df['labels'], cmap=plt.get_cmap("jet",k), alpha=.7)
             fig.colorbar(g)
             fig.savefig(os.path.join(output_dir,"eval_tsne_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))) )
             plt.clf()
+            
+            #Visualize random samples images on 2D plane according to T-SNE points
+            #Normalize to range [0,1]
+            tx, ty =  X_embedded[:,0],  X_embedded[:,1]
+            tx = (tx-np.min(tx)) / (np.max(tx) - np.min(tx))
+            ty = (ty-np.min(ty)) / (np.max(ty) - np.min(ty))
+
+            imageid_tnse = np.array(list(zip(imageids, tx, ty)))
+            imageid_tnse = imageid_tnse[np.random.choice(len(imageids), size=100, replace=False)]
+
+            width = 4000
+            height = 3000
+            max_dim = 100
+
+            full_image = Image.new('RGBA', (width, height))
+            for imgid, x, y in imageid_tnse:
+                tile = Image.open(os.path.join(args.imagedir, imgid))
+                if tile is None:
+                    print("No image at: {}".format(os.path.join(args.imagedir, img)))
+                    continue
+                rs = max(1, tile.width/max_dim, tile.height/max_dim)
+                tile = tile.resize((int(tile.width/rs), int(tile.height/rs)), Image.ANTIALIAS)
+                full_image.paste(tile, (int((width-max_dim)*x), int((height-max_dim)*y)), mask=tile.convert('RGBA'))
+
+            full_image.save(os.path.join(output_dir, "tsne_images.jpg"))
 
         elif args.validateMethod == 'COS-TRESH':
             #Comparison based on cos-similarity, for checking gpds?!
@@ -231,10 +278,10 @@ def getdummydataset():
     return X
 
 
-def calculate_WSS(points, kmin, kmax):
+def calculate_WSS(points, kmin, kmax, stepsize=1):
     # Returns WSS score (Within-Cluster-Sum of Squared Errors) for k values from 1 to kmax
     sse = []
-    for k in range(kmin, kmax+1):
+    for k in range(kmin, kmax+1, stepsize):
         print("Clustering for k = %d ..."%k)
         start_time = time.time()
         kmeans = KMeans(n_clusters = k).fit(points)
@@ -248,20 +295,23 @@ def calculate_WSS(points, kmin, kmax):
         for i in range(len(points)):
             curr_center = centroids[pred_clusters[i]]
             curr_sse += np.linalg.norm(curr_center-points[i])**2
+        print("SSE score: ", curr_sse)
         sse.append(curr_sse)
-    return range(kmin,kmax+1), sse
+    return range(kmin,kmax+1,stepsize), sse
 
-def calc_silouette_scores(points, kmin, kmax, plot_clustersilhouettes = False, output_dir=None):
+def calc_silouette_scores(points, kmin, kmax, stepsize=1, plot_clustersilhouettes = False, output_dir=None):
     sil = []
     # minimum number of clusters should be 2
-    for k in range(kmin, kmax+1):
+    for k in range(kmin, kmax+1, stepsize):
         print("Clustering for k = %d ..."%k)
         start_time = time.time()
         kmeans = KMeans(n_clusters = k).fit(points)
         print("Clustering for k = %d done. Took %s seconds."%(k,time.time() - start_time))
         
         labels = kmeans.labels_
-        sil.append(silhouette_score(points, labels, metric = 'euclidean'))
+        silscore = silhouette_score(points, labels, metric = 'euclidean')
+        print("Silhouette Score: ", silscore)
+        sil.append(silscore)
 
         if plot_clustersilhouettes:
             sil_values = []
@@ -277,13 +327,14 @@ def calc_silouette_scores(points, kmin, kmax, plot_clustersilhouettes = False, o
             ax.figure.savefig(os.path.join(output_dir,"eval_cluster%dsilouettes.png"%k))
             plt.clf()
     
-    return range(kmin,kmax+1), sil 
+    return range(kmin,kmax+1,stepsize), sil 
 
 def calc_tsne(points,k):
+    print("Number of input features = %d"%len(points))
     print("Dimension of a feature vector = %d "%len(points[0]))
     print("Calculate t-SNE ...")
     start_time = time.time()
-    X_embedded = TSNE(n_components=2).fit_transform(points)
+    X_embedded = TSNE(n_components=2, verbose=1).fit_transform(points)
     print("Calculate t-SNE done. Took %s seconds."%(time.time() - start_time))
     print("Clustering for k = %d ..."%k)
     start_time = time.time()
