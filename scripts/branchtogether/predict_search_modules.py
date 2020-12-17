@@ -238,10 +238,11 @@ def getImgs(topkresults, drawgraphs=None, drawkpts=None):
 
     topkdata = sorted(json_data.items(), key= lambda x: int(x[0])) 
 
-    drawkptsdir = ''
+    drawkptsdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages'
     drawgraphdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.visimages'
 
     def getimg(imgpath):
+        print("getting image: ",imgpath)
         try:
             img = Image.open(imgpath)
         except Exception as e: #Guard against too large images
@@ -253,20 +254,27 @@ def getImgs(topkresults, drawgraphs=None, drawkpts=None):
     scores = []
     for item in topkdata:
         print(item)
-        if os.path.isfile(os.path.join(imagedir[0], item[1]['filename'])):
+        if item[1]['type'] == 'kpts':
+        #os.path.isfile(os.path.join(imagedir[0], item[1]['filename'])):
             if drawkpts:
                 basename, suffix = os.path.splitext(item[1]['filename'])
                 kfilename = '{}_overlay{}'.format(basename, suffix) 
                 imgs.append(getimg(os.path.join(drawkptsdir, kfilename)))
+                print("add: ",os.path.join(drawkptsdir, kfilename))
             else:
                 imgs.append(getimg(os.path.join(imagedir[0], item[1]['filename'])))
-        else:
+                print("add: ",os.path.join(imagedir[0], item[1]['filename']))
+        elif item[1]['type'] == 'graph':
             if drawgraphs:
                 basename, suffix = os.path.splitext(item[1]['filename'])
-                gfilename = '{}_1scenegraph{}'.format(basename, suffix) 
+                gfilename = '{}_1scenegraph{}'.format(basename, suffix)
                 imgs.append(getimg(os.path.join(drawgraphdir, gfilename)))
+                print("add: ",os.path.join(drawgraphdir, gfilename))
             else:
                 im = getimg(os.path.join(imagedir[0], item[1]['filename']))
+                print("add: ",os.path.join(imagedir[0], item[1]['filename']))
+        else:
+            raise ValueError()
         scores.append(item[1]['relscore'])
 
     return imgs, scores

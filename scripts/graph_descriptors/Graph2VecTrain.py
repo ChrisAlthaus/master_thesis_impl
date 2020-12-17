@@ -14,16 +14,17 @@ inputfile = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out
 epochs = 40
 traineval_epoch = 5
 valeval_epoch = 5
-saveepoch = 20
+saveepoch = 10
 valsize = 0.2
 evaltopk = 100
 
-dimensionsize = 128 #512 #64 #128 #2048 #1024 #32 #128
-wliters = 3#2
+dimensionsize = 128  #32, 64, 128, 132, 256, 512, 1024, 2048
+wliters = 3
 downsampling = 0.0001 #default: 0.0001
 lr = 0.025 #0.025 #default: 0.025
 stepsinfer = 100 #20 #50 #100
-minfeaturedim = 100
+#Without upsampling the median feature dimension was: 132. (/home/althausc/master_thesis_impl/graph2vec/models/12-12_10-34-58-kaggle-from-here-on/config.txt)
+minfeaturedim = 132
 
 gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh'
 jobname = 'graph2vec-train%s'%datetime.datetime.now().strftime('%d-%H-%M-%S')

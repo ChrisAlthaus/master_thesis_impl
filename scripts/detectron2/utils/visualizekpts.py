@@ -61,14 +61,21 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
             img_path = os.path.join(imagedir, imgname)
         
         try:
-            img = np.array(Image.open(img_path))
+            img = Image.open(img_path).convert('RGB')
+            """if len(img.size)<3:
+                print("expand dim ",img.size)
+                rgbimg = Image.new("RGB", img.size)
+                rgbimg.paste(img)
+                img = rgbimg
+                print(img.size)"""
+            img = np.array(img)
+
         except Exception as e: #Guard against too large images
             print(e)
             continue
 
         if img is None:
             continue
-
         height, width = img.shape[:2]
 
         instances = Instances((height, width))
@@ -98,7 +105,6 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
             instances.pred_boxes = torch.Tensor(boxes)    
         instances.pred_keypoints = torch.Tensor(keypoints)
         
-        print(img.shape)
         v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(instances, vistresh)
 
@@ -109,7 +115,7 @@ def visualize(grouped_by_imageid, imagedir, outputdir, vistresh=0.0, transformid
         if out == None:
             print("img is none")
 
-        if (i+1)%1 == 0:
+        if (i+1)%100 == 0:
             print("Processed {} images so far.".format(i+1))
 
 def getvisualized(image, gtinstances):

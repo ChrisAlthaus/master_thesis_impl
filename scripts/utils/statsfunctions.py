@@ -1,7 +1,7 @@
 
 import numpy as np
 
-def getwhiskersvalues(values):
+def getwhiskersvalues(values, mode='str'):
     #Computes the box-plot whiskers values.
     #Computed values: min, low_whiskers, Q1, median, Q3, high_whiskers, max
     #Ordering differs from whiskers plot ordering.
@@ -22,5 +22,11 @@ def getwhiskersvalues(values):
     Qs = [minv, actual_loval, loval, Q1, median, Q3, hival, actual_hival, maxv]
     Qname = ["Min", "Actual LO", "Q1-1.5xIQR", "Q1", "median", "Q3", "Q3+1.5xIQR", 
              "Actual HI", "Max"]
-    logstr = ''.join(["\t{}:{} \n".format(a,b) for a,b in zip(Qname,Qs)])
-    return logstr
+    if mode=='str':
+        logstr = ''.join(["\t{}:{} \n".format(a,b) for a,b in zip(Qname,Qs)])
+        return logstr
+    elif mode=='dict':
+        logdict = {qname:q for qname,q in zip(Qname, Qs)}
+        return logdict
+    else:
+        raise ValueError()

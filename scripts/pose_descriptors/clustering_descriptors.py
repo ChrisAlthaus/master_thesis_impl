@@ -21,7 +21,10 @@ from PIL import Image
 
 import sys
 sys.path.append('/home/althausc/master_thesis_impl/scripts/pose_descriptors')
-from utils import replace_unvalidentries
+from utils import replace_unvalidentries, get_reference_feature, get_neutral_pose_feature
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import ImageGrid
 
 #Used to build a clustering based on the k-means algorithm from the input GPD descriptors.
 #An evaluation option creates evaluation visualizations for choosing the right k.
@@ -63,6 +66,9 @@ def main():
     with open (args.descriptorfile, "r") as f:
         json_data = json.load(f)
 
+    #create_reference_pose(json_data, mode='JcJLdLLa_reduced')
+    #exit(1)
+
     # ------------------------------- EVALUATION BASED ON NUMBER(S) OF CLUSTERS K ---------------------------------   
     if args.validateMethod is not None:
         descriptors = []
@@ -74,8 +80,11 @@ def main():
 
         #Replace unvalid entries -1 with values of neutral pose gpd, because clustering sensitive to outlier -1
         #->other values in ranges [0,1] & [0,3.14]
-        for descr in descriptors:
-            replace_unvalidentries(descr, mode='JcJLdLLa_reduced')
+        #referencefeature = get_neutral_pose_feature()
+        referencefeature =  get_reference_feature()
+        print("Replacing unvalid entries with reference featurevalues...")
+        for i,descr in enumerate(descriptors):
+            replace_unvalidentries(descr, referencefeature)
 
         descriptors = np.array(descriptors)
         imageids = np.array(imageids)
@@ -109,21 +118,44 @@ def main():
             #Visualize the clustering of descriptors with t-sne algorithm
             k, _ = args.validateks
             #Only consider a subset of the descriptors because of computational costs
-            sampleindxs = np.random.choice(len(descriptors), size=100, replace=False)
+            sampleindxs = np.random.choice(len(descriptors), size=10000, replace=False)
             descriptors = descriptors[sampleindxs]
             imageids = imageids[sampleindxs]
 
-            X_embedded, labels = calc_tsne(descriptors, k)
+            #X_embedded, labels = calc_tsne(descriptors, k)
 
             #Visualize random sampled T-SNE points on grid
-            X_embedded_sampled = X_embedded[np.random.choice(len(X_embedded), size=100, replace=False)]
-            df = pd.DataFrame({'x':X_embedded_sampled[:,0] , 'y':X_embedded_sampled[:,1], 'labels': labels})
+            """df = pd.DataFrame({'x':X_embedded[:,0] , 'y':X_embedded[:,1], 'labels': labels})
             fig, ax = plt.subplots(figsize=(16,10))
             g = ax.scatter(df['x'],df['y'], c=df['labels'], cmap=plt.get_cmap("jet",k), alpha=.7)
             fig.colorbar(g)
             fig.savefig(os.path.join(output_dir,"eval_tsne_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))) )
-            plt.clf()
-            
+            plt.clf()"""
+
+            #Visualize clusters by image grids
+
+            labels, scoefs = calc_kmeans(descriptors, k)
+            labeltoimgids = {}
+            for i,cluster_l in enumerate(labels):
+                if cluster_l not in labeltoimgids:
+                    labeltoimgids[cluster_l] = [imageids[i]]
+                else:
+                    labeltoimgids[cluster_l].append(imageids[i])
+            print(list(labeltoimgids.items())[:2])
+            nrows = 8
+            ncolumns = 8
+            c = 0
+            for cluster_l, imgids in labeltoimgids.items():
+                #print(cluster_l)
+                #print(imgids)
+                imagefiles = np.array([os.path.join(args.imagedir, '{}.jpg'.format(imgid)) for imgid in imgids])
+                outputfile = os.path.join(output_dir, "imagegrid_cl{}.png".format(cluster_l))
+                title = "Sampled images from Cluster {} (silhouette score:{})".format(cluster_l, scoefs[cluster_l])
+                plotImageGrid(imagefiles, title, nrows, ncolumns, outputfile)
+                c = c + 1
+                #if c == 4:
+                #    break
+            exit(1)
             #Visualize random samples images on 2D plane according to T-SNE points
             #Normalize to range [0,1]
             tx, ty =  X_embedded[:,0],  X_embedded[:,1]
@@ -131,23 +163,25 @@ def main():
             ty = (ty-np.min(ty)) / (np.max(ty) - np.min(ty))
 
             imageid_tnse = np.array(list(zip(imageids, tx, ty)))
-            imageid_tnse = imageid_tnse[np.random.choice(len(imageids), size=100, replace=False)]
+            imageid_tnse = imageid_tnse[np.random.choice(len(imageids), size=1000, replace=False)]
 
             width = 4000
             height = 3000
             max_dim = 100
+            #print(imageid_tnse)
 
             full_image = Image.new('RGBA', (width, height))
             for imgid, x, y in imageid_tnse:
-                tile = Image.open(os.path.join(args.imagedir, imgid))
+                tile = Image.open(os.path.join(args.imagedir, '{}.jpg'.format(imgid)))
                 if tile is None:
                     print("No image at: {}".format(os.path.join(args.imagedir, img)))
                     continue
                 rs = max(1, tile.width/max_dim, tile.height/max_dim)
                 tile = tile.resize((int(tile.width/rs), int(tile.height/rs)), Image.ANTIALIAS)
-                full_image.paste(tile, (int((width-max_dim)*x), int((height-max_dim)*y)), mask=tile.convert('RGBA'))
 
-            full_image.save(os.path.join(output_dir, "tsne_images.jpg"))
+                full_image.paste(tile, (int((width-max_dim)*float(x)), int((height-max_dim)*float(y))), mask=tile.convert('RGBA'))
+
+            full_image.save(os.path.join(output_dir, "tsne_images.png"))
 
         elif args.validateMethod == 'COS-TRESH':
             #Comparison based on cos-similarity, for checking gpds?!
@@ -334,7 +368,8 @@ def calc_tsne(points,k):
     print("Dimension of a feature vector = %d "%len(points[0]))
     print("Calculate t-SNE ...")
     start_time = time.time()
-    X_embedded = TSNE(n_components=2, verbose=1).fit_transform(points)
+    #X_embedded = TSNE(n_components=2, verbose=1).fit_transform(points)
+    X_embedded = None
     print("Calculate t-SNE done. Took %s seconds."%(time.time() - start_time))
     print("Clustering for k = %d ..."%k)
     start_time = time.time()
@@ -343,6 +378,50 @@ def calc_tsne(points,k):
 
     labels = kmeans.labels_
     return X_embedded, labels
+
+def calc_kmeans(points,k):
+    print("Clustering for k = %d ..."%k)
+    start_time = time.time()
+    kmeans = KMeans(n_clusters = k).fit(points)
+    print("Clustering for k = %d done. Took %s seconds."%(k,time.time() - start_time))
+    labels = kmeans.labels_
+
+    sil_values = {}
+    sample_silhouette_values = silhouette_samples(points, labels)
+    for i in range(k):
+        # Aggregate the silhouette scores for samples belonging to
+        # cluster i, and sort them
+        ith_cluster_silhouette_values = sample_silhouette_values[labels == i]
+        sil_values[i] = sum(ith_cluster_silhouette_values)/len(ith_cluster_silhouette_values)
+    return labels, sil_values
+    
+
+
+def plotImageGrid(imagefiles, title, nrows, ncolumns, savepath):
+    fig = plt.figure(figsize=(4., 4.))
+    fig.suptitle(title)
+    grid = ImageGrid(fig, 111,  # similar to subplot(111)
+                    nrows_ncols=(nrows, ncolumns),  # creates 2x2 grid of axes
+                    axes_pad=0.05,  # pad between axes in inch.
+                    share_all=True
+                    )   
+
+    imagefiles = imagefiles[np.random.choice(len(imagefiles), size=nrows*ncolumns, replace=False)]
+    basewidth = 400
+    images = []
+    for filename in imagefiles:
+        img = Image.open(filename)
+        wpercent = (basewidth/float(img.size[0]))
+        hsize = int((float(img.size[1])*float(wpercent)))
+        img = img.resize((basewidth,hsize), Image.ANTIALIAS)
+        images.append(np.array(img))
+        
+    for ax, im in zip(grid, images):
+        # Iterating over the grid returns the Axes.
+        ax.axis('off')
+        ax.imshow(im)
+
+    plt.savefig(savepath, dpi=300)
 
 if __name__=="__main__":
    main()

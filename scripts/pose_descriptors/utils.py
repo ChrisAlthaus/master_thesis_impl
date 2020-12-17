@@ -3,7 +3,13 @@ from sklearn.decomposition import PCA
 import json
 import warnings
 import matplotlib.pyplot as plt
+import os
+import datetime
 np.seterr(all = "raise")
+
+import sys
+sys.path.insert(0, '/home/althausc/master_thesis_impl/scripts/utils') 
+from statsfunctions import getwhiskersvalues
 
 def normalizevec(featurevector, rangemin=0, rangemax=1, mask=False):
     if mask:
@@ -154,8 +160,13 @@ def angle(l1,l2):
     return np.arccos(np.clip(np.dot(j1_norm, j2_norm), -1.0, 1.0))
 
 
-def replace_unvalidentries(inputdescriptor, mode='JcJLdLLa_reduced'):
-    #Function replaces the missing pose descriptor values (-1's) with the values of the descriptor of a neutral pose.
+def replace_unvalidentries(inputdescriptor, replacefeature):
+    #Function replaces the missing pose descriptor values (-1's) with the values of the input feature
+    for l in range(len(inputdescriptor)):
+        if inputdescriptor[l] == -1:
+            inputdescriptor[l] = replacefeature[l]
+
+def get_neutral_pose_feature(mode='JcJLdLLa_reduced'):
     if mode == 'JcJLdLLa_reduced':
         ngpdpath = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
     elif mode == 'JLd_all_direct':
@@ -167,10 +178,45 @@ def replace_unvalidentries(inputdescriptor, mode='JcJLdLLa_reduced'):
      
     with open (ngpdpath, "r") as f:
         neutralgpd = json.load(f)[0]
+    return neutralgpd['gpd']
+
+def create_reference_feature(descriptors, mode='JcJLdLLa_reduced'):
+    output_dir = os.path.join('/home/althausc/master_thesis_impl/posedescriptors/out/eval', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    os.makedirs(output_dir)
+
+    refposdict = {}
+    for k in range(len(descriptors[0]['gpd'])):
+        refposdict[k] = []
     
-    for l in range(len(inputdescriptor)):
-        if inputdescriptor[l] == -1:
-            inputdescriptor[l] = neutralgpd['gpd'][l]
+    for desc in descriptors:
+        for k,val in enumerate(desc['gpd']):
+            if val != -1:
+                refposdict[k].append(val)
+    
+    refposlists = sorted(refposdict.items(), key= lambda x: int(x[0])) 
+
+    statsperindex = {}
+    for k,indexlist in refposlists:
+        statsperindex[k] = getwhiskersvalues(indexlist, mode='dict')
+   
+    with open(os.path.join(output_dir, 'features-per-index-statistics.json'), 'w') as f:
+        print("Writing to folder: ",output_dir)
+        json.dump(statsperindex, f, indent=1)
+
+def get_reference_feature():
+    featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-17_09-28-55/features-per-index-statistics.json'
+
+    print("Reading from file: ",featuresstats_path)
+    with open (featuresstats_path, "r") as f:
+        featurestats = json.load(f)
+    featurestats = sorted(featurestats.items(), key= lambda x: int(x[0])) 
+
+    referencefeature = []
+    for k,stats in featurestats:
+        referencefeature.append(stats['median'])
+    
+    print("Reference feature: ", referencefeature)
+    return referencefeature
 
 
 
