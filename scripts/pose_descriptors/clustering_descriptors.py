@@ -12,7 +12,7 @@ from sklearn.manifold import TSNE
 from sklearn.datasets import make_blobs
 from sklearn.metrics.pairwise import cosine_similarity
 import pickle
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -42,7 +42,7 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity",
 
 args = parser.parse_args()
 
-_VALIDATION_METHODS = ['ELBOW', 'SILHOUETTE', 'T-SNE', 'COS-TRESH']
+_VALIDATION_METHODS = ['ELBOW', 'SILHOUETTE', 'T-SNE', 'COS-TRESH', 'K-MEANSIMAGES']
 
 if not os.path.isfile(args.descriptorfile):
     raise ValueError("No valid input file.")
@@ -77,6 +77,24 @@ def main():
         for i, item in enumerate(json_data):
             descriptors.append(item['gpd'])
             imageids.append(item['image_id'])
+        print("Number of descriptors: ",len(descriptors))
+
+        #Only consider images with 1 person detected for better/clearer cluster visualization 
+        imgidstoinds = defaultdict(list)
+        for i, x in enumerate(imageids):
+            imgidstoinds[x].append(i)
+        delinds = []
+        for imagid,indices in imgidstoinds.items():
+            if len(indices)>1:
+                delinds.extend(indices)
+
+        delinds.sort(reverse=True)
+        print(delinds[:100])
+        for ind in delinds:
+            del descriptors[ind]
+            del imageids[ind]
+        print("Number of descriptors reduced (1-person/image): ",len(descriptors))
+        #exit(1)
 
         #Replace unvalid entries -1 with values of neutral pose gpd, because clustering sensitive to outlier -1
         #->other values in ranges [0,1] & [0,3.14]
@@ -114,6 +132,68 @@ def main():
             ax.fig.savefig(os.path.join(output_dir,"eval_silouettes_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))))
             plt.clf()
 
+        elif args.validateMethod == 'K-MEANSIMAGES':
+            #Visualize clusters by image grids
+            k, _ = args.validateks
+            #sampleindxs = np.random.choice(len(descriptors), size=10000, replace=False)
+            #descriptors = descriptors[sampleindxs]
+            #imageids = imageids[sampleindxs]
+
+            labels, distancemat, scoefs = calc_kmeans(descriptors, k)
+            #print(set(labels))
+            #print(distancemat[0])
+
+            labeltoimgids = {}
+            for i,cluster_l in enumerate(labels):
+                cdist = distancemat[i][cluster_l]
+                if cluster_l not in labeltoimgids:
+                    labeltoimgids[cluster_l] = [(imageids[i], cdist)]
+                else:
+                    labeltoimgids[cluster_l].append((imageids[i], cdist))
+            print(list(labeltoimgids.items())[:2])
+
+            #imagefiles = imagefiles[np.random.choice(len(imagefiles), size=nrows*ncolumns, replace=False)]
+            rankedchunks = True
+            labeltoclusterdata = {}
+            nrows = 6
+            ncolumns = 8
+            for cluster_l, items in labeltoimgids.items():
+                items.sort(key=lambda x: x[1])
+                items = np.array(items)
+                cdata = {'ids':[], 'imagenames':[], 'cdistances':[]}
+
+                if rankedchunks:
+                    itemchunks = np.array_split(items, nrows)
+                    ids = np.array_split(range(len(items)), nrows)
+
+                    for rids, imchunk in zip(ids, itemchunks):
+                        cdata['ids'].extend(rids[:ncolumns])
+                        cdata['imagenames'].extend(imchunk[:,0][:ncolumns])
+                        cdata['cdistances'].extend(imchunk[:,1][:ncolumns])
+                    labeltoclusterdata[cluster_l] = cdata
+                else:
+                    rids = np.random.choice(len(items), size=nrows*ncolumns, replace=False)
+                    cdata['ids'].extend(rids[:ncolumns])
+                    cdata['imagenames'].extend(items[:,0][:ncolumns])
+                    cdata['cdistances'].extend(items[:,1][:ncolumns])
+                    labeltoclusterdata[cluster_l] = cdata 
+        
+            c = 0
+            drawkpts = True
+            if drawkpts:
+                imagedir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages'
+            else:
+                imagedir = args.imagedir
+
+            for cluster_l, clusterdata in labeltoclusterdata.items():
+                #print(cluster_l, clusterdata)
+                outputfile = os.path.join(output_dir, "imagegrid_cl{}_sc{:0.2f}.png".format(cluster_l,scoefs[cluster_l]))
+                title = "Sampled Images from Cluster {} (Silhouette Score:{:0.2f})".format(cluster_l, scoefs[cluster_l])
+                plotImageGrid(clusterdata, title, nrows, ncolumns, imagedir, outputfile, drawkpts=drawkpts)
+                #c = c + 1
+                #if c == 4:
+                #    break
+
         elif args.validateMethod == 'T-SNE':
             #Visualize the clustering of descriptors with t-sne algorithm
             k, _ = args.validateks
@@ -122,40 +202,16 @@ def main():
             descriptors = descriptors[sampleindxs]
             imageids = imageids[sampleindxs]
 
-            #X_embedded, labels = calc_tsne(descriptors, k)
+            X_embedded, labels = calc_tsne(descriptors, k)
 
             #Visualize random sampled T-SNE points on grid
-            """df = pd.DataFrame({'x':X_embedded[:,0] , 'y':X_embedded[:,1], 'labels': labels})
+            df = pd.DataFrame({'x':X_embedded[:,0] , 'y':X_embedded[:,1], 'labels': labels})
             fig, ax = plt.subplots(figsize=(16,10))
             g = ax.scatter(df['x'],df['y'], c=df['labels'], cmap=plt.get_cmap("jet",k), alpha=.7)
             fig.colorbar(g)
             fig.savefig(os.path.join(output_dir,"eval_tsne_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))) )
-            plt.clf()"""
+            plt.clf()
 
-            #Visualize clusters by image grids
-
-            labels, scoefs = calc_kmeans(descriptors, k)
-            labeltoimgids = {}
-            for i,cluster_l in enumerate(labels):
-                if cluster_l not in labeltoimgids:
-                    labeltoimgids[cluster_l] = [imageids[i]]
-                else:
-                    labeltoimgids[cluster_l].append(imageids[i])
-            print(list(labeltoimgids.items())[:2])
-            nrows = 8
-            ncolumns = 8
-            c = 0
-            for cluster_l, imgids in labeltoimgids.items():
-                #print(cluster_l)
-                #print(imgids)
-                imagefiles = np.array([os.path.join(args.imagedir, '{}.jpg'.format(imgid)) for imgid in imgids])
-                outputfile = os.path.join(output_dir, "imagegrid_cl{}.png".format(cluster_l))
-                title = "Sampled images from Cluster {} (silhouette score:{})".format(cluster_l, scoefs[cluster_l])
-                plotImageGrid(imagefiles, title, nrows, ncolumns, outputfile)
-                c = c + 1
-                #if c == 4:
-                #    break
-            exit(1)
             #Visualize random samples images on 2D plane according to T-SNE points
             #Normalize to range [0,1]
             tx, ty =  X_embedded[:,0],  X_embedded[:,1]
@@ -318,7 +374,7 @@ def calculate_WSS(points, kmin, kmax, stepsize=1):
     for k in range(kmin, kmax+1, stepsize):
         print("Clustering for k = %d ..."%k)
         start_time = time.time()
-        kmeans = KMeans(n_clusters = k).fit(points)
+        kmeans = KMeans(n_clusters = k, init='k-means++', random_state=1234).fit(points)
         print("Clustering for k = %d done. Took %s seconds."%(k,time.time() - start_time))
         centroids = kmeans.cluster_centers_
         pred_clusters = kmeans.predict(points)
@@ -339,7 +395,7 @@ def calc_silouette_scores(points, kmin, kmax, stepsize=1, plot_clustersilhouette
     for k in range(kmin, kmax+1, stepsize):
         print("Clustering for k = %d ..."%k)
         start_time = time.time()
-        kmeans = KMeans(n_clusters = k).fit(points)
+        kmeans = KMeans(n_clusters = k, init='k-means++', random_state=1234).fit(points)
         print("Clustering for k = %d done. Took %s seconds."%(k,time.time() - start_time))
         
         labels = kmeans.labels_
@@ -373,7 +429,7 @@ def calc_tsne(points,k):
     print("Calculate t-SNE done. Took %s seconds."%(time.time() - start_time))
     print("Clustering for k = %d ..."%k)
     start_time = time.time()
-    kmeans = KMeans(n_clusters = k).fit(points)
+    kmeans = KMeans(n_clusters = k, init='k-means++', random_state=1234).fit(points)
     print("Clustering for k = %d done. Took %s seconds."%(k,time.time() - start_time))
 
     labels = kmeans.labels_
@@ -382,9 +438,11 @@ def calc_tsne(points,k):
 def calc_kmeans(points,k):
     print("Clustering for k = %d ..."%k)
     start_time = time.time()
-    kmeans = KMeans(n_clusters = k).fit(points)
+    kmeans = KMeans(n_clusters = k, init='k-means++', random_state=1234).fit(points)
     print("Clustering for k = %d done. Took %s seconds."%(k,time.time() - start_time))
     labels = kmeans.labels_
+    print("Number of resulting clusters = %d"%len(set(labels)))
+    distancemat = kmeans.transform(points)
 
     sil_values = {}
     sample_silhouette_values = silhouette_samples(points, labels)
@@ -393,35 +451,61 @@ def calc_kmeans(points,k):
         # cluster i, and sort them
         ith_cluster_silhouette_values = sample_silhouette_values[labels == i]
         sil_values[i] = sum(ith_cluster_silhouette_values)/len(ith_cluster_silhouette_values)
-    return labels, sil_values
+    return labels, distancemat, sil_values
     
 
 
-def plotImageGrid(imagefiles, title, nrows, ncolumns, savepath):
+def plotImageGrid(clusterdata, title, nrows, ncolumns, imgdir, savepath, drawkpts=False):
     fig = plt.figure(figsize=(4., 4.))
-    fig.suptitle(title)
+    #fig.suptitle(title, y=0.9, fontsize=5)
+    fig.tight_layout()
     grid = ImageGrid(fig, 111,  # similar to subplot(111)
                     nrows_ncols=(nrows, ncolumns),  # creates 2x2 grid of axes
                     axes_pad=0.05,  # pad between axes in inch.
                     share_all=True
                     )   
 
-    imagefiles = imagefiles[np.random.choice(len(imagefiles), size=nrows*ncolumns, replace=False)]
     basewidth = 400
     images = []
-    for filename in imagefiles:
-        img = Image.open(filename)
-        wpercent = (basewidth/float(img.size[0]))
-        hsize = int((float(img.size[1])*float(wpercent)))
-        img = img.resize((basewidth,hsize), Image.ANTIALIAS)
+    for rid, filename, cdist in zip(clusterdata['ids'], clusterdata['imagenames'], clusterdata['cdistances']):
+        if drawkpts:
+            filepath = os.path.join(imgdir, '{}_overlay.jpg'.format(filename))
+        else:
+            filepath = os.path.join(imgdir, '{}.jpg'.format(filename))
+        img = Image.open(filepath)
+        print(rid, img.size)
+        img = resizeimage(img)
+        print(img.size)
         images.append(np.array(img))
-        
-    for ax, im in zip(grid, images):
+    
+    c_added = 0
+    for ax, im, rid, cdist in zip(grid, images, clusterdata['ids'], clusterdata['cdistances']):
         # Iterating over the grid returns the Axes.
         ax.axis('off')
         ax.imshow(im)
+        imtitle = 'r={} d={:0.2f}'.format(rid, float(cdist))
+        ax.text(0.5,-0.1, imtitle, size=2, ha="center", transform=ax.transAxes)
+        c_added = c_added + 1
+    
+    if c_added<nrows*ncolumns:
+        for i in range(c_added,nrows*ncolumns):
+            grid[i].axis('off')
 
-    plt.savefig(savepath, dpi=300)
+    plt.savefig(savepath, dpi=400, bbox_inches='tight', pad_inches=0.01)
+    plt.clf()
+
+def resizeimage(image):
+    MAX_SIZE = 400
+    original_size = max(image.size[0], image.size[1])
+    if original_size >= MAX_SIZE:
+        if (image.size[0] > image.size[1]):
+            resized_width = MAX_SIZE
+            resized_height = int(round((MAX_SIZE/float(image.size[0]))*image.size[1])) 
+        else:
+            resized_height = MAX_SIZE
+            resized_width = int(round((MAX_SIZE/float(image.size[1]))*image.size[0]))
+        image = image.resize((resized_width, resized_height), Image.ANTIALIAS)
+    return image
 
 if __name__=="__main__":
    main()

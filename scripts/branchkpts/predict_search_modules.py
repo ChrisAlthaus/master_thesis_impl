@@ -165,7 +165,7 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=Fals
         return
     return gpdfile
 
-def search(gpdfile, method_search, rankingtype, method_insert='RAW', queue=None):
+def search(gpdfile, method_search, rankingtype, percperson=True, method_insert='RAW', queue=None):
     # -------------------------- ELASTIC SEARCH -----------------------------
     print("SEARCH FOR GPD IN DATABASE...")
 
@@ -187,25 +187,13 @@ def search(gpdfile, method_search, rankingtype, method_insert='RAW', queue=None)
     tresh = -1 #deprected
 
     #Querying on the database images
-    if method_search == 'COSSIM':
-        #Not implemented so far
-        #res = input("Do you want to evaluate the treshold on the gpu clustering first? [yes/no]")
-        #if res == 'yes':
-        #    os.system("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -method_search {} -evaltresh".format(inputfile, method_search))
-        
-        cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -rankingtype {} "+ \
-                                                                                            "-method_insert {} -tresh {} &> {}")\
-                                                                                                .format(inputfile, method_search, rankingtype, method_insert, tresh, logfile)
-        if _PRINT_CMDS:
-            print(cmd)
-        os.system(cmd)
-    else:
-        cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -rankingtype {} "+ \
-                                                                                            "-method_insert {} &> {}")\
-                                                                                                .format(inputfile, method_search, rankingtype, method_insert, logfile)
-        if _PRINT_CMDS:
-            print(cmd)
-        os.system(cmd)
+    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} {} -rankingtype {} "+ \
+                                                                                        "-method_insert {} &> {}")\
+                                                            .format(inputfile, method_search, ' -search_personperc' if percperson else '', rankingtype, method_insert, logfile)
+    if _PRINT_CMDS:
+        print(cmd)
+    os.system(cmd)
+
     print('\n\n')
     print("SEARCH FOR GPD IN DATABASE DONE.")
 
@@ -222,21 +210,27 @@ def search(gpdfile, method_search, rankingtype, method_insert='RAW', queue=None)
     return rankingfile 
 
 
-def getImgs(rankingfile):
+def getImgs(rankingfile, drawkpts=True):
     print("Reading from file: ",rankingfile)
     with open (rankingfile, "r") as f:
         json_data = json.load(f)
 
     imagedir = json_data['imagedir']
     del json_data['imagedir']
-    #print(json_data)
+   
+    drawkptsdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages'
 
     rankedlist = sorted(json_data.items(), key= lambda x: int(x[0])) 
     imgs = []
     scores = []
     for item in rankedlist:
         #imgs.append(Image.open(item[1]['filepath']))
-        imgs.append(Image.open(os.path.join(imagedir, item[1]['filename'])))
+        if drawkpts:
+            basename, suffix = os.path.splitext(item[1]['filename'])
+            kfilename = '{}_overlay{}'.format(basename, suffix) 
+            imgs.append(Image.open(os.path.join(drawkptsdir, kfilename)))
+        else: 
+            imgs.append(Image.open(os.path.join(imagedir, item[1]['filename'])))
         scores.append(item[1]['relscore'])
     
     return imgs, scores

@@ -54,6 +54,7 @@ parser.add_argument('-method_insert', help='Select method for insert data.')
 parser.add_argument('-imgdir', help='Image directory the descriptors refer to (insert or search).')
 parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
+parser.add_argument('-search_personperc', action="store_true", help='Wheather to consider personsize on image for weighting scores.')
 parser.add_argument('-rankingtype', help='Select method for ranking found descriptors.')
 parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
 parser.add_argument('-delindex', type=str, help='Delete an index by name.')
@@ -76,6 +77,8 @@ if args.tresh is None:
     _SIMILARITY_TRESH = 0.95 #not used yet
 else:
     _SIMILARITY_TRESH = args.tresh 
+
+_SEARCH_PERSON_PERC_ENABLED = args.search_personperc
 #Method 1 uses Cosinus-Similarity for comparing features with features in db produced by visual codebook preprocessing, 
 #       just a shortlist of N best-matching documents is queried for better performance
 #Method 2 uses a Distance-Measure to compute the sum of L2-distances between input features 
@@ -105,6 +108,7 @@ if args.method_search:
 #_INDEX = '2vecstest' 
 _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
 _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn'
+_INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc'
 
 print("Current index: ",_INDEX)
 
@@ -147,6 +151,7 @@ def main():
                        verify_certs=False)
     _INDICES_ALL = es.indices.get_alias("*").keys()
     print("Existing Indices: ", _INDICES_ALL)
+    print(es.info())
     
     if args.indexstats:
         global _INDEX
@@ -155,6 +160,7 @@ def main():
         return
 
     _SRCIMG_DIR = getimgdir(_INDEX, imgdir=args.imgdir, es=es)
+    _SRCIMG_DIR = '/nfs/data/iart/kaggle/img'
     print("Source image folder: ",_SRCIMG_DIR)
 
     
@@ -273,7 +279,7 @@ def insertdata_raw(args, data ,es):
     print("Inserting image descriptors from %s ..."%args.file)
     for item in data:
         d = {'gpd': item['gpd'], 'mask': item['mask']}
-        metadata ={'image_id': item['image_id'], 'score': item['score']}
+        metadata ={'image_id': item['image_id'], 'score': item['score'], 'percimage': item['percimage']}
         insertdoc(es, d, metadata, id, 'gpd')
         id = id + 1
         if id%100 == 0 and id != 0:
@@ -325,6 +331,9 @@ def createIndex(es, dim, mode, imgdir):
                 "mask": {
                     "type" : "keyword"
                     #"index" : False
+                },
+                "percimage":{
+                    "type": "float"
                 }
                 
                 # "imid": {
@@ -359,7 +368,8 @@ def insertdoc(es, data, metadata, id, featurelabel):
     'imageid': metadata['image_id'],
     'score': metadata['score'],
     '{}-array'.format(featurelabel): list(data[featurelabel]),
-    'mask': data['mask']
+    'mask': data['mask'],
+    'percimage': metadata['percimage']
     #featurelabel: list(data[featurelabel]),
     #'tempvec':  list(np.random.randint(2, size=(4,))) #[0,0,0,0] #list(data[featurelabel]) # [-100 for i in range(len(data[featurelabel]))]
     }
@@ -371,6 +381,7 @@ def insertdoc(es, data, metadata, id, featurelabel):
 def query(es, descriptor, size, method):
     featurevector = descriptor['gpd']
     maskstr = descriptor['mask']
+    percentage = descriptor['percimage']
     
     #Notes to querying in elasticsearch
     #   - params._source['gpd-array'] prevents es to sort the array (vs. params['gpd-array'])
@@ -424,14 +435,22 @@ def query(es, descriptor, size, method):
                             double gpdmagnitude = Math.sqrt(gpddotproduct);
 
                             double cossim = qgpddotproduct / (qmagnitude * gpdmagnitude);
-                            return (cossim + 1) * params._source['score'];  
+
+                            double warea = 1.0;
+                            if (params.percenabled){
+                                warea =  1 - Math.abs(params.queryPercImage - params._source['percimage'])
+                            }
+                            
+                            return (cossim + 1) * params._source['score'] * warea;  
                             //return cosineSimilarity(qeffective, doc['gpd']) + 1 //not working
                             //return 1 / (1 + l1norm + c) *  params._source['score'];
                             """
                         ,
                         "params": {
                             "queryVector": list(featurevector),
-                            "queryMask": maskstr
+                            "queryMask": maskstr,
+                            "queryPercImage": percentage,
+                            'percenabled': _SEARCH_PERSON_PERC_ENABLED
                         }   
                     }
                 }
@@ -468,14 +487,21 @@ def query(es, descriptor, size, method):
                             for (int dim = 0; dim < doc['gpd-array'].size(); dim++){
                                 l1norm += Math.abs(params._source['gpd-array'][dim] - qeffective[dim]);
                             }
-                            //return l1norm;
-                            return 1 / (1 + l1norm + c) *  params._source['score'];
-                            //return 1 / (1 + l1norm(qeffective, doc['gpd']) + c) *  params._source['score']; //not working
+
+                            double warea = 1.0;
+                            if (params.percenabled){
+                                warea =  1 - Math.abs(params.queryPercImage - params._source['percimage'])
+                            }
+
+                            return 1 / (1 + l1norm + c) *  params._source['score'] * warea;
+                            //return 1 / (1 + l1norm(qeffective, doc['gpd']) + c) *  params._source['score']; //note: not working
                             """
                         ,
                         "params": {
                             "queryVector": list(featurevector),
-                            "queryMask": maskstr
+                            "queryMask": maskstr,
+                            "queryPercImage": percentage,
+                            'percenabled': _SEARCH_PERSON_PERC_ENABLED
                         }   
                     }
                 }
@@ -516,14 +542,21 @@ def query(es, descriptor, size, method):
                                 l2norm += diff * diff;
                             }
                             l2norm = Math.sqrt(l2norm);
-                            return 1 / (1 + l2norm + c) *  params._source['score'];
-                            //return 1 / (1 + l2norm) *  params._source['score'];
-                            //return l2norm(qeffective, doc['gpd']) *  params._source['score']; not working
+
+                            double warea = 1.0;
+                            if (params.percenabled){
+                                warea =  1 - Math.abs(params.queryPercImage - params._source['percimage'])
+                            }
+
+                            return 1 / (1 + l2norm + c) *  params._source['score'] * warea;
+                            //return l2norm(qeffective, doc['gpd']) *  params._source['score']; note: not working
                             """
                         ,
                         "params": {
                             "queryVector": list(featurevector),
-                            "queryMask": maskstr
+                            "queryMask": maskstr,
+                            "queryPercImage": percentage,
+                            'percenabled': _SEARCH_PERSON_PERC_ENABLED
                         }   
                     }
                 }

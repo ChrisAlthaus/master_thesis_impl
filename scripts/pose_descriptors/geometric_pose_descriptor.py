@@ -115,12 +115,14 @@ def main():
             #if person['score'] >= 0.9:
             #    print(person['keypoints'][2::3], isvalid, person['score'])
             #logging.debug("LATER:",person['keypoints'])
-            metadata = {'imagesize': person['image_size']}
+            metadata = {'imagesize': person['image_size'], 'bbox' : person['bbox']}
             keypoint_descriptor, confidences, mask = calculateGPD(person['keypoints'], args.mode, metadata)
+            #"image_size": [448, 815], "category_id": 1, "bbox": [294.5003662109375, 21.756784439086914, 209.2066650390625, 417.60650634765625]
+            barea = calculate_personpercentage(metadata)
             if args.gtAnn:
-                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, "mask": mask, 'score': [1]*len(keypoint_descriptor), 'confidences': confidences})
+                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, "mask": mask, 'score': [1]*len(keypoint_descriptor), 'confidences': confidences , 'percimage': barea})
             else:
-                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, "mask": mask, 'score': person['score'], 'confidences': confidences})
+                json_out.append({"image_id": person["image_id"], "gpd": keypoint_descriptor, "mask": mask, 'score': person['score'], 'confidences': confidences, 'percimage': barea})
             c = c + 1
         if i%1000 == 0 and i!=0:
             print("Processed %d elements."%i)
@@ -352,6 +354,13 @@ def calculateGPD(keypoints, mode, metadata):
     mask = ''.join(['1' if entry!=-1 else '0' for entry in pose_descriptor])
 
     return pose_descriptor, cs, mask
+
+def calculate_personpercentage(metadata):
+    #Calculates the proportion of the persons bbox w.r. to the total image area
+    imgarea = metadata['imagesize'][0] * metadata['imagesize'][1]
+    #personarea =  abs(metadata['bbox'][0] - metadata['bbox'][2]) * abs(metadata['bbox'][1] - metadata['bbox'][3]) #XYXY
+    personarea =  metadata['bbox'][2] * metadata['bbox'][3] #XYWH
+    return float(personarea/imgarea)
 
 # ------------------------------------- DESCRIPTORS OF DIFFERENT TYPES ------------------------------------- 
 

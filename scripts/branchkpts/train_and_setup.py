@@ -249,7 +249,7 @@ if clust_on:
 
     method_insert = 'CLUSTER' #['CLUSTER', 'RAW'] 
     cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
-            "{} python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
+            "{} python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}")\
                                                                                             .format(jobname, logfile, gpu_cmd, inputfile, method_insert, img_dir, methodgpd)
     if _PRINT_CMDS:
         print(cmd)
@@ -260,8 +260,8 @@ else:
     print("GPD file: ",inputfile)
 
     method_insert = 'RAW' #['CLUSTER', 'RAW'] 
-     cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
-            "{} python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}"\
+    cmd = ("sbatch -w devbox4 -J {} -o {}"+ \
+            "{} python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -insert -method_ins {} -imgdir {} -gpd_type {}")\
                                                                                             .format(jobname, logfile, gpu_cmd, inputfile, method_insert, img_dir, methodgpd)
     if _PRINT_CMDS:
         print(cmd)
