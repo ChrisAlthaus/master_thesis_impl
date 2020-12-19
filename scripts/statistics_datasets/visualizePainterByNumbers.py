@@ -2,22 +2,59 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from collections import defaultdict
 import os
 
 import re
+import json
 
 outputdir = '/home/althausc/master_thesis_impl/scripts/statistics_datasets/.stats/painterbynumbers'
 if not os.path.exists(outputdir):
         os.makedirs(outputdir)
 
-pbn = pd.read_csv('datasetCSVs/painterbynumbers/all_data_info.csv')
+pbn = pd.read_csv('/home/althausc/master_thesis_impl/scripts/statistics_datasets/datasetCSVs/painterbynumbers/train_info.csv')
+
+
+gpdfile = '/home/althausc/master_thesis_impl/posedescriptors/out/insert/12-18_16-44-58/geometric_pose_descriptor_c_53615_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+with open (gpdfile, "r") as f:
+    data = f.read()
+    dbdata = eval(data)
+imgids = list(set([d["image_id"] for d in dbdata][:1000]))
+
+dbmetadata = []
+for index, row in pbn.iterrows():
+    #print(int(os.path.splitext(row['filename'])[0]), imgids[:4])
+    #exit(1)
+    if os.path.splitext(row['filename'])[0] in imgids: 
+        dbmetadata.append(row)
+dbmetadata = pd.DataFrame(dbmetadata)
+
+print('Number of images in kaggpe pbn: ',len(pbn))
+print('Number of images in database: ',len(dbmetadata))
+
+#GET STYLE DISTRIBUTIONS
+genre_c1 = defaultdict(int)
+for index, row in pbn.iterrows():
+    genre_c1[row['genre']] += 1
+
+genre_c2 = {key:0 for key in genre_c1.keys()}
+for index, row in dbmetadata.iterrows():
+    genre_c2[row['genre']] += 1
+
+genre_c1 = sorted(genre_c1.items(), key=lambda x:x[1], reverse=True)
+genre_c2 = [genre_c2[genre] for genre,count in genre_c1]
+genres = [genre for genre,count in genre_c1]
+genre_c1 = [count for genre,count in genre_c1]
+
+genredf = pd.DataFrame([genres, genre_c1, genre_c2], index=['genre', 'pbn', 'db']).T
 
 #STYLE HISTOGRAM
 a4_dims = (30, 12)
 fig, ax = plt.subplots(figsize=a4_dims)
-ax = sns.countplot(x='style', data=pbn, order =pbn['style'].value_counts().index)
-ax.set(xlabel='Artistic Style', ylabel='Number of Artworks')
+ax = sns.countplot(data=pbn, y='genre', order =pbn['genre'].value_counts().index)
+ax.set(xlabel='Number of Artworks', ylabel='Artistic Style')
 #sns.set(rc={'figure.figsize':(11.7,8.27)})
+
 
 def change_width(ax, new_value) :
     for patch in ax.patches :
@@ -30,16 +67,38 @@ def change_width(ax, new_value) :
         # we recenter the bar
         patch.set_x(patch.get_x() + diff * .5)
 #change_width(ax, 1)
-ax.set_xticklabels(ax.get_xticklabels(),rotation=90)
+#ax.set_xticklabels(ax.get_xticklabels(),rotation=90)
 
 #ax.set_xticklabels(fontsize=7)
 #ax.figure.autofmt_xdate()
 plt.xticks(fontsize=7)
-ax.figure.savefig(os.path.join(outputdir, 'style_distr.png'),bbox_inches='tight')
+ax.figure.savefig(os.path.join(outputdir, 'genre_distr_pbn.png'),bbox_inches='tight')
 
 #Count number of different labels
-print(pbn["style"].value_counts().index.tolist())
-print("Number of style labels: " + str(len(pbn["style"].value_counts().index.tolist())) )
+print("Number of genre labels: " + str(len(pbn["genre"].value_counts().index.tolist())) )
+
+#STYLE HISTOGRAM REDUCED
+a4_dims = (30, 12)
+fig, ax = plt.subplots(figsize=a4_dims)
+ax = sns.countplot(data=dbmetadata, y='genre', order =dbmetadata['genre'].value_counts().index)
+ax.set( xlabel='Number of Artworks', ylabel='Artistic Style')
+
+#ax.set_xticklabels(ax.get_xticklabels(),rotation=90)
+plt.xticks(fontsize=7)
+ax.figure.savefig(os.path.join(outputdir, 'genre_distr_reduced_pbn.png'),bbox_inches='tight')
+
+#Count number of different labels
+print("Number of genre labels: " + str(len(dbmetadata["genre"].value_counts().index.tolist())) )
+
+#STYLE HISTOGRAMS BOTH
+a4_dims = (30, 12)
+fig, ax = plt.subplots(figsize=a4_dims)
+ax = sns.barplot(data=genredf, y='genre', x=['pbn', 'db'], orient='h')
+ax.set( xlabel='Number of Artworks', ylabel='Artistic Style')
+
+#ax.set_xticklabels(ax.get_xticklabels(),rotation=90)
+plt.xticks(fontsize=7)
+ax.figure.savefig(os.path.join(outputdir, 'genre_distr_comparison.png'),bbox_inches='tight')
 
 
 #YEAR DISTRIBUTION

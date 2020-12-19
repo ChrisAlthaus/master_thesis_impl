@@ -5,6 +5,7 @@ import warnings
 import matplotlib.pyplot as plt
 import os
 import datetime
+from collections import defaultdict
 np.seterr(all = "raise")
 
 import sys
@@ -159,6 +160,12 @@ def angle(l1,l2):
 
     return np.arccos(np.clip(np.dot(j1_norm, j2_norm), -1.0, 1.0))
 
+def getimgfrequencies(descriptors):
+    c_imgid_persons = defaultdict(int)
+    for d in descriptors:
+        imageid = d["image_id"]
+        c_imgid_persons[imageid] =  c_imgid_persons[imageid] + 1
+    return c_imgid_persons
 
 def replace_unvalidentries(inputdescriptor, replacefeature):
     #Function replaces the missing pose descriptor values (-1's) with the values of the input feature

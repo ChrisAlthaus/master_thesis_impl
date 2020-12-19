@@ -87,7 +87,7 @@ _METHODS_INS = ['CLUSTER', 'RAW']
 _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
 _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
 #For multiple search descriptor always rankingtype querymuliple* will be selected 
-_RANKING_TYPES = ['average', 'max']
+_RANKING_TYPES = ['average', 'max', 'querymultiple-firstn', 'querymultiple-average', 'querymultiple-samefreq']
 
 _INDEX = 'cossim-test' #debug
 if args.method_insert and args.gpd_type:
@@ -112,7 +112,7 @@ _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc'
 
 print("Current index: ",_INDEX)
 
-_ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation
+_ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation, adjust for better performance
 _NUMRES = 100 #adjust for only take topk 
 
 _CONFIGDIR = '/home/althausc/master_thesis_impl/retrieval/out/configs'
@@ -601,15 +601,21 @@ def query(es, descriptor, size, method):
     return imageids, scores
 
 def bestmatching(image_scoring, rankingtype, querynums, k):
+    #Format of image_scoring: 
+    #   -> each detected query pose is associated with 1 result image list
+    #   [[(id1, score), ..., (idn, score)], ... , [(id1, score), ..., (idn, score)]]
+
     #Scoring should contain for each imageid the accumulated scores between query features and db entries  
     score_sums = {}
     #Number of iterations: number of query features * number of db entries (each-by-each)
     start_time = time.time()
 
     c_gpds = 0
-    if querynums>1:
-        rankingtype = 'querymultiple-firstn' #'querymultiple-average'
+    if querynums>1 and rankingtype != 'querymultiple-samefreq':
+        if rankingtype not in ['querymultiple-firstn', 'querymultiple-average','querymultiple-samefreq']:
+            rankingtype = 'querymultiple-firstn' #'querymultiple-average'
         print("Choosing rankingtpye = {}, because {} search descriptors.".format(rankingtype, querynums))
+
         #Only take best matched pose for each image(-id) for each query descriptor
         #To prevent to ranking images high with only 1 query descriptor seeing mulitple times
         #Each query descriptor should be have equal influence on ranking
@@ -635,7 +641,15 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
     #    print(k, v,list(v))
     #exit(1)
     print("Using ranking type: {}".format(rankingtype))
-    
+
+    if rankingtype == 'querymultiple-samefreq':
+        _, descriptorfile, _ = get_indexconfigs(_INDEX)
+        gpddir = os.path.dirname(descriptorfile)
+        print(os.path.join(gpddir, 'persons-per-image.json'))
+        with open(os.path.join(gpddir, 'persons-per-image.json'), 'r') as f:
+            print("Reading imageid statistics locally ...")
+            personsperimage = json.load(f)
+
     c_ids = 0
     for imageid, group in grouped_by_imageid:
         if rankingtype == 'average':
@@ -643,16 +657,29 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
         elif rankingtype == 'max':
             score_sums[imageid] = np.max([s for id,s in group])
         elif rankingtype == 'querymultiple-firstn':
+            #For detecting images with exact person frequency as query image,
+            # since divison of each score by number of query desciptors
             scores = [s for id,s in group]
             #print(scores)
             #Get up to number of query descriptor search results
-            scores = scores[:querynums]
-            scores.sort(reverse=True)
-            score_sums[imageid] = scores[0] + sum([s/querynums for s in scores[1:]]) if len(scores)>1 else 0
+            assert len(scores)<=querynums
+            score_sums[imageid] = sum([s/querynums for s in scores])
+            #score_sums[imageid] = scores[0] + sum([s/querynums for s in scores[1:]]) if len(scores)>1 else 0
             #print(score_sums[imageid])
             #print("----------------------------")
         elif rankingtype == 'querymultiple-average':
+            #For detecting images with 1 or multiple matching persons, 
+            # since average over best results from each descriptor search 
             score_sums[imageid] = np.mean([s for id,s in group])
+        elif rankingtype == 'querymultiple-samefreq':
+            #Only consider query results with exactly #queryposes = #resultposes,
+            #therefore no preprocessing/result reduction was done.
+            #Can be used to filter out crowded images
+            idscores = list(group)
+            if personsperimage[imageid] == querynums:
+                score_sums[imageid] = np.mean([s for id,s in idscores])
+                c_ids = c_ids + 1
+            continue
         else:
             raise ValueError()
         c_ids = c_ids + 1

@@ -15,7 +15,7 @@ import logging
 import itertools
 import copy
 import matplotlib.pyplot as plt
-from utils import applyPCA, normalizevec, dict_to_item_list, line_intersection, angle
+from utils import applyPCA, normalizevec, dict_to_item_list, getimgfrequencies, line_intersection, angle
 
 #Transform the input pose predictions to descriptors based on multiple measures.
 #Provided measures:
@@ -142,6 +142,11 @@ def main():
     if args.pcamodel is not None:
         pca_reload = pickle.load(open(args.pcamodel,'rb'))
         _ = applyPCA(json_out, pca=pca_reload)
+
+    #Save person frequency/imageid in seperate file
+    imgfreqs = getimgfrequencies(json_out)
+    with open(os.path.join(output_dir, 'persons-per-image.json'), 'w') as f:
+        json.dump(imgfreqs, f)
 
     #Writing config to file
     with open(os.path.join(output_dir, 'config.txt'), 'a') as f:

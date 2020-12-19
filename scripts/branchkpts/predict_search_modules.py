@@ -160,6 +160,10 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=Fals
     outrun_dir = latestdir(out_dir)
 
     gpdfile = filewithname(outrun_dir, 'geometric_pose_descriptor')
+    with open (gpdfile, "r") as f:
+        numgpds = len(json.load(f))
+        print("Number of calculated descriptors: ", numgpds)
+
     if queue:
         queue.put({'gpdfile': gpdfile})
         return
@@ -175,7 +179,7 @@ def search(gpdfile, method_search, rankingtype, percperson=True, method_insert='
     _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
     #_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
     _METHODS_INSERT = ['CLUSTER', 'RAW']
-    _RANKING_TYPES = ['average', 'max', 'querymultiple']
+    _RANKING_TYPES = ['average', 'max', 'querymultiple-firstn', 'querymultiple-average', 'querymultiple-samefreq']
     assert method_search in _METHODS_SEARCH
     #assert gpdtype in _GPD_TYPES
     assert method_insert in _METHODS_INSERT

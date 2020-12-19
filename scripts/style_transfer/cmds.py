@@ -49,7 +49,7 @@ print(cmd)
 print("Output Directory: %s\n"%outputdir)
 
 
-# --------------------------- VISUALIZE SCENE GRAPH PREDICTIONS --------------------------
+# --------------------------- GET STYLETRANSFER ANNOTATIONS --------------------------
 print("VISUALIZE SCENE GRAPHS:")
 annotationfile = '/nfs/data/coco_17/annotations/person_keypoints_train2017.json'  #person_keypoints_val2017.json
 imagedir_styletransfered = outputdir
