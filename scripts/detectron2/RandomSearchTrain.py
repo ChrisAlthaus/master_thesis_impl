@@ -116,7 +116,7 @@ for i in range(0,_NUM_RUNS):
         dataaugm = True #False #True
         batchsize = 2#16 #2 #original: 16
         lr = 0.0030 #0.0035 #0.00185 #0.0005 #0.005/2 #0.0035 #original: 0.001
-        bn = "GN" #"FrozenBN", "GN", "SyncBN", "BN", ''
+        bn = "FrozenBN" #"FrozenBN", "GN", "SyncBN", "BN", ''
         minkpts = 4 #original: 1
         #steps = np.linspace(0.7, 1, 10).tolist()
         #gamma = 0.75  #0.75 ^ 10 = 0.05
@@ -130,6 +130,7 @@ for i in range(0,_NUM_RUNS):
         _ADD_NOTES = 'Larger train dataset & Small validation dataset & BatchNorm & Best run with more lr steps and epochs*2.'
         _ADD_NOTES = 'Resume of upto now best run with small lrs, cpkt: /home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch/model_final.pth.'
         _ADD_NOTES = 'Train with parameters of best run but group normalization (/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch)'
+        _ADD_NOTES = "Train with parameters of best run but frozenbatch normalization (/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch)"
 
 
     elif _PARAM_MODE == 'loadparams':
@@ -177,7 +178,7 @@ for i in range(0,_NUM_RUNS):
     print(cmd)
 
     #Start sbatch training
-    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1-qrtx8000.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1-qrtx8000.sh'
+    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-1-qrtx8000.sh'
     jobname = "maskrcnn-train-%s"%datetime.datetime.now().strftime('%d_%H-%M-%S')
     logfile = os.path.join(logdir, 'train.log')
 

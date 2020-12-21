@@ -307,7 +307,7 @@ def calculateGPD(keypoints, mode, metadata):
         kpt_kpt_mapping.extend(_END_JOINTS_DEPTH_2)
         kpt_kpt_mapping.extend(custom_jj_mapping)
         
-        JJ_o = joint_joint_orientations(keypoints, kpt_kpt_mapping)
+        JJ_o = joint_joint_orientations(keypoints, kpts_valid, kpt_kpt_mapping)
         pose_descriptor.append(JJ_o)
 
         if _NOTESFLAG:
@@ -450,7 +450,7 @@ def joint_joint_orientations(keypoints, kptsvalid, indices_pairs=None):
                     j1 = keypoints[i1]
                     j2 = keypoints[i2]
                     #Don't compute for unvalid points or points with same coordinates
-                    if j1==j2:
+                    if (j1==j2).all():
                         joint_orientations.extend([0,0])
                     elif not kptsvalid[i1] or not kptsvalid[i2]:
                         joint_orientations.extend([-1,-1])
@@ -464,7 +464,7 @@ def joint_joint_orientations(keypoints, kptsvalid, indices_pairs=None):
             j1 = keypoints[start]
             j2 = keypoints[end]
             #Don't compute for unvalid points or points with same coordinates
-            if j1==j2:
+            if (j1==j2).all():
                 joint_orientations.extend([0,0])
             elif not kptsvalid[start] or not kptsvalid[end]:
                 joint_orientations.extend([-1,-1])
@@ -472,18 +472,19 @@ def joint_joint_orientations(keypoints, kptsvalid, indices_pairs=None):
                 vec = np.subtract(j2,j1)
                 normvec = vec/np.linalg.norm(vec)
                 joint_orientations.extend(list(normvec))
-                #plt.axis('equal')
-                #plt.plot([j1[0], j2[0]], [j1[1], j2[1]], 'k-', lw=1)
-                #plt.plot([0, vec[0]], [0, vec[1]], 'g-', lw=1)
-                #plt.plot([0, normvec[0]], [0, normvec[1]], 'r-', lw=1)
-                #plt.gca().invert_yaxis()
+                plt.axis('equal')
+                plt.plot([j1[0], j2[0]], [j1[1], j2[1]], 'k-', lw=1)
+                plt.plot([0, vec[0]], [0, vec[1]], 'g-', lw=1)
+                plt.plot([0, normvec[0]], [0, normvec[1]], 'r-', lw=1)
+                plt.gca().invert_yaxis()
                 #print("(%s,%s)->(%s,%s)"%(_BODY_PART_MAPPING[k11], _BODY_PART_MAPPING[k12], _BODY_PART_MAPPING[k21], _BODY_PART_MAPPING[k22]))
-                #label = "%s-%s"%(_BODY_PART_MAPPING[start], _BODY_PART_MAPPING[end])
-                #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/jj_o/%s.jpg"%label)
+                label = "%s-%s"%(_BODY_PART_MAPPING[start], _BODY_PART_MAPPING[end])
+                print(label)
+                #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/%s.jpg"%label)
                 #plt.clf()
 
-            #plt.gca().invert_yaxis()
-            #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/jj_o/entirebody.jpg")       
+            plt.gca().invert_yaxis()
+            plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/entirebody.jpg")       
     logging.debug("Dimension of joint orientations: {}".format(len(joint_orientations)))
     if _NORM:
         joint_orientations = normalizevec(joint_orientations, mask=True)

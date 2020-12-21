@@ -100,7 +100,7 @@ def visualizeJLd(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
                                 (6,8):[(5,7),'upper_arms'], (8,10):[(7,9),'lower_arms'],
                                 (12,14):[(11,13),'upper_legs'], (14,16):[(13,15),'lower_legs'],
                                 (0,5):[(3,5),'head_shoulder_l'], (0,6):[(4,6),'head_shoulder_r']}
-
+    print(predgpds)
     for imgid,group in predgpds.items():
         imgid = str(imgid)
         preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
@@ -124,7 +124,8 @@ def visualizeJLd(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
         lla_kpts = []
         jl_start = 34
         ll_start = 52
-        assert len(keypoints) == len(gpds)
+        
+        assert len(keypoints) == len(gpds), 'Number of predictions do not match number of gpds for one image'
         for i in range(len(keypoints)):
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
