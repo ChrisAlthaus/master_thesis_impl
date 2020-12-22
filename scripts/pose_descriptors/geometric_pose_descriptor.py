@@ -290,6 +290,7 @@ def calculateGPD(keypoints, mode, metadata):
         #   - endjoint depth 2 connection lines: Y*17 = ..
 
         JL_d = joint_line_distances(keypoints, l_direct_adjacent, kpts_valid)
+        JL_d = [entry for k,entry in enumerate(JL_d) if k%2 == 0]
         pose_descriptor.append(JL_d)
 
         if _NOTESFLAG:
@@ -312,6 +313,11 @@ def calculateGPD(keypoints, mode, metadata):
 
         if _NOTESFLAG:
             _ADDNOTES += 'Dimensions JJ_o: %d \n'%len(JJ_o)
+
+    elif mode == 'Jc_rel':
+        Jc_rel = joint_coordinates_rel(keypoints, kptsvalid, metadata['imagesize'], addconfidences=None)
+        pose_descriptor.append(Jc_rel)
+
 
     #indices_pairs = []
     #JJ_d = joint_joint_distances(keypoints,indices_pairs=None)
@@ -457,6 +463,7 @@ def joint_joint_orientations(keypoints, kptsvalid, indices_pairs=None):
                     else:    
                         vec = np.subtract(j2,j1)
                         normvec = vec/np.linalg.norm(vec)
+                        normvec = normvec.astype(float)
                         joint_orientations.extend(list(normvec))
 
     else:
@@ -471,23 +478,26 @@ def joint_joint_orientations(keypoints, kptsvalid, indices_pairs=None):
             else:   
                 vec = np.subtract(j2,j1)
                 normvec = vec/np.linalg.norm(vec)
+                normvec = normvec.astype(float)
+                #print("vec: ",vec)
+                #print("normvec: ",normvec)
                 joint_orientations.extend(list(normvec))
-                plt.axis('equal')
-                plt.plot([j1[0], j2[0]], [j1[1], j2[1]], 'k-', lw=1)
-                plt.plot([0, vec[0]], [0, vec[1]], 'g-', lw=1)
-                plt.plot([0, normvec[0]], [0, normvec[1]], 'r-', lw=1)
-                plt.gca().invert_yaxis()
+                #plt.axis('equal')
+                #plt.plot([j1[0], j2[0]], [j1[1], j2[1]], 'k-', lw=1)
+                #plt.plot([0, vec[0]], [0, vec[1]], 'g-', lw=1)
+                #plt.plot([0, normvec[0]], [0, normvec[1]], 'r-', lw=1)
+                #plt.gca().invert_yaxis()
                 #print("(%s,%s)->(%s,%s)"%(_BODY_PART_MAPPING[k11], _BODY_PART_MAPPING[k12], _BODY_PART_MAPPING[k21], _BODY_PART_MAPPING[k22]))
-                label = "%s-%s"%(_BODY_PART_MAPPING[start], _BODY_PART_MAPPING[end])
-                print(label)
+                #label = "%s-%s"%(_BODY_PART_MAPPING[start], _BODY_PART_MAPPING[end])
+                #print(label)
                 #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/%s.jpg"%label)
                 #plt.clf()
 
-            plt.gca().invert_yaxis()
-            plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/entirebody.jpg")       
+            #plt.gca().invert_yaxis()
+            #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/entirebody.jpg")       
     logging.debug("Dimension of joint orientations: {}".format(len(joint_orientations)))
-    if _NORM:
-        joint_orientations = normalizevec(joint_orientations, mask=True)
+    #if _NORM:
+    #    joint_orientations = normalizevec(joint_orientations, mask=True)
     return joint_orientations 
 
 def joint_line_distances(keypoints, lines, kptsvalid, kpt_line_mapping = None):
@@ -498,16 +508,22 @@ def joint_line_distances(keypoints, lines, kptsvalid, kpt_line_mapping = None):
     
     if kpt_line_mapping is None:
         #Approx. Dimension: 60 lines * (25-3) joints = 1320 / (16+6+15) lines * (17-3) joints = 518
+        #print("lines.keys(): ", lines.keys())
+        #print("keypoints: ", keypoints)
         for k, l in lines.items():
             coords = list(l.coords)
+            #print("coords: ", coords)
+            #print(k)
             for i,joint in enumerate(keypoints):
                 #if joint is the same as either start or end point of the line, continue
                 if i in k: 
                     continue
                 if not kptsvalid[i] or not kptsvalid[k[0]] or not kptsvalid[k[1]]:
                     joint_line_distances.append(-1)
+                    #print('%s->(%s,%s) %f'%(_BODY_PART_MAPPING[i],_BODY_PART_MAPPING[k[0]],_BODY_PART_MAPPING[k[1], -1]))
                 else:
-                    joint_line_distances.append(Point(joint).distance(l))           
+                    joint_line_distances.append(Point(joint).distance(l))  
+                    #print('%s->(%s,%s) %f'%(_BODY_PART_MAPPING[i],_BODY_PART_MAPPING[k[0]],_BODY_PART_MAPPING[k[1]], Point(joint).distance(l)))         
     else:
         for k, [(k1,k2),label] in dict_to_item_list(kpt_line_mapping):
             if _DEBUG:

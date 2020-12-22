@@ -11,6 +11,7 @@ import os
 import cv2
 import torch
 import itertools
+import random
 from utils import dict_to_item_list
 import math
 
@@ -36,6 +37,9 @@ def main():
     gpddata = None
     with open(args.gpdfile, "r") as f:
          gpddata = json.load(f)   
+    
+    print("Sample at position 0: ", gpddata[0])
+    print("Feature dimension: ", len(gpddata[0]['gpd']))
 
     predgpd_map = {}
     for item in preddata:
@@ -63,12 +67,14 @@ def main():
     gpdfilename = os.path.basename(args.gpdfile)
     _MODES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced']
     if 'JcJLdLLa_reduced' in gpdfilename:
-        visualizeJLd( predgpd_map, args.imagespath, outputdir)
+        print("Detected descriptor type: JcJLdLLa_reduced")
+        visualizeJcJLdLLa(predgpd_map, args.imagespath, outputdir)
     elif 'JLd_all_direct' in gpdfilename:
-        print("Not implemented")
-        exit(1)
+        print("Detected descriptor type: JLd_all_direct")
+        visualizeJLdall(predgpd_map, args.imagespath, outputdir)
     elif 'JJo_reduced' in gpdfilename:
-        visualizeJJo( predgpd_map, args.imagespath, outputdir)
+        print("Detected descriptor type: JJo_reduced")
+        visualizeJJo(predgpd_map, args.imagespath, outputdir)
 
     print("Visualize done.")
     print("Wrote images to path: ",outputdir)
@@ -79,8 +85,61 @@ body_part_mapping = {
         7: "left_elbow", 8: "right_elbow", 9: "left_wrist", 10: "right_wrist", 11: "left_hip", 12: "right_hip",
         13: "left_knee", 14: "right_knee", 15: "left_ankle", 16: "right_ankle"}
 
+    
+def visualizeJLdall(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False):  
+    l_direct_adjacent = [(0, 1), (0, 2), (2, 4), (1, 3), (6, 8), (8, 10), (5, 7), (7, 9), (12, 14), (14, 16), (11, 13), (13, 15), (6, 5), (6, 12), (5, 11), (12, 11)]
+    line_mapping = l_direct_adjacent
+
+    display_percent = 0.075
+    for imgid, group in predgpds.items():
+        imgid = str(imgid)
+        preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
+        gpds = [item for item in group if 'gpd' in item]
+
+        if transformid:
+            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+            imgname_out = "{}_{}".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+            img_path = os.path.join(imagedir, imgname)
+        else:
+            imgname = "%s.jpg"%(imgid)
+            imgname_out = "{}".format(imgid)
+            img_path = os.path.join(imagedir, imgname)
+
+        keypoints = []
+        for pred in preds:
+            kpts = list(zip(pred['keypoints'][::3], pred['keypoints'][1::3], pred['keypoints'][2::3]))
+            keypoints.append(kpts)
+
+        if len(keypoints) != len(gpds):
+            print("No 1-to-1 assignments of predictions->gpds possible, because filtered predictions by gpd calculation.")
+            continue
+
+        jld_kpts = []
+        for i in range(len(keypoints)):
+            kpts = keypoints[i]
+            gpd = gpds[i]['gpd']
+            gpdindex = 0
+
+            for k1,k2 in line_mapping:
+                for j,joint in enumerate(kpts):
+                    #if joint is the same as either start or end point of the line, continue
+                    if j==k1 or j==k2: 
+                        continue
+                    #print('%s->(%s,%s) %f'%(body_part_mapping[j], body_part_mapping[k1], body_part_mapping[k2], gpd[gpdindex]))
+                    if random.random() < display_percent:
+                        jltuple = [kpts[j][:2], kpts[k1][:2], kpts[k2][:2], gpd[gpdindex]]
+                        jld_kpts.append(jltuple)
+                    gpdindex = gpdindex + 1
+
         
-def visualizeJLd(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False):
+        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        drawkeypoints(preds, img_path, v)
+        outjldist = v.draw_gpddescriptor_jldist(jld_kpts)
+        cv2.imwrite(os.path.join(outputdir, imgname_out+'_jLdall_{}.jpg'.format(display_percent)), outjldist.get_image()[:, :, ::-1])
+    
+
+
+def visualizeJcJLdLLa(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False):
     #Grouped imageid input: [{imageid1 : [{imageid1,...},...,{imageid1,...}], ... , {imageidn :[{imageidn,...},...,{imageidn,...}]}]
     #Dimensions: 18 distances
     kpt_line_mapping = {7:[(5,9),'left_arm'], 8:[(6,10),'right_arm'], 
@@ -100,7 +159,7 @@ def visualizeJLd(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
                                 (6,8):[(5,7),'upper_arms'], (8,10):[(7,9),'lower_arms'],
                                 (12,14):[(11,13),'upper_legs'], (14,16):[(13,15),'lower_legs'],
                                 (0,5):[(3,5),'head_shoulder_l'], (0,6):[(4,6),'head_shoulder_r']}
-    print(predgpds)
+    
     for imgid,group in predgpds.items():
         imgid = str(imgid)
         preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
@@ -125,7 +184,10 @@ def visualizeJLd(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
         jl_start = 34
         ll_start = 52
         
-        assert len(keypoints) == len(gpds), 'Number of predictions do not match number of gpds for one image'
+        if len(keypoints) != len(gpds):
+            print("No 1-to-1 assignments of predictions->gpds possible, because filtered predictions by gpd calculation.")
+            continue
+
         for i in range(len(keypoints)):
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
@@ -189,26 +251,70 @@ def visualizeJJo(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
             kpts = list(zip(pred['keypoints'][::3], pred['keypoints'][1::3], pred['keypoints'][2::3]))
             keypoints.append(kpts)
 
+        if len(keypoints) != len(gpds):
+            print("No 1-to-1 assignments of predictions->gpds possible, because filtered predictions by gpd calculation.")
+            continue
+
         kptsjj_os = []
         kptdists = [] #for scaling arrows according to limb length
-        assert len(keypoints) == len(gpds)
         for i in range(len(keypoints)):
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
+            #print("kpts: ",kpts)
+            #print("gpd: ",gpd)
+
             k = 0
             for j1,j2 in kpt_kpt_mapping:
-                print((j1,j2))
                 kptstart = kpts[j1]
                 orientation = gpd[k:k+2] 
                 kptsjj_os.append((kptstart, orientation))
                 kptdists.append(math.hypot(kpts[j2][0]- kpts[j1][0],  kpts[j2][1]- kpts[j1][1]))
                 k += 2
+        #print("kptsjj_os: ",kptsjj_os)
+        #print("kptdists: ",kptdists)
 
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         drawkeypoints(preds, img_path, v)
         outjldist = v.draw_gpddescriptor_jjo(kptsjj_os, kptdists)
         cv2.imwrite(os.path.join(outputdir, imgname_out+'_jjo.jpg'),outjldist.get_image()[:, :, ::-1])
 
+def visualizeJcrel(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False):
+    for imgid,group in predgpds.items():
+        imgid = str(imgid)
+        preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
+        gpds = [item for item in group if 'gpd' in item]
+
+        if transformid:
+            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+            imgname_out = "{}_{}".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+            img_path = os.path.join(imagedir, imgname)
+        else:
+            imgname = "%s.jpg"%(imgid)
+            imgname_out = "{}".format(imgid)
+            img_path = os.path.join(imagedir, imgname)
+
+        keypoints = []
+        for pred in preds:
+            kpts = list(zip(pred['keypoints'][::3], pred['keypoints'][1::3], pred['keypoints'][2::3]))
+            keypoints.append(kpts)
+
+        if len(keypoints) != len(gpds):
+            print("No 1-to-1 assignments of predictions->gpds possible, because filtered predictions by gpd calculation.")
+            continue
+
+        for i in range(len(keypoints)):
+            kpts = keypoints[i]
+            gpd = gpds[i]['gpd']
+            #plt.axis('equal')
+            #plt.plot([j1[0], j2[0]], [j1[1], j2[1]], 'k-', lw=1)
+            #plt.plot([0, vec[0]], [0, vec[1]], 'g-', lw=1)
+            #plt.plot([0, normvec[0]], [0, normvec[1]], 'r-', lw=1)
+            #plt.gca().invert_yaxis()
+            #print("(%s,%s)->(%s,%s)"%(_BODY_PART_MAPPING[k11], _BODY_PART_MAPPING[k12], _BODY_PART_MAPPING[k21], _BODY_PART_MAPPING[k22]))
+            #label = "%s-%s"%(_BODY_PART_MAPPING[start], _BODY_PART_MAPPING[end])
+            #print(label)
+            #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/%s.jpg"%label)
+            #plt.clf()
 
 def drawkeypoints(preds, img_path, visualizer, vistresh=0.0):
      img = cv2.imread(img_path, 0)

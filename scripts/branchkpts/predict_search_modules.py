@@ -169,7 +169,7 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=Fals
         return
     return gpdfile
 
-def search(gpdfile, method_search, rankingtype, percperson=True, method_insert='RAW', queue=None):
+def search(gpdfile, method_search, gpdtype, rankingtype, percperson=True, queue=None):
     # -------------------------- ELASTIC SEARCH -----------------------------
     print("SEARCH FOR GPD IN DATABASE...")
 
@@ -177,23 +177,19 @@ def search(gpdfile, method_search, rankingtype, percperson=True, method_insert='
     logfile = os.path.join(logpath, '5-search.txt')
     print("GPD file: ",inputfile)
     _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
-    #_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all']
-    _METHODS_INSERT = ['CLUSTER', 'RAW']
+    _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced']
     _RANKING_TYPES = ['average', 'max', 'querymultiple-firstn', 'querymultiple-average', 'querymultiple-samefreq']
     assert method_search in _METHODS_SEARCH
-    #assert gpdtype in _GPD_TYPES
-    assert method_insert in _METHODS_INSERT
+    assert gpdtype in _GPD_TYPES
     assert rankingtype in _RANKING_TYPES
-
-    #method_search = 'COSSIM' #['COSSIM', 'DISTSUM'] #testing
 
     #evaltresh_on = True
     tresh = -1 #deprected
 
     #Querying on the database images
-    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} {} -rankingtype {} "+ \
-                                                                                        "-method_insert {} &> {}")\
-                                                            .format(inputfile, method_search, ' -search_personperc' if percperson else '', rankingtype, method_insert, logfile)
+    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -gpd_type {} {} -rankingtype {} "+ \
+                                                                                        " &> {}")\
+                                                            .format(inputfile, method_search, gpdtype, ' -search_personperc' if percperson else '', rankingtype, logfile)
     if _PRINT_CMDS:
         print(cmd)
     os.system(cmd)

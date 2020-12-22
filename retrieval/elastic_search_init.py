@@ -46,11 +46,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-file',type=str,
                     help='Json file with clustering centroids as keys and a list of image metadata as values.\
                     Or for search a dict of image descriptors')
-parser.add_argument('-insert_data','-insert', action="store_true",
+parser.add_argument('-insert_data', '-insert', action="store_true",
                     help='Whether to build an index from the raw descriptors or the cluster mapped data descriptors.')
 parser.add_argument('-search_data','-search', action="store_true",
                     help='Whether to search the index for the input cluster data.')
-parser.add_argument('-method_insert', help='Select method for insert data.')
 parser.add_argument('-imgdir', help='Image directory the descriptors refer to (insert or search).')
 parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
@@ -83,46 +82,57 @@ _SEARCH_PERSON_PERC_ENABLED = args.search_personperc
 #       just a shortlist of N best-matching documents is queried for better performance
 #Method 2 uses a Distance-Measure to compute the sum of L2-distances between input features 
 #       and raw features stored in the db (each similarity counts). The image with smallest distance is selected
-_METHODS_INS = ['CLUSTER', 'RAW']
+
 _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
-_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all'] #just used for index naming
+_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced', 'JJo_all'] #just used for index naming
 #For multiple search descriptor always rankingtype querymuliple* will be selected 
 _RANKING_TYPES = ['average', 'max', 'querymultiple-firstn', 'querymultiple-average', 'querymultiple-samefreq']
 
 _INDEX = 'cossim-test' #debug
-if args.method_insert and args.gpd_type:
-    _INDEX = 'imgid_gpd_%s_%s'%(args.method_insert, args.gpd_type)
+if args.insert_data:
     _INDEX = _INDEX +'_pbn10k'
-    _INDEX = _INDEX.lower()
+    _INDEX = _INDEX.lower() 
+    #_INDEX = 'bitseq4'   
+    #_INDEX = 'bitseq4' 
+    #_INDEX = '2vecstest' 
     _INDEX = 'patchesindexm10' 
     _INDEX = 'patchesindexm7'   
-    _INDEX = 'patchesindexm5'    
-    #_INDEX = 'bitseq4' 
+    _INDEX = 'patchesindexm5' 
+    _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
+    _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn' #!
+    _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc' #!
+    _INDEX = 'imgid_gpd_raw_jjo_reduced_reduced_pbn_addperc' #!
+    _INDEX = 'imgid_gpd_raw_jldall_direct_pbn_addperc' #!
+    _INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
     _INDEX = 'patchesindexm10' 
     _INDEX = 'patchesindexm7'
-    _INDEX = 'patchesindexm5'    
-    #_INDEX = 'bitseq4'   
-#_INDEX = 'bitseq4' 
-#_INDEX = '2vecstest' 
-_INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
-_INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn'
-_INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc'
+    _INDEX = 'patchesindexm5'  
+    if args.gpd_type == 'JcJLdLLa_reduced':
+        _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc' #!
+    elif args.gpd_type == 'JJo_reduced': 
+        _INDEX = 'imgid_gpd_raw_jjo_reduced_reduced_pbn_addperc' #!
+    elif args.gpd_type == 'JLd_all_direct': 
+        _INDEX = 'imgid_gpd_raw_jldall_direct_pbn_addperc' #!
+        _INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
+    else:
+        raise ValueError()
 
 print("Current index: ",_INDEX)
 
-_ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation, adjust for better performance
+if args.gpd_type == 'JLd_all_direct':
+    _ELEMNUM_QUERYRESULT = 100
+else:
+    _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation, adjust for better performance
 _NUMRES = 100 #adjust for only take topk 
+print("_ELEMNUM_QUERYRESULT ",_ELEMNUM_QUERYRESULT)
 
 _CONFIGDIR = '/home/althausc/master_thesis_impl/retrieval/out/configs'
 
 if args.method_search:
     if args.method_search not in _METHODS_SEARCH:
         raise ValueError("Please specify a valid search method.") 
-if args.method_insert:
-    if args.method_insert not in _METHODS_INS:
-        raise ValueError("Please specify a valid insert method.")
 if args.gpd_type:
     assert args.gpd_type in _GPD_TYPES
 if args.rankingtype:
@@ -165,14 +175,9 @@ def main():
 
     
     if args.insert_data:
-        if args.method_insert == _METHODS_INS[0]: #Cluster
-            print("Test sample at position 0:", data[0])
-            createIndex(es, len(list(data.keys())[0]), _METHODS_INS[0], _SRCIMG_DIR)
-            insertdata_cluster(args, data, es)
-        elif args.method_insert == _METHODS_INS[1]: #Raw
-            print("Test sample at position 0:", data[0])
-            createIndex(es, len(data[0]['gpd']), _METHODS_INS[1], _SRCIMG_DIR)
-            insertdata_raw(args, data, es)
+        print("Test sample at position 0:", data[0])
+        createIndex(es, len(data[0]['gpd']), _SRCIMG_DIR)
+        insertdata_raw(args, data, es)
 
         saveconfiginsert(_INDEX, len(data), args.file, _SRCIMG_DIR)
 
@@ -198,24 +203,8 @@ def main():
         
         querynums = len(data)
         print("Results unranked: ", results)
-        #exit(1)
-        imgids_final = bestmatching(results, args.rankingtype, len(data), _NUMRES)
-        #imgids_final = bestmatching_sumdist(results, _NUMRES)
 
-        """elif args.method_search == _METHODS_SEARCH[2]:
-            results = []
-            print("Searching image descriptors from %s ..."%args.file)
-            #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_COS
-            for img_descriptor in data:
-                print(img_descriptor)
-                image_ids, scores = query(es, img_descriptor, _ELEMNUM_COS, args.method_search)
-                results.append(list(zip(image_ids,scores)))
-            print("Searching image descriptors done.")
-            print("QUERY RESULTS: ",results)
-        
-            #Flattening list of indiv feature vector results
-            results = [item for sublist in results for item in sublist]
-            imgids_final = bestmatching_cluster(results, _NUMRES)"""
+        imgids_final = bestmatching(results, args.rankingtype, len(data), _NUMRES)
         
         print("Best matched images: ", imgids_final)
 
@@ -272,9 +261,7 @@ def get_indexconfigs(indexname):
 def insertdata_raw(args, data ,es):
     #Database layout:
     # 1.Raw features
-    #   id | imagid | score |feature(gpd) 
-    # 2.Cluster features
-    #   id | imagid | score |feature(gpd cluster)            
+    #   id | imagid | score |feature(gpd)          
     id = 0
     print("Inserting image descriptors from %s ..."%args.file)
     for item in data:
@@ -287,28 +274,9 @@ def insertdata_raw(args, data ,es):
             print("{} image descriptors were inserted so far.".format(id))
     print("Inserted %d image descriptors."%(id))
     print("Inserting image descriptors done.")
-     
-def insertdata_cluster(args, data, es):
-   #data format: {gpdcluster1: [{img_id, score, vis}, ... ,{img_id, score, vis}], ... , gpdclusterK: [{img_id, score, vis}, ... ,{img_id, score, vis}]}
-    id = 0
-    print("Inserting image descriptors from %s ..."%args.file)
-    for gpdcluster, imgs_metadata in data.items():
-        for metadata in imgs_metadata:
-            insertdoc(es, gpdcluster, metadata, id, 'gpdcluster')   #TODO: error? items?
-            id = id + 1
-            if id%100 == 0 and id != 0:
-                logger.debug("{} image descriptors were inserted so far.".format(id))
-                print("{} image descriptors were inserted so far.".format(id))
-    print("Inserted %d image descriptors."%id)
-    print("Inserting image descriptors done.")
 
 
-def createIndex(es, dim, mode, imgdir):
-    if mode == _METHODS_INS[0]:
-        varname = "gpdcluster"
-    else:
-        varname = "gpd"
-
+def createIndex(es, dim, imgdir):
     mapping = {
         "mappings": {
             "_meta": { 
@@ -325,7 +293,7 @@ def createIndex(es, dim, mode, imgdir):
                     "type": "float"
                 },  
                 #Used to get the descriptor values in the script
-                '{}-array'.format(varname): {
+                'gpd-array': {
                     "type": "double" #"half_float"
                 },
                 "mask": {
@@ -523,7 +491,7 @@ def query(es, descriptor, size, method):
                         "source": """
                             def m1 = params._source['mask'];
                             def m2 = params.queryMask;
-                            double penalty = 0.5/params.queryVector.size(); //0.5 since majority of entries are between [0,1]
+                            double penalty = 0.5/params.queryVector.size(); //0.5 since majority of entries are between [0,1] //0.335 for JL_all_direct
                             double c = 0.0;
 
                             ArrayList qeffective = new ArrayList();
@@ -566,7 +534,7 @@ def query(es, descriptor, size, method):
         raise ValueError()
     try :
         res= es.search(index=_INDEX, 
-                        body=request, explain=True, search_type='dfs_query_then_fetch', request_timeout=20)
+                        body=request, explain=True, search_type='dfs_query_then_fetch', request_timeout=50)
     except elasticsearch.ElasticsearchException as es1:  
         print("Error when querying for feature vector ",featurevector)
        
@@ -705,41 +673,6 @@ def bestmatching(image_scoring, rankingtype, querynums, k):
     #bestk = list(map(exp_norm, bestk))
     #print("Logarithmic Normalization statistics:", logscorestats([s for id,s in bestk]))
     print("Best k: ", bestk)
-    return bestk
-
-
-#deprecated
-def bestmatching_cluster(image_scoring, k):
-    grouped_by_imageid = [list(g) for k, g in itertools.groupby(sorted(image_scoring, key=lambda x:x[0]), lambda x: x[0])]
-    print("Raw group meanscore statistics:", logscorestats([np.mean([s[1] for s in e]) for e in grouped_by_imageid]))
-    print("Raw group size statistics:", logscorestats([len(e) for e in grouped_by_imageid]))
-
-    #Format: [ [(img_id1,score1), (img_id1,score2)], ... [(img_idN,score1), .., (img_idN,scoreK)] ]
-    #Rank by (#occurances above Q3 treshold) * mean of scores 
-    #Use Q3 treshold above all groups to allow for boost of very certain matches.
-    #Otherwise entries with low score value will falsify boost factor.
-    print("Ranking query results with custom heuristic ...")
-    q3_tresh = np.mean([np.percentile(np.asarray(e[1]), [75]) for e in grouped_by_imageid])
-    ranked = sorted(grouped_by_imageid, key=lambda e: max(1, len([s[1] for s in e if s[1] > q3_tresh])) * np.mean([s[1] for s in e]), reverse=True)
-    print("Ranking query results done. Took %s seconds."%(time.time() - start_time))
-    
-    #Only image ids & updated scores as result
-    #Resulting scores (=mean) may not be in decreasing order since ordering rule: (#occurances above Q3 treshold) * mean of scores #deprectaed
-    imageids = []
-    scoring = []
-    for chunkid in ranked:
-        imageids.append(chunkid[0][0])
-        scoring.append( max(1, len([s[1] for s in chunkid if s[1] > q3_tresh])) * np.mean([s[1] for s in chunkid]) )
-        
-    print("Ranked score statistics (by ordering rule):", logscorestats(scoring))
-
-    #linear norm for better differentiation & search browsing
-    if max(scoring) != min(scoring):
-        print("Applying linear norm.")
-        lin_norm = lambda x: ( (x - min(scoring))/(max(scoring) - min(scoring)) )
-        scoring = map(lin_norm, scoring)
-    
-    bestk = list(zip(imageids, scoring))[:k]
     return bestk
 
 def show_docs(es, firstn):

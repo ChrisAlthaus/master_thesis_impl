@@ -250,12 +250,12 @@ def main():
                 visability_means.append(np.sum(kpt_list[:,2])/len(kpt_list))
         print("Draw all/unfiltered predictions done.")
 
-    if args.visfiltered:
+    if args.visfiltered: #TODO: debug
          #Draw only filtered predictions
         print("Draw topk + treshold predictions...")
-        for img_path, preds in zip(image_paths, get_combined_predictions(outputs)):
+        for preds in get_combined_predictions(outputs):
             print(preds)
-            visualize_and_save(img_path, visdir, preds, args, 'treshtopk')
+            visualize_and_save(preds['imagepath'], visdir, preds, args, 'treshtopk')
         print("Draw topk + treshold predictions done.")
 
         #Statistics

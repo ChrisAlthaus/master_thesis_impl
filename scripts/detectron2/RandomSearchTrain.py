@@ -115,7 +115,7 @@ for i in range(0,_NUM_RUNS):
         trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
         dataaugm = True #False #True
         batchsize = 2#16 #2 #original: 16
-        lr = 0.0030 #0.0035 #0.00185 #0.0005 #0.005/2 #0.0035 #original: 0.001
+        lr = 0.0020 #0.0035 #0.00185 #0.0005 #0.005/2 #0.0035 #original: 0.001
         bn = "FrozenBN" #"FrozenBN", "GN", "SyncBN", "BN", ''
         minkpts = 4 #original: 1
         #steps = np.linspace(0.7, 1, 10).tolist()
@@ -146,7 +146,7 @@ for i in range(0,_NUM_RUNS):
         params.update({'addnotes': _ADD_NOTES})
         #params['minkpt'] = 7
         #params['trainmode'] = 'ALL'
-        params['lr'] = 0.003
+        params['lr'] = 0.0025
         params['dataset'] = 'large'
 
     else:
