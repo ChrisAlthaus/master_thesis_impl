@@ -73,20 +73,25 @@ def main():
     if args.validateMethod is not None:
         descriptors = []
         imageids = []
+        scores = []
 
         for i, item in enumerate(json_data):
             descriptors.append(item['gpd'])
             imageids.append(item['image_id'])
+            scores.append(item['score'])
         print("Number of descriptors: ",len(descriptors))
 
         #Only consider images with 1 person detected for better/clearer cluster visualization 
+        #For images with multiple persons take best scored person
         imgidstoinds = defaultdict(list)
         for i, x in enumerate(imageids):
             imgidstoinds[x].append(i)
         delinds = []
         for imagid,indices in imgidstoinds.items():
             if len(indices)>1:
-                delinds.extend(indices)
+                sindices = [(k,scores[k]) for k in indices]
+                sindices = sorted(sindices, key=lambda x: x[1], reverse=True)
+                delinds.extend([k for k,score in sindices[1:]])
 
         delinds.sort(reverse=True)
         print(delinds[:100])

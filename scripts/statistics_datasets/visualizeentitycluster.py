@@ -20,9 +20,11 @@ def main():
     with open(ne_to_imgids_filepath, "r") as f:
         ne_to_imageids = json.load(f)
 
-    ne = "Saint Anthony" #"Crucifixion" #"Madonna" #"Saint Anthony" #"Temptation of Christ" #Temptation of St. Anthony" #'Leda'
-    nes = ["Saint Anthony" ,"Crucifixion" ,"Madonna" ,"Saint Anthony", "Temptation of Christ", "Temptation of St. Anthony" ,"Leda"]
-    nes = ["David", "Aphrodite", "Adoration"]
+    nes = ["Saint Anthony" ,"Crucifixion" ,"Madonna" ,"Saint Anthony", "Temptation of Christ", "Temptation of St. Anthony" ,"Leda", "David", "Aphrodite", "Adoration", "Monk"]
+    #nes = ["David", "Aphrodite", "Adoration"]
+    #nes = ["Adoration"]
+    nes = ["Venus"]
+    nes = ["Buddha"]
 
     for ne in nes:
         imageids = ne_to_imageids[ne]
@@ -37,7 +39,7 @@ def main():
 
 
 def plotImageGrid(imgids, title, nrows, ncolumns, imgdir, savepath):
-    fig = plt.figure(figsize=(ncolumns/2, nrows/2+1))
+    fig = plt.figure(figsize=(ncolumns/2, nrows/2))
     fig.suptitle(title, y=0.9, fontsize=5)
 
     fig.tight_layout()
@@ -75,12 +77,12 @@ def resizeimage(image):
     MAX_SIZE = 400
     original_size = max(image.size[0], image.size[1])
     if original_size >= MAX_SIZE:
-        #if (image.size[0] > image.size[1]):
-        resized_width = MAX_SIZE
-        resized_height = int(round((MAX_SIZE/float(image.size[0]))*image.size[1])) 
-        #else:
-        #    resized_height = MAX_SIZE
-        #    resized_width = int(round((MAX_SIZE/float(image.size[1]))*image.size[0]))
+        if (image.size[0] > image.size[1]):
+            resized_width = MAX_SIZE
+            resized_height = int(round((MAX_SIZE/float(image.size[0]))*image.size[1])) 
+        else:
+            resized_height = MAX_SIZE
+            resized_width = int(round((MAX_SIZE/float(image.size[1]))*image.size[0]))
         image = image.resize((resized_width, resized_height), Image.ANTIALIAS)
     return image
 

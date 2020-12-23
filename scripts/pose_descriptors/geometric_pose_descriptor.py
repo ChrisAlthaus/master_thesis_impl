@@ -51,7 +51,7 @@ args = parser.parse_args()
 #   - keypoints
 #   - score
 
-_MODES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced']
+_MODES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced', 'Jc_rel']
 _REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
 _NUMKPTS = 17
 
@@ -315,7 +315,7 @@ def calculateGPD(keypoints, mode, metadata):
             _ADDNOTES += 'Dimensions JJ_o: %d \n'%len(JJ_o)
 
     elif mode == 'Jc_rel':
-        Jc_rel = joint_coordinates_rel(keypoints, kptsvalid, metadata['imagesize'], addconfidences=None)
+        Jc_rel = joint_coordinates_rel(keypoints, kpts_valid, metadata['imagesize'], addconfidences=None)
         pose_descriptor.append(Jc_rel)
 
 

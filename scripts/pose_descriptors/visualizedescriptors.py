@@ -14,6 +14,7 @@ import itertools
 import random
 from utils import dict_to_item_list
 import math
+import matplotlib.pyplot as plt
 
 #Visualizes human pose keypoints given by input file.
 #Treshold for score possible.
@@ -75,6 +76,9 @@ def main():
     elif 'JJo_reduced' in gpdfilename:
         print("Detected descriptor type: JJo_reduced")
         visualizeJJo(predgpd_map, args.imagespath, outputdir)
+    elif 'Jc_rel' in gpdfilename:
+        print("Detected descriptor type: Jc_rel")
+        visualizeJcrel(predgpd_map, args.imagespath, outputdir)
 
     print("Visualize done.")
     print("Wrote images to path: ",outputdir)
@@ -279,6 +283,10 @@ def visualizeJJo(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
         cv2.imwrite(os.path.join(outputdir, imgname_out+'_jjo.jpg'),outjldist.get_image()[:, :, ::-1])
 
 def visualizeJcrel(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False):
+    keypoint_connections = MetadataCatalog.get("my_dataset_val").keypoint_connection_rules
+    keypoint_names = MetadataCatalog.get("my_dataset_val").get("keypoint_names")
+    kconnections_indices = [(keypoint_names.index(l1), keypoint_names.index(l2), color) for l1,l2,color in keypoint_connections]
+
     for imgid,group in predgpds.items():
         imgid = str(imgid)
         preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
@@ -302,19 +310,35 @@ def visualizeJcrel(predgpds, imagedir, outputdir, vistresh=0.0, transformid=Fals
             print("No 1-to-1 assignments of predictions->gpds possible, because filtered predictions by gpd calculation.")
             continue
 
+        plt.axis('equal')
+        plt.gca().invert_yaxis()
+        x_max = 0
+
         for i in range(len(keypoints)):
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
-            #plt.axis('equal')
-            #plt.plot([j1[0], j2[0]], [j1[1], j2[1]], 'k-', lw=1)
-            #plt.plot([0, vec[0]], [0, vec[1]], 'g-', lw=1)
-            #plt.plot([0, normvec[0]], [0, normvec[1]], 'r-', lw=1)
-            #plt.gca().invert_yaxis()
-            #print("(%s,%s)->(%s,%s)"%(_BODY_PART_MAPPING[k11], _BODY_PART_MAPPING[k12], _BODY_PART_MAPPING[k21], _BODY_PART_MAPPING[k22]))
-            #label = "%s-%s"%(_BODY_PART_MAPPING[start], _BODY_PART_MAPPING[end])
-            #print(label)
-            #plt.savefig("/home/althausc/master_thesis_impl/posedescriptors/out/query/11-09_12-42-08/.test/%s.jpg"%label)
-            #plt.clf()
+            kpoints = [(xrel*100 +x_max, yrel*100) if xrel!=-1 and yrel!=-1 else (-1,-1) for xrel, yrel in zip(gpd[::2], gpd[1::2])]
+
+            for k1,k2,color in kconnections_indices:
+                x = kpoints[k1]
+                y = kpoints[k2]
+                if x[0]>x_max:
+                    x_max = x[0]
+                if x[1]>x_max:
+                    x_max = x[1]
+
+                if x[0]==-1 or x[1]==-1 or y[0]==-1 or y[1]==-1:
+                    continue
+                #print([int(x[0]), int(y[0])], [int(x[1]), int(y[1])], (color[0]/255, color[1]/255, color[2]/255))
+                plt.plot([int(x[0]), int(y[0])], [int(x[1]), int(y[1])], color=(color[0]/255, color[1]/255, color[2]/255), lw=1.5)
+                x_max = x_max + 4
+
+        plt.tight_layout()
+        plt.box(False)
+        plt.axis('off')
+        plt.savefig(os.path.join(outputdir, imgname_out+'_jcrel.jpg'))
+        plt.clf()
+        plt.cla()
 
 def drawkeypoints(preds, img_path, visualizer, vistresh=0.0):
      img = cv2.imread(img_path, 0)

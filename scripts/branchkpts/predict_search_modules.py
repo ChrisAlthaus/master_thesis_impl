@@ -177,7 +177,7 @@ def search(gpdfile, method_search, gpdtype, rankingtype, percperson=True, queue=
     logfile = os.path.join(logpath, '5-search.txt')
     print("GPD file: ",inputfile)
     _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
-    _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced']
+    _GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced', 'Jc_rel']
     _RANKING_TYPES = ['average', 'max', 'querymultiple-firstn', 'querymultiple-average', 'querymultiple-samefreq']
     assert method_search in _METHODS_SEARCH
     assert gpdtype in _GPD_TYPES

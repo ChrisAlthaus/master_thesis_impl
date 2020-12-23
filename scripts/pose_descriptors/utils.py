@@ -211,7 +211,7 @@ def create_reference_feature(descriptors, mode='JcJLdLLa_reduced'):
         json.dump(statsperindex, f, indent=1)
 
 def get_reference_feature():
-    featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-17_09-28-55/features-per-index-statistics.json'
+    featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-17_09-28-55-ref-feature/features-per-index-statistics.json'
 
     print("Reading from file: ",featuresstats_path)
     with open (featuresstats_path, "r") as f:
@@ -225,6 +225,32 @@ def get_reference_feature():
     print("Reference feature: ", referencefeature)
     return referencefeature
 
+def calc_reference_feature_total_median():
+    import json
+    file = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-17_09-28-55-ref-feature/features-per-index-statistics.json'
+    with open (file, "r") as f:
+        json_data = json.load(f)
+    medians = []
+    for n, stats in json_data.items():
+        medians.append(stats['median'])
+    median = sum(medians)/len(medians)
+    print("Median over all sub-medians: ",median)
+
+def calc_neutralpose_median():
+    if mode == 'JcJLdLLa_reduced':
+        file = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    elif mode == 'JLd_all_direct':
+        file = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    elif mode == 'JJo_reduced':
+        file = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    else:
+        raise ValueError()
+
+    with open (file, "r") as f:
+        json_data = json.load(f)
+    neutralgpd = json_data[0]['gpd']
+    print("Median of neutral pose feature: ", np.mean(neutralgpd))
+    
 
 
    

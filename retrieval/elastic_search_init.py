@@ -84,7 +84,7 @@ _SEARCH_PERSON_PERC_ENABLED = args.search_personperc
 #       and raw features stored in the db (each similarity counts). The image with smallest distance is selected
 
 _METHODS_SEARCH = ['COSSIM', 'L1', 'L2']
-_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced', 'JJo_all'] #just used for index naming
+_GPD_TYPES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced', 'Jc_rel'] #just used for index naming
 #For multiple search descriptor always rankingtype querymuliple* will be selected 
 _RANKING_TYPES = ['average', 'max', 'querymultiple-firstn', 'querymultiple-average', 'querymultiple-samefreq']
 
@@ -104,6 +104,7 @@ if args.insert_data:
     _INDEX = 'imgid_gpd_raw_jjo_reduced_reduced_pbn_addperc' #!
     _INDEX = 'imgid_gpd_raw_jldall_direct_pbn_addperc' #!
     _INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
+    _INDEX = 'imgid_gpd_raw_jcrel_pbn_addperc' #!
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
     _INDEX = 'patchesindexm10' 
@@ -116,6 +117,8 @@ if args.method_search:
     elif args.gpd_type == 'JLd_all_direct': 
         _INDEX = 'imgid_gpd_raw_jldall_direct_pbn_addperc' #!
         _INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
+    elif args.gpd_type == 'Jc_rel': 
+        _INDEX = 'imgid_gpd_raw_jcrel_pbn_addperc' #!
     else:
         raise ValueError()
 
