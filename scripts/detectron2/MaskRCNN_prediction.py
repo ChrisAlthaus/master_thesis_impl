@@ -79,11 +79,15 @@ if args.score_tresh > 1 or args.score_tresh < 0:
 
 def main():
     # -------------------------------- GET IMAGE PATH(S) --------------------------------
-    image_paths = None
+    image_paths = []
     if args.image_folder is not None:
-        image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
+        #image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
+        for path, subdirs, files in os.walk(args.image_folder):
+            for name in files:
+                image_paths.append(os.path.join(path, name)) 
     elif args.image_path is not None:
         image_paths = [args.image_path]
+    #print(image_paths)
 
     # -------------------------------- LOAD CFG & SET MODEL PARAMS -----------------------
     cfg = get_cfg()

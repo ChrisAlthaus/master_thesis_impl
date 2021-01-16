@@ -188,7 +188,7 @@ def get_neutral_pose_feature(mode='JcJLdLLa_reduced'):
     return neutralgpd['gpd']
 
 def create_reference_feature(descriptors, mode='JcJLdLLa_reduced'):
-    output_dir = os.path.join('/home/althausc/master_thesis_impl/posedescriptors/out/eval', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    output_dir = os.path.join('/home/althausc/master_thesis_impl/posedescriptors/out/eval', datetime.datetime.now().strftime('%m-%d_%H-%M-%S')+ '_reference-%s'%mode)
     os.makedirs(output_dir)
 
     refposdict = {}
@@ -211,7 +211,17 @@ def create_reference_feature(descriptors, mode='JcJLdLLa_reduced'):
         json.dump(statsperindex, f, indent=1)
 
 def get_reference_feature():
-    featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-17_09-28-55-ref-feature/features-per-index-statistics.json'
+    if mode == 'JcJLdLLa_reduced':
+        featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-17_09-28-55_reference-JcJLdLLa_reduced/features-per-index-statistics.json'
+    elif mode == 'JLd_all_direct':
+        featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-24_13-48-58_reference-JLd_all_direct/features-per-index-statistics.json'
+    elif mode == 'JJo_reduced':
+        featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-24_13-29-09_reference-JJo_reduced/features-per-index-statistics.json'
+    elif mode == 'Jc_rel':
+        featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-24_13-47-17_reference-Jc_rel/features-per-index-statistics.json'
+
+    else:
+        raise ValueError()
 
     print("Reading from file: ",featuresstats_path)
     with open (featuresstats_path, "r") as f:
@@ -225,10 +235,9 @@ def get_reference_feature():
     print("Reference feature: ", referencefeature)
     return referencefeature
 
-def calc_reference_feature_total_median():
+def calc_reference_feature_total_median(featuresperindex_file):
     import json
-    file = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-17_09-28-55-ref-feature/features-per-index-statistics.json'
-    with open (file, "r") as f:
+    with open (featuresperindex_file, "r") as f:
         json_data = json.load(f)
     medians = []
     for n, stats in json_data.items():

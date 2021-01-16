@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+    <title>Home page</title>
+
+    <script>
+        function getCheckedIDs()
+        {
+            var elements = document.getElementsByTagName("input");
+            var checkedArray =  new Array();
+            for(var i=0;i<elements.length;i++)
+            {
+                if(elements[i].type === 'checkbox' && elements[i].checked)
+                {
+                    checkedArray.push(elements[i].id);
+                }
+            }
+            console.log(checkedArray);
+
+            return checkedArray;
+        }   
+    </script> 
+
+    </head>
+    <form method="post">
+        {{content | safe}}
+        <input type="submit" value="Next">
+    </form>
+   
+</html>

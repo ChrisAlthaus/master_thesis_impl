@@ -169,7 +169,7 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=Fals
         return
     return gpdfile
 
-def search(gpdfile, method_search, gpdtype, rankingtype, percperson=True, queue=None):
+def search(gpdfile, method_search, gpdtype, rankingtype, percperson=True, imagepath=None, queue=None):
     # -------------------------- ELASTIC SEARCH -----------------------------
     print("SEARCH FOR GPD IN DATABASE...")
 
@@ -183,13 +183,15 @@ def search(gpdfile, method_search, gpdtype, rankingtype, percperson=True, queue=
     assert gpdtype in _GPD_TYPES
     assert rankingtype in _RANKING_TYPES
 
+    dbname = 'paintersbynumbers' #['paintersbynumbers', 'metropolitan']
+
     #evaltresh_on = True
     tresh = -1 #deprected
 
     #Querying on the database images
-    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -method_search {} -gpd_type {} {} -rankingtype {} "+ \
+    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -dbname {} -method_search {} -gpd_type {} {} -rankingtype {} -metadata_imgpath {}"+ \
                                                                                         " &> {}")\
-                                                            .format(inputfile, method_search, gpdtype, ' -search_personperc' if percperson else '', rankingtype, logfile)
+                                                            .format(inputfile, dbname, method_search, gpdtype, ' -search_personperc' if percperson else '', rankingtype, imagepath, logfile)
     if _PRINT_CMDS:
         print(cmd)
     os.system(cmd)

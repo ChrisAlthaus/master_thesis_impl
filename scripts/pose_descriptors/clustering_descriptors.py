@@ -21,7 +21,7 @@ from PIL import Image
 
 import sys
 sys.path.append('/home/althausc/master_thesis_impl/scripts/pose_descriptors')
-from utils import replace_unvalidentries, get_reference_feature, get_neutral_pose_feature
+from utils import replace_unvalidentries, get_reference_feature, get_neutral_pose_feature, create_reference_feature
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
@@ -51,8 +51,8 @@ if args.modelState is not None:
         raise ValueError("No valid input model file.")
 if args.verbose:
     logging.basicConfig(level=logging.DEBUG)
-if args.validateMethod not in _VALIDATION_METHODS:
-    raise ValueError("No valid validation mode.")
+#if args.validateMethod not in _VALIDATION_METHODS:
+#    raise ValueError("No valid validation mode.")
 
 def main():
     output_dir = '/home/althausc/master_thesis_impl/posedescriptors/clustering/%s'%('eval' if args.validateMethod is not None else 'out')
@@ -66,8 +66,9 @@ def main():
     with open (args.descriptorfile, "r") as f:
         json_data = json.load(f)
 
-    #create_reference_pose(json_data, mode='JcJLdLLa_reduced')
-    #exit(1)
+
+    create_reference_feature(json_data, mode='JLd_all_direct') #['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced', 'Jc_rel']
+    exit(1)
 
     # ------------------------------- EVALUATION BASED ON NUMBER(S) OF CLUSTERS K ---------------------------------   
     if args.validateMethod is not None:

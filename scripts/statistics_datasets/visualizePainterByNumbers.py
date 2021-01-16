@@ -15,7 +15,7 @@ if not os.path.exists(outputdir):
 pbn = pd.read_csv('/home/althausc/master_thesis_impl/scripts/statistics_datasets/datasetCSVs/painterbynumbers/all_data_info.csv')
 pbn = pbn[pbn['in_train'] == True]
 
-gpdfile = '/home/althausc/master_thesis_impl/posedescriptors/out/insert/12-18_16-44-58/geometric_pose_descriptor_c_53615_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+gpdfile = '/home/althausc/master_thesis_impl/posedescriptors/out/insert/12-18_16-44-58-JcJLdLLa_reduced-insert/geometric_pose_descriptor_c_53615_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
 with open (gpdfile, "r") as f:
     data = f.read()
     dbdata = eval(data)
@@ -67,19 +67,35 @@ def change_width(ax, new_value) :
         # we recenter the bar
         patch.set_x(patch.get_x() + diff * .5)
 
+def set_fontsize(axes):
+    for tick in axes.xaxis.get_major_ticks():
+        tick.label.set_fontsize(35)
+
+    for tick in axes.yaxis.get_major_ticks():
+        tick.label.set_fontsize(35)
+    
+    axes.xaxis.label.set_size(40)
+    axes.yaxis.label.set_size(40)
+
+#sns.set(font_scale = 1.5)
+#sns.set_context("paper", rc={"axes.labelsize":36})
+
 # -------------------------------- GENRE HISTOGRAMS -----------------------------------------------
+firstngenres = 20
 #GENRE HISTOGRAM
 a4_dims = (30, 12)
 fig, ax = plt.subplots(figsize=a4_dims)
-ax = sns.countplot(data=pbn, y='genre', order =pbn['genre'].value_counts().index)
+ax = sns.countplot(data=pbn, y='genre', order =pbn['genre'].value_counts().index[:firstngenres], color='tab:blue')
 ax.set(xlabel='Number of Artworks', ylabel='Artistic Genre')
 #sns.set(rc={'figure.figsize':(11.7,8.27)})
 #change_width(ax, 1)
 #ax.set_xticklabels(ax.get_xticklabels(),rotation=90)
 #ax.set_xticklabels(fontsize=7)
 #ax.figure.autofmt_xdate()
-plt.xticks(fontsize=7)
-ax.figure.savefig(os.path.join(outputdir, 'genre_distr_pbn.png'),bbox_inches='tight')
+#plt.xticks(fontsize=7)
+set_fontsize(ax)
+ax.figure.savefig(os.path.join(outputdir, 'genre_distr_pbn.png'),bbox_inches='tight', dpi=300)
+
 
 #Count number of different labels
 print("Number of genre labels: " + str(len(pbn["genre"].value_counts().index.tolist())) )
@@ -89,12 +105,14 @@ plt.clf()
 #GENRE HISTOGRAM REDUCED
 a4_dims = (30, 12)
 fig, ax = plt.subplots(figsize=a4_dims)
-ax = sns.countplot(data=dbmetadata, y='genre', order =dbmetadata['genre'].value_counts().index)
+ax = sns.countplot(data=dbmetadata, y='genre', order =dbmetadata['genre'].value_counts().index[:firstngenres], color='tab:blue')
 ax.set( xlabel='Number of Artworks', ylabel='Artistic Genre')
+set_fontsize(ax)
 
-plt.xticks(fontsize=7)
+#plt.xticks(fontsize=7)
 ax.figure.savefig(os.path.join(outputdir, 'genre_distr_reduced_pbn.png'),bbox_inches='tight')
 plt.cla()
+
 
 #Count number of different labels
 print("Number of genre labels: " + str(len(dbmetadata["genre"].value_counts().index.tolist())) )
@@ -104,7 +122,7 @@ print("Number of genre labels: " + str(len(dbmetadata["genre"].value_counts().in
 genredf = getmcountsdf('genre', pbn, dbmetadata)
 a4_dims = (30, 12)
 fig, ax = plt.subplots(figsize=a4_dims)
-ax = sns.barplot(data=genredf, y='genre', x='counts', hue='src', orient='h')
+ax = sns.barplot(data=genredf, y='genre', x='counts', hue='src', orient='h', color='tab:blue')
 ax.set( xlabel='Number of Artworks', ylabel='Artistic Genre')
 
 #ax.set_xticklabels(ax.get_xticklabels(),rotation=90)
@@ -114,15 +132,26 @@ plt.cla()
 plt.clf()
 
 # -------------------------------- STYLE HISTOGRAMS -----------------------------------------------
-firstnstyles = 30
+firstnstyles = 20
 #GENRE HISTOGRAM REDUCED
-a4_dims = (30, 12)
+#a4_dims = (30, 12)
 fig, ax = plt.subplots(figsize=a4_dims)
-ax = sns.countplot(data=dbmetadata, y='style', order =dbmetadata['style'].value_counts().index[:firstnstyles])
+ax = sns.countplot(data=dbmetadata, y='style', order =dbmetadata['style'].value_counts().index[:firstnstyles], color='tab:blue')
 ax.set( xlabel='Number of Artworks', ylabel='Artistic Style')
 
 plt.xticks(fontsize=7)
 ax.figure.savefig(os.path.join(outputdir, 'style_distr_reduced_pbn.png'),bbox_inches='tight')
+plt.cla()
+
+#GENRE HISTOGRAM REDUCED
+a4_dims = (30, 12)
+fig, ax = plt.subplots(figsize=a4_dims)
+ax = sns.countplot(data=pbn, y='style', order =pbn['style'].value_counts().index[:firstnstyles], color='tab:blue')
+ax.set( xlabel='Number of Artworks', ylabel='Artistic Style')
+
+#plt.xticks(fontsize=7)
+set_fontsize(ax)
+ax.figure.savefig(os.path.join(outputdir, 'style_distr_pbn.png'), bbox_inches='tight', dpi=300)
 plt.cla()
 
 #STYLE HISTOGRAMS BOTH
@@ -130,7 +159,7 @@ plt.cla()
 styledf = getmcountsdf('style', pbn, dbmetadata)
 a4_dims = (30, 12)
 fig, ax = plt.subplots(figsize=a4_dims)
-ax = sns.barplot(data=styledf, y='style', x='counts', hue='src', order=styledf['style'][:firstnstyles], orient='h')
+ax = sns.barplot(data=styledf, y='style', x='counts', hue='src', order=styledf['style'][:firstnstyles], orient='h', color='tab:blue')
 ax.set( xlabel='Number of Artworks', ylabel='Artistic Style')
 
 #ax.set_xticklabels(ax.get_xticklabels(),rotation=90)
@@ -173,14 +202,14 @@ def getyeardistribution(df):
 xs,ys = getyeardistribution(pbn)
 df_year_pbn = pd.DataFrame({'Year':xs, 'Number of Artworks':ys})
 df_year_pbn.sort_values(by=['Year'], ascending=False)
-ax2 = sns.lineplot(x='Year',y='Number of Artworks', data=df_year_pbn, ci=None)
+ax2 = sns.lineplot(x='Year',y='Number of Artworks', data=df_year_pbn, ci=None, color='tab:blue')
 ax2.figure.savefig(os.path.join(outputdir, 'year_distr_pbn.png'),bbox_inches='tight')
 plt.cla()
 
 xs,ys = getyeardistribution(dbmetadata)
 df_year_db = pd.DataFrame({'Year':xs, 'Number of Artworks':ys})
 df_year_db.sort_values(by=['Year'], ascending=False)
-ax2 = sns.lineplot(x='Year',y='Number of Artworks', data=df_year_db, ci=None)
+ax2 = sns.lineplot(x='Year',y='Number of Artworks', data=df_year_db, ci=None, color='tab:blue')
 ax2.figure.savefig(os.path.join(outputdir, 'year_distr_reduced_pbn.png'), bbox_inches='tight')
 plt.cla()
 
@@ -188,7 +217,7 @@ df_year_pbn.loc[:,'source'] = 'pbn'
 df_year_db.loc[:,'source'] = 'db'
 
 merged = pd.concat([df_year_pbn, df_year_db])
-ax2 = sns.lineplot(x="Year", y="Number of Artworks", hue="source", data=merged)
+ax2 = sns.lineplot(x="Year", y="Number of Artworks", hue="source", data=merged, color='tab:blue')
 ax2.figure.savefig(os.path.join(outputdir, 'year_distr_both.png'), bbox_inches='tight')
 plt.cla()
 
@@ -198,7 +227,7 @@ firstnartists = 70
 #ARTIST HISTOGRAM REDUCED
 a4_dims = (30, 12)
 fig, ax = plt.subplots(figsize=a4_dims)
-ax = sns.countplot(data=dbmetadata, y='artist', order =dbmetadata['artist'].value_counts().index[:firstnartists])
+ax = sns.countplot(data=dbmetadata, y='artist', order =dbmetadata['artist'].value_counts().index[:firstnartists], color='tab:blue')
 ax.set( xlabel='Number of Artworks', ylabel='Artist')
 
 plt.xticks(fontsize=7)
@@ -206,7 +235,7 @@ ax.figure.savefig(os.path.join(outputdir, 'artist_distr_reduced_pbn.png'),bbox_i
 
 #ARTIST HISTOGRAM BOTH
 artistsdf = getmcountsdf('artist', pbn, dbmetadata)
-ax = sns.barplot(x="counts", y="artist", hue="src", data=artistsdf, order=artistsdf['artist'][:firstnartists], orient='h')
+ax = sns.barplot(x="counts", y="artist", hue="src", data=artistsdf, order=artistsdf['artist'][:firstnartists], orient='h', color='tab:blue')
 ax.set( xlabel='Number of Artworks', ylabel='Artist')
 ax.figure.savefig(os.path.join(outputdir, 'artists_distr_both.png'),bbox_inches='tight')
 plt.cla()

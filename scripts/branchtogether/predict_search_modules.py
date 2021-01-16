@@ -94,12 +94,12 @@ def transform_into_gpd_and_g2vfeature(kpt_annpath, g_annpath, methodgpd='JcJLdLL
     print(rets_dict)
     return rets_dict['gpdfile'], rets_dict['graphfile']
 
-def search(gpdfile, graphfile, gpdmsearch='L2', gpdrankingtype='max', gpdtype='JcJLdLLa_reduced', percperson=True):
+def search(gpdfile, graphfile, gpdmsearch='L2', gpdrankingtype='max', gpdtype='JcJLdLLa_reduced', percperson=True, imgpath=None):
     rw = False #True #not used
     rm = 'jaccard' #'euclid' #not used
 
     q = Queue()
-    processes = [ Process(target = kptm.search, args=(gpdfile, gpdmsearch, gpdrankingtype, gpdtype, percperson, q)),
+    processes = [ Process(target = kptm.search, args=(gpdfile, gpdmsearch, gpdrankingtype, gpdtype, percperson, imgpath, q)),
                   Process(target = graphm.search, args=(graphfile, rw, rm, q))]
     for p in processes:
         p.start()
