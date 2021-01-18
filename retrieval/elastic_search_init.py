@@ -48,11 +48,13 @@ parser.add_argument('-file',type=str,
                     Or for search a dict of image descriptors')
 parser.add_argument('-insert_data', '-insert', action="store_true",
                     help='Whether to build an index from the raw descriptors or the cluster mapped data descriptors.')
+parser.add_argument('-dbname', help='Database name which should be created/ searched.')
 parser.add_argument('-search_data','-search', action="store_true",
                     help='Whether to search the index for the input cluster data.')
 parser.add_argument('-imgdir', help='Image directory the descriptors refer to (insert or search).')
 parser.add_argument('-gpd_type', help='Select type of GPD descriptors.')
 parser.add_argument('-method_search', help='Select method for searching data.')
+parser.add_argument('-metadata_imgpath', help='To provide name of search input image for resultdirectories configfile.')
 parser.add_argument('-search_personperc', action="store_true", help='Wheather to consider personsize on image for weighting scores.')
 parser.add_argument('-rankingtype', help='Select method for ranking found descriptors.')
 parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
@@ -105,20 +107,27 @@ if args.insert_data:
     _INDEX = 'imgid_gpd_raw_jldall_direct_pbn_addperc' #!
     _INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
     _INDEX = 'imgid_gpd_raw_jcrel_pbn_addperc' #!
+
+    _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_metropolitan_addperc' #!
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
     _INDEX = 'patchesindexm10' 
     _INDEX = 'patchesindexm7'
-    _INDEX = 'patchesindexm5'  
-    if args.gpd_type == 'JcJLdLLa_reduced':
-        _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc' #!
-    elif args.gpd_type == 'JJo_reduced': 
-        _INDEX = 'imgid_gpd_raw_jjo_reduced_reduced_pbn_addperc' #!
-    elif args.gpd_type == 'JLd_all_direct': 
-        _INDEX = 'imgid_gpd_raw_jldall_direct_pbn_addperc' #!
-        _INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
-    elif args.gpd_type == 'Jc_rel': 
-        _INDEX = 'imgid_gpd_raw_jcrel_pbn_addperc' #!
+    _INDEX = 'patchesindexm5' 
+    if args.dbname == 'paintersbynumbers': 
+        if args.gpd_type == 'JcJLdLLa_reduced':
+            _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc' #!
+        elif args.gpd_type == 'JJo_reduced': 
+            _INDEX = 'imgid_gpd_raw_jjo_reduced_reduced_pbn_addperc' #!
+        elif args.gpd_type == 'JLd_all_direct': 
+            _INDEX = 'imgid_gpd_raw_jldall_direct_pbn_addperc' #!
+            _INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
+        elif args.gpd_type == 'Jc_rel': 
+            _INDEX = 'imgid_gpd_raw_jcrel_pbn_addperc' #!
+        else:
+            raise ValueError()
+    elif args.dbname == 'metropolitan':
+        _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_metropolitan_addperc' #!
     else:
         raise ValueError()
 
@@ -129,6 +138,7 @@ if args.gpd_type == 'JLd_all_direct':
 else:
     _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation, adjust for better performance
 _NUMRES = 100 #adjust for only take topk 
+
 print("_ELEMNUM_QUERYRESULT ",_ELEMNUM_QUERYRESULT)
 
 _CONFIGDIR = '/home/althausc/master_thesis_impl/retrieval/out/configs'
@@ -173,12 +183,13 @@ def main():
         return
 
     _SRCIMG_DIR = getimgdir(_INDEX, imgdir=args.imgdir, es=es)
-    _SRCIMG_DIR = '/nfs/data/iart/kaggle/img'
+    #_SRCIMG_DIR = '/nfs/data/iart/kaggle/img'
     print("Source image folder: ",_SRCIMG_DIR)
 
     
     if args.insert_data:
         print("Test sample at position 0:", data[0])
+        time.sleep(60)
         createIndex(es, len(data[0]['gpd']), _SRCIMG_DIR)
         insertdata_raw(args, data, es)
 
@@ -243,11 +254,13 @@ def saveconfigsearch(output_dir, args, searchindex, numresults, numdescriptors):
      with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
             f.write("Search Index: %s"%searchindex + os.linesep)
             f.write("GPD File: %s"%args.file + os.linesep)
+            f.write("Database: %s"%args.dbname + os.linesep)
             f.write("Search Method: %s"%args.method_search + os.linesep)
             f.write("Ranking Type: %s"%args.rankingtype + os.linesep)
             f.write("Number of Search Descriptors: %d"%numdescriptors + os.linesep)
             f.write("Number of Results: %d"%numresults + os.linesep)
-            
+            f.write("Search Image: %s"%args.metadata_imgpath + os.linesep)
+       
 
 def get_indexconfigs(indexname):
     with open(os.path.join(_CONFIGDIR, 'elastic_config.csv')) as f:
@@ -379,7 +392,7 @@ def query(es, descriptor, size, method):
                         "source": """
                             def m1 = params._source['mask'];
                             def m2 = params.queryMask;
-                            double penalty = 0.5; //not necessary?!
+                            double penalty = 0.128; //Penalty values: JcJLdLLa_reduced = 0.414, JL_all_direct = 0.38, JJo_reduced = 0.128, Jc_rel = 0.365
                             double c = 0.0;
 
                             ArrayList qeffective = new ArrayList();
@@ -494,7 +507,8 @@ def query(es, descriptor, size, method):
                         "source": """
                             def m1 = params._source['mask'];
                             def m2 = params.queryMask;
-                            double penalty = 0.5/params.queryVector.size(); //0.5 since majority of entries are between [0,1] //0.335 for JL_all_direct
+                             
+                            double penalty = 0.414/params.queryVector.size(); //Penalty values: JcJLdLLa_reduced = 0.414, JL_all_direct = 0.38, JJo_reduced = 0.128, Jc_rel = 0.365
                             double c = 0.0;
 
                             ArrayList qeffective = new ArrayList();
@@ -742,7 +756,10 @@ def saveResults(image_ids, rel_scores, output_dir, image_dir):
         imgid = str(imageid)
         root, ext = os.path.splitext(imgid)
         if not ext:
-            imgname = "%s.jpg"%imgid
+            if os.path.isfile(os.path.join(image_dir, "%s.jpg"%imgid)):
+                imgname = "%s.jpg"%imgid
+            else:
+                imgname = "%s.png"%imgid
         else:
             imgname = imgid
         imagemetadata[rank] = {'filename': imgname, 'relscore': relscore}

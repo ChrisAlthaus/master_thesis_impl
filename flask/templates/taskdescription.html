@@ -1,0 +1,97 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<meta content="de" http-equiv="Content-Language" />
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
+<title>Art Retrieval: User Study</title>
+<style type="text/css">
+.container {
+	margin-left: 20px;
+}
+
+.heading-list li {
+    display: flex;
+    align-items: center;
+}
+
+.heading-list li img {
+    text-align: center;
+}
+.auto-style1 {
+	text-align: left;
+}
+
+.buttonstyle{
+	margin-left: 370px;
+}
+.auto-style2 {
+	text-align: center;
+}
+br {
+	margin:0;
+}
+
+body, input{
+   font-family: Verdana, sans-serif;
+   font-size: 12px
+}
+
+</style>
+</head>
+
+<body>
+<h2 class="auto-style2" style="width: 821px">Information &amp; Task Desription</h2>
+<div class="container">
+<p>The following user study investigates the retrieval accuracy of an artistic 
+search engine. <br />
+This search engine should allow historians to find visual links between 
+artworks.</p>
+<p>Through history, many artists draw inspiration from each other by using 
+similar painting styles, themes and motifs.&nbsp; <br />
+Or painters copied the scene structure. <br />
+This search engine tries to retrieve images which are similar to the query 
+images, taking into account two aspects:
+	<ul style="margin-bottom:0">
+		<li style="height: 483px"><strong>Arrangement of Human Poses: </strong>The 
+	posture of characters in the query and retrieved image should be similar.
+		<br />Sometimes painters copied a theme by adopting the configuration of human 
+	poses of another artwork. <br />Or they adoped just one small gesture like the arm posture, e.g. 
+	Michelangelo's David or the hand-on-the-hip posture <br />which was often used during Renaissance.<br />
+		<img alt="" height="393" src="/static/similar-poses-explanation.png" style="float: left; padding-left: 180px; padding-top: 20px;" width="430" />
+		</li>
+		<li class="auto-style1" style="height: 461px; margin-bottom:0"><strong>Arrangement of 
+		Objects in the Scene: </strong>The scene composition in the query and 
+		retrieved image should be similar. This means that there<br />
+		are multiple objects which are contained in both images, e.g. mountain, 
+		trees, buildings or chairs.<br />
+		<img alt="" height="353" src="/static/similar-scenes.png" style="float: left; padding-left: 180px; padding-top: 20px;  margin-bottom:0" width="430" />
+		</li>
+
+    </ul>
+<p>The next pages show retrieval results which are ranked from 0 to 50. The 
+query image is presented in the left upper corner. <br />
+Please select all images which you consider relevant for the query image. The 
+search engine considers the arrangement of similar persons more important than<br />
+the arrangement of similar objects. Therefore please primarily focus on 
+relevance based on similar human poses. </p>
+<p>Note: </p>
+<ul>
+	<li>Please keep the browser open for the whole session, otherwise data may 
+	be lost.</li>
+    <li>You can also select nothing, if no image is relevant. </li>
+	<li>When finished the user study please close the browser window.</li>
+	<li>There are 40 pages in total, followed by a logout screen.</li>
+    <li>In case there's an error please restart the browser.</li>
+</ul>
+</div>
+<form method="post">
+	<div class="buttonstyle">
+	<input name="startannotation" type="submit" value="Start User Study" /></div>
+	</form>
+
+<p style="height: 117px">&nbsp;</p>
+
+</body>
+
+</html>

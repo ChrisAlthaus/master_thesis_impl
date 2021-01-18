@@ -227,12 +227,21 @@ def getImgs(rankingfile, drawkpts=True):
     scores = []
     for item in rankedlist:
         #imgs.append(Image.open(item[1]['filepath']))
+        if 'filename' not in item[1]:   #debug
+            print("ERROR")
+            return None, None
         if drawkpts:
             basename, suffix = os.path.splitext(item[1]['filename'])
             kfilename = '{}_overlay{}'.format(basename, suffix) 
             imgs.append(Image.open(os.path.join(drawkptsdir, kfilename)))
         else: 
-            imgs.append(Image.open(os.path.join(imagedir, item[1]['filename'])))
+            basewidth = 512
+            img = Image.open(os.path.join(imagedir, item[1]['filename']))
+            wpercent = (basewidth/float(img.size[0]))
+            hsize = int((float(img.size[1])*float(wpercent)))
+            img = img.resize((basewidth,hsize), Image.ANTIALIAS)
+            
+            imgs.append(img)
         scores.append(item[1]['relscore'])
     
     return imgs, scores
@@ -280,6 +289,10 @@ def drawborder(imgpath):
     img_pil = Image.fromarray(img)
 
     return img_pil
+
+def getimg(imgpath):
+    img = Image.open(imgpath)
+    return img
 
 def cropImage(imagepath, p1, p2, resize=True):
     outfile = os.path.join('.images', os.path.splitext(imagepath)[0] + "_transformed.jpg")

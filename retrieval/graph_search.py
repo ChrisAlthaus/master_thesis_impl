@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--labelvecpath", help="Path to the g2v training set composed of all graphs.")
     parser.add_argument("--topk", type=int, default=100,
                         help="Number of returned similar documents.") 
+    parser.add_argument('-metadata_imgpath', help='To provide name of search input image for resultdirectories configfile.')
     parser.add_argument("--wl-iterations", type=int, default=2,
     	                help="Number of Weisfeiler-Lehman iterations. Default is 2.") 
     parser.add_argument("--steps-infer", type=int, default=100,
@@ -112,7 +113,7 @@ def main():
         # -------------------- Reweight based on query & results label distributions -----------------------
         if args.reweight: #reweight on box and rel labels occurance similarities on the query and the result topk
                           #e.g. annotation a1 with ['tree' * 5, ...] should be ranked higher for query image including ['tree']
-                          #     than for example a2 with ['car' *2, ...]
+                          #     than for example a2 with ['car' *2, ...]    #NOTE: not build-in & tested so far!
             if args.reweightmode not in _REWEIGHT_MODES:
                 raise ValueError("No valid reweight mode specified.")
             
@@ -188,6 +189,7 @@ def main():
             print("Reweighted topk images: ",sims)
 
         # -------------------------- Save resulting ranking ---------------------------
+        saveconfigsearch(output_dir, args, len(sims))
         saveresults(sims, output_dir)
 
     # ------------------------- Evaluate model w.r. to infer parameter step size ---------------------
@@ -248,6 +250,17 @@ def getjaccard(vec1, vec2, metadata):
 
     #logging end
     return len(s1.intersection(s2)) / len(s1.union(s2)) 
+
+def saveconfigsearch(output_dir, args, numresults):
+    with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
+        f.write("Model: %s"%args.model + os.linesep)
+        f.write("Graph File: %s"%args.inputpath + os.linesep)
+        f.write("Wl-Iterations: %d"%args.wl_iterations + os.linesep)
+        f.write("Min Feature Dimension: %d"%args.min_featuredim + os.linesep)
+        f.write("Reweight enabled: %d"%args.reweight + os.linesep)
+        f.write("Reweight Mode: %d"%args.reweightmode + os.linesep)
+        f.write("Number of Results: %d"%numresults + os.linesep)
+        f.write("Search Image: %d"%args.metadata_imgpath + os.linesep)
 
 def saveresults(ranking, output_dir):
     #Output file format:

@@ -48,6 +48,8 @@ parser.add_argument('-visunfiltered', action='store_true',
                     help='Specify to visualize unfiltered/all predictions on images & save.')
 parser.add_argument('-visfiltered', action='store_true',
                     help='Specify to visualize filtered/reduced predictions on images & save.')
+parser.add_argument('-visfilteredrandom', action='store_true',
+                    help='Specify to visualize filtered/reduced predictions on images & save.')
 parser.add_argument('-visrandom','-validate', action='store_true',
                     help='Specify to randomy visualize k predictions.')
 parser.add_argument('-vistresh', type=float, default=0.0,   
@@ -115,6 +117,7 @@ def main():
 
     outputs = []
     outputs_raw = []
+    imgpaths_abovetresh = []
     predictor = DefaultPredictor(cfg)
     print(cfg)
     print("SCORE TRESHOLD: ",_SCORE_TRESH)
@@ -145,7 +148,8 @@ def main():
             preds = predictor(inputs)
 
             for img_path,pred in zip(image_paths[i:i+batchsize],preds):
-                image_name = os.path.splitext(os.path.basename(img_path))[0]
+
+                image_name = os.path.relpath(img_path, args.image_folder).replace('../','') #to account for subdirectories, os.path.splitext(os.path.basename(img_path))[0]
                 if args.styletransfered: 
                     content_id = image_name.split('_')[0]
                     style_id = image_name.split('_')[1]
@@ -269,6 +273,21 @@ def main():
             print(type(kpt_list))
             visability_means.append(np.sum(kpt_list[2::3])/len(kpt_list))
 
+    if args.visfilteredrandom:
+         #Draw only filtered predictions
+        preds_comb = get_combined_predictions(outputs)
+        print("Draw topk + treshold predictions...")
+        for i in range(100):
+            pred = random.choice(preds_comb) #debug, print pred first
+            print(i, pred)
+            visualize_and_save(pred['imagepath'], visdir, pred, args, 'treshtopk')
+        print("Draw topk + treshold predictions done.")
+
+        #Statistics
+        for pred in outputs:
+            kpt_list = pred['keypoints']
+            visability_means.append(np.sum(kpt_list[2::3])/len(kpt_list))
+
     if args.visrandom:
         print("Random visualization for validation purposes ...")
         preds_comb = get_combined_predictions(outputs)
@@ -324,8 +343,10 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
 
     elif mode == 'treshtopk':
         #Draw topk predictions
+        print("Loading: ",img_path)
         img = cv2.imread(img_path)
         if img is None:
+            print("Warning: Image is none.")
             return
         v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
     
@@ -339,6 +360,7 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
         img_name = os.path.join("%s_topk%s"%(basenames[0], basenames[1]))
         if out == None:
             print("Warning: Image is none.")
+        print("Save visualization image to ", os.path.join(output_dir, img_name))
         cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
         
 
@@ -354,7 +376,7 @@ def get_combined_predictions(singlepreds):
 
     grouped = {}
     for pred_entry in singlepreds:
-        imagepath = os.path.join(imgdir, "%s.jpg"%pred_entry['image_id'])
+        imagepath = os.path.join(imgdir, "%s.jpg"%(pred_entry['image_id'].replace('.jpg', '')))
         if imagepath not in grouped:
             grouped[imagepath] = [pred_entry]
         else:
