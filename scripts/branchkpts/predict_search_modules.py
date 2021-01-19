@@ -229,7 +229,7 @@ def getImgs(rankingfile, drawkpts=True):
         #imgs.append(Image.open(item[1]['filepath']))
         if 'filename' not in item[1]:   #debug
             print("ERROR")
-            return None, None
+            return None, None, None
         if drawkpts:
             basename, suffix = os.path.splitext(item[1]['filename'])
             kfilename = '{}_overlay{}'.format(basename, suffix) 
@@ -244,17 +244,17 @@ def getImgs(rankingfile, drawkpts=True):
             imgs.append(img)
         scores.append(item[1]['relscore'])
     
-    return imgs, scores
+    return imgs, scores, rankedlist
 
 def getRandomImages(k=100):
     imgfolder = '/nfs/data/iart/kaggle/img/'
     image_paths = []
     imgs = []
     scores = []
-        #image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
-        for path, subdirs, files in os.walk(imgfolder):
-            for name in files:
-                image_paths.append(os.path.join(path, name)) 
+    #image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
+    for path, subdirs, files in os.walk(imgfolder):
+        for name in files:
+            image_paths.append(os.path.join(path, name)) 
     for imgpath in random.sample(image_paths, k):
         basewidth = 512
         img = Image.open(imgpath)

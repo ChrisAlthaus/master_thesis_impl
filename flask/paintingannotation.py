@@ -8,13 +8,23 @@ app = Flask(__name__)
 app.secret_key = "sdf79w3hsdfz83250fdg1287sdgf546dfg"
 
 rhtml_files = []
-for path, subdirs, files in os.walk('retrieval'):
+rhtmlfiles_metadata = {}
+for path, subdirs, files in os.walk('retrieval/Jc_rel'):
 	for name in files:
-		rhtml_files.append(os.path.join(path, name))
+		rhtml_path = os.path.join(path, name)
+		if '.json' in rhtml_path:
+			continue
+		rhtml_files.append(rhtml_path)
+		with open(os.path.join(os.path.dirname(rhtml_path), 'metadata', os.path.basename(rhtml_path).replace('.html', '.json'))) as f:
+			metadata = json.load(f)
+			rhtmlfiles_metadata[rhtml_path] = metadata
 rhtml_files.sort()
 random.shuffle(rhtml_files)
+
 print(rhtml_files)
+#print(metadata_files[0])
 fileindex = 0
+
 
 @app.route("/artuserstudy/annotate", methods=['GET', 'POST'])
 def annotate():
@@ -30,7 +40,10 @@ def annotate():
 		filename = "%d_%s.json"%(fileindex, session["user"])
 
 		with open(os.path.join('results', foldername, filename), 'w') as f:
-			json.dump(request.form.getlist('image-checkbox'), f)
+			annotations = request.form.getlist('image-checkbox')
+			metadata = rhtmlfiles_metadata[rhtml_files[fileindex]]
+			data = {'query': metadata['querypath'], 'ranking': metadata['resultpath'], 'annotations': annotations, 'retrievalfiles': metadata['retrievaltopk']}
+			json.dump(data, f)
 
 		fileindex += 1
 		session["fileindex"] = fileindex
