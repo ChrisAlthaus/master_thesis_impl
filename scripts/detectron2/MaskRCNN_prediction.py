@@ -81,15 +81,26 @@ if args.score_tresh > 1 or args.score_tresh < 0:
 
 def main():
     # -------------------------------- GET IMAGE PATH(S) --------------------------------
+    print("test")
+    corrupted = ['/nfs/data/iart/art500k/img/Artists1/Adam Kłodecki aka Theosone/Kamienica Fahrenheita##FAFB_kIxpRxHXQ.jpg']
+    specialchars = 'ÆÐƎƏƐƔĲŊŒẞÞǷȜæðǝəɛɣĳŋœĸſßþƿȝĄƁÇĐƊĘĦĮƘŁØƠŞȘŢȚŦŲƯY̨Ƴąɓçđɗęħįƙłøơşșţțŧųưy̨ƴÁÀÂÄǍĂĀÃÅǺĄÆǼǢƁĆĊĈČÇĎḌĐƊÐÉÈĖÊËĚĔĒĘẸƎƏƐĠĜǦĞĢƔáàâäǎăāãåǻąæǽǣɓćċĉčçďḍđɗðéèėêëěĕēęẹǝəɛġĝǧğģɣĤḤĦIÍÌİÎÏǏĬĪĨĮỊĲĴĶƘĹĻŁĽĿʼNŃN̈ŇÑŅŊÓÒÔÖǑŎŌÕŐỌØǾƠŒĥḥħıíìiîïǐĭīĩįịĳĵķƙĸĺļłľŀŉńn̈ňñņŋóòôöǒŏōõőọøǿơœŔŘŖŚŜŠŞȘṢẞŤŢṬŦÞÚÙÛÜǓŬŪŨŰŮŲỤƯẂẀŴẄǷÝỲŶŸȲỸƳŹŻŽẒŕřŗſśŝšşșṣßťţṭŧþúùûüǔŭūũűůųụưẃẁŵẅƿýỳŷÿȳỹƴźżžẓ'
+    specialchars = [c for c in specialchars]
     image_paths = []
     if args.image_folder is not None:
         #image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
         for path, subdirs, files in os.walk(args.image_folder):
             for name in files:
-                image_paths.append(os.path.join(path, name)) 
+                imgpath = os.path.join(path, name)   
+                #if 'Theosone' in imgpath:
+                #    print("corrupted")
+                #    continue
+                image_paths.append(imgpath) 
+                    
     elif args.image_path is not None:
         image_paths = [args.image_path]
     #print(image_paths)
+    print("test2")
+    image_paths = image_paths[:200]
 
     # -------------------------------- LOAD CFG & SET MODEL PARAMS -----------------------
     cfg = get_cfg()
@@ -135,20 +146,29 @@ def main():
             batchsize = len(image_paths)
         for i in range(0, len(image_paths), batchsize):
         #for i,img_path in enumerate(image_paths):
+            print("0")
             inputs = []
             for img_path in image_paths[i:i+batchsize]:
-                img = cv2.imread(img_path)
+                print(img_path)
+                
+                img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+                #img = cv2.imread(img_path)
+                print("0.1")
                 if img is None:
+                    print("None")
                     continue
+                print("0.2")
                 inputs.append(img)
 
             #Prediction output:
             #For each image theres an instance-class, which format is:
             #   {'instances': Instances(num_instances=X, image_height=h, image_width=w, fields=[pred_boxes, scores, pred_classes, pred_keypoints])}
+            print("1")
             preds = predictor(inputs)
+            
 
             for img_path,pred in zip(image_paths[i:i+batchsize],preds):
-
+                print("4")
                 image_name = os.path.relpath(img_path, args.image_folder).replace('../','') #to account for subdirectories, os.path.splitext(os.path.basename(img_path))[0]
                 if args.styletransfered: 
                     content_id = image_name.split('_')[0]
@@ -167,17 +187,17 @@ def main():
                     if c >= _TOPK:
                         break
                     c = c + 1
-
+                print("5")
                 if len(pred["instances"]) != 0:
                     notused.append(1-c/(len(pred["instances"])))
                 if added is False:
                     nopreds.append(img_path)
-
+                print("6")
                 outputs_raw.append(pred)
                 #print(pred["instances"].scores)
                 #print("original num of predictions: ",image_id, len(pred["instances"].pred_boxes), c)
                 #assert len(pred["instances"].pred_boxes) == c, print(len(pred["instances"].pred_boxes), c)
-
+                print("7")
             if i%1000 == 0 and i!=0:
                 print("Processed %d images."%(i+batchsize))
                 #break
