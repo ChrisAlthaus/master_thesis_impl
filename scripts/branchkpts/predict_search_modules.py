@@ -245,7 +245,27 @@ def getImgs(rankingfile, drawkpts=True):
         scores.append(item[1]['relscore'])
     
     return imgs, scores
+
+def getRandomImages(k=100):
+    imgfolder = '/nfs/data/iart/kaggle/img/'
+    image_paths = []
+    imgs = []
+    scores = []
+        #image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
+        for path, subdirs, files in os.walk(imgfolder):
+            for name in files:
+                image_paths.append(os.path.join(path, name)) 
+    for imgpath in random.sample(image_paths, k):
+        basewidth = 512
+        img = Image.open(imgpath)
+        wpercent = (basewidth/float(img.size[0]))
+        hsize = int((float(img.size[1])*float(wpercent)))
+        img = img.resize((basewidth,hsize), Image.ANTIALIAS)
         
+        imgs.append(img)
+        scores.append(0.0)
+    return imgs,scores
+                          
 def treshIndex(tresh, results):
     with open (results, "r") as f:
         json_data = json.load(f)
