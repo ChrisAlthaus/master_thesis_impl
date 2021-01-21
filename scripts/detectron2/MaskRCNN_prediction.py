@@ -86,17 +86,23 @@ def main():
     image_paths = []
     if args.image_folder is not None:
         #image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
-        for path, subdirs, files in os.walk(args.image_folder):
+        for path, subdirs, files in os.walk(args.image_folder): #os.walk(u'%s'%args.image_folder):
             for name in files:
                 imgpath = os.path.join(path, name)   
+                for c in specialchars:
+                    if c in imgpath:
+                        image_paths.append(imgpath) 
+                        break
                 #if 'Theosone' in imgpath:
                 #    print("corrupted")
                 #    continue
-                image_paths.append(imgpath) 
+                #image_paths.append(imgpath) 
                     
     elif args.image_path is not None:
         image_paths = [args.image_path]
 
+    image_paths = image_paths[:100]
+    print(image_paths)
     # -------------------------------- LOAD CFG & SET MODEL PARAMS -----------------------
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) 
@@ -150,11 +156,17 @@ def main():
                     print("Image loading error")
                     print(e)
                     continue
-               
-                #img = cv2.imread(img_path)
+
                 if img is None:
                     print("None")
                     continue
+                if len(img.shape) < 3:
+                    print("Image dimensions not valid: ", img.shape)
+                    continue
+                if img.shape[2]>3:
+                    print("Reducing shape {} to dimension 3".format(img.shape))
+                    img = img[:,:,:3]
+
                 inputs.append(img)
                 imagepaths_batch.append(img_path)
 
@@ -165,14 +177,14 @@ def main():
             
 
             for img_path,pred in zip(imagepaths_batch, preds):
-                
-                image_name = os.path.relpath(img_path, args.image_folder).replace('../','') #to account for subdirectories, os.path.splitext(os.path.basename(img_path))[0]
+                image_name = os.path.relpath(img_path, os.path.dirname(os.path.normpath(args.image_folder))).replace('../','') #to account for subdirectories, os.path.splitext(os.path.basename(img_path))[0]
+                print(image_name)
                 if args.styletransfered: 
                     content_id = image_name.split('_')[0]
                     style_id = image_name.split('_')[1]
                     image_id = int("%s%s"%(content_id,style_id))
                 else:
-                    image_id = image_name #allow string image id
+                    image_id = image_name #u'{}'.format(image_name)#.encode('utf-8') #allow string image id
                 
                 c = 0
                 added = False
@@ -213,8 +225,9 @@ def main():
 
 
     #output format of keypoints: (x, y, v), v indicates visibility— v=0: not labeled (in which case x=y=0), v=1: labeled but not visible, and v=2: labeled and visible  
-    with open(os.path.join(output_dir, "maskrcnn_predictions.json"), 'w') as f:
-        json.dump(outputs, f, separators=(', ', ': '))
+    with open(os.path.join(output_dir, "maskrcnn_predictions.json"), 'w') as f: #, encoding='utf8'
+        json.dump(outputs, f, separators=(', ', ': ')) #, ensure_ascii=False)
+    exit(1)
 
     # ------------------------------- SAVE RUN CONFIG -------------------------------
     if args.target == 'train':
@@ -342,26 +355,29 @@ def main():
 
 
 def visualize_and_save(img_path, output_dir, preds, args, mode):
+    try:
+        print("Loading: ",img_path)
+        img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED) #to account for special characters
+    except cv2.error as e:
+        print("Image loading error: ", e)
+        return
+    if img is None:
+        print("Warning: Image is none.")
+        return
+
     if mode == 'all':
         #Draw unfiltered predictions
-        img = cv2.imread(img_path)
-        if img is None:
-            return
         v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(preds["instances"].to("cpu"), args.vistresh)
         img_name = os.path.basename(img_path)
         if out == None:
             print("Warning: Image is none.")
-        cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
-        
+        #cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
+        is_success, im_buf_arr = cv2.imencode(".jpg", out.get_image()[:, :, ::-1])
+        im_buf_arr.tofile(os.path.join(output_dir, img_name))
 
     elif mode == 'treshtopk':
         #Draw topk predictions
-        print("Loading: ",img_path)
-        img = cv2.imread(img_path)
-        if img is None:
-            print("Warning: Image is none.")
-            return
         v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
     
         obj = Instances(image_size=preds["imagesize"])
@@ -375,7 +391,9 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
         if out == None:
             print("Warning: Image is none.")
         print("Save visualization image to ", os.path.join(output_dir, img_name))
-        cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
+        #cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
+        is_success, im_buf_arr = cv2.imencode(".jpg", out.get_image()[:, :, ::-1])
+        im_buf_arr.tofile(os.path.join(output_dir, img_name))
         
 
 
