@@ -24,6 +24,7 @@ import os
 
 from pycocotools.coco import COCO
 import cv2
+from PIL import Image
 import datetime
 import json
 import random
@@ -31,6 +32,7 @@ import random
 import sys
 sys.path.insert(0, '/home/althausc/master_thesis_impl/scripts/utils') 
 from statsfunctions import getwhiskersvalues
+from utils import utilsart500k
 
 
 parser = argparse.ArgumentParser()
@@ -40,6 +42,8 @@ parser.add_argument('-image_path','-img',
                     help='Path to the image for which pose inference will be calculated.')
 parser.add_argument('-image_folder','-imgdir', 
                     help='Path to a directory containing images only.')
+parser.add_argument('-mode',
+                    help='Wheather to load the image path(s) from given directory/file or from custom loading function.')
 parser.add_argument('-topk', type=int, default=20,
                     help='Filter the predictions and take best k poses.')
 parser.add_argument('-score_tresh', type=float, default=0.5,
@@ -71,7 +75,7 @@ if args.image_folder is not None:
     if not os.path.isdir(args.image_folder):
         raise ValueError("Image does not exists.")
 
-if args.image_path is None and args.image_folder is None:
+if args.image_path is None and args.image_folder is None and args.mode == 'loadpaths':
     raise ValueError("Please specify an image or an image directory.")
 
 if args.target not in ['train', 'query', 'eval']:
@@ -81,28 +85,31 @@ if args.score_tresh > 1 or args.score_tresh < 0:
 
 def main():
     # -------------------------------- GET IMAGE PATH(S) --------------------------------
-    specialchars = 'ÆÐƎƏƐƔĲŊŒẞÞǷȜæðǝəɛɣĳŋœĸſßþƿȝĄƁÇĐƊĘĦĮƘŁØƠŞȘŢȚŦŲƯY̨Ƴąɓçđɗęħįƙłøơşșţțŧųưy̨ƴÁÀÂÄǍĂĀÃÅǺĄÆǼǢƁĆĊĈČÇĎḌĐƊÐÉÈĖÊËĚĔĒĘẸƎƏƐĠĜǦĞĢƔáàâäǎăāãåǻąæǽǣɓćċĉčçďḍđɗðéèėêëěĕēęẹǝəɛġĝǧğģɣĤḤĦIÍÌİÎÏǏĬĪĨĮỊĲĴĶƘĹĻŁĽĿʼNŃN̈ŇÑŅŊÓÒÔÖǑŎŌÕŐỌØǾƠŒĥḥħıíìiîïǐĭīĩįịĳĵķƙĸĺļłľŀŉńn̈ňñņŋóòôöǒŏōõőọøǿơœŔŘŖŚŜŠŞȘṢẞŤŢṬŦÞÚÙÛÜǓŬŪŨŰŮŲỤƯẂẀŴẄǷÝỲŶŸȲỸƳŹŻŽẒŕřŗſśŝšşșṣßťţṭŧþúùûüǔŭūũűůųụưẃẁŵẅƿýỳŷÿȳỹƴźżžẓ'
+    specialchars = 'ÆÐƎƏƐƔĲŊŒẞÞǷȜæðǝəɛɣĳŋœĸſßþƿȝĄƁÇĐƊĘĦĮƘŁØƠŞȘŢȚŦŲƯY̨Ƴąɓçđɗęħįƙłøơşșţțŧųưy̨ƴÁÀÂÄǍĂĀÃÅǺĄÆǼǢƁĆĊĈČÇĎḌĐƊÐÉÈĖÊËĚĔĒĘẸƎƏƐĠĜǦĞĢƔáàâäǎăāãåǻąæǽǣ'+\
+                    'ɓćċĉčçďḍđɗðéèėêëěĕēęẹǝəɛġĝǧğģɣĤḤĦIÍÌİÎÏǏĬĪĨĮỊĲĴĶƘĹĻŁĽĿʼNŃN̈ŇÑŅŊÓÒÔÖǑŎŌÕŐỌØǾƠŒĥḥħıíìiîïǐĭīĩįịĳĵķƙĸĺļłľŀŉńn̈ňñņŋóòôöǒŏōõőọøǿơœŔŘŖŚŜŠŞȘ'+\
+                    'ṢẞŤŢṬŦÞÚÙÛÜǓŬŪŨŰŮŲỤƯẂẀŴẄǷÝỲŶŸȲỸƳŹŻŽẒŕřŗſśŝšşșṣßťţṭŧþúùûüǔŭūũűůųụưẃẁŵẅƿýỳŷÿȳỹƴźżžẓ'
     specialchars = [c for c in specialchars]
+
     image_paths = []
-    if args.image_folder is not None:
-        #image_paths = [os.path.join(args.image_folder, x) for x in os.listdir(args.image_folder)]
-        for path, subdirs, files in os.walk(args.image_folder): #os.walk(u'%s'%args.image_folder):
-            for name in files:
-                imgpath = os.path.join(path, name)   
-                for c in specialchars:
-                    if c in imgpath:
-                        image_paths.append(imgpath) 
-                        break
-                #if 'Theosone' in imgpath:
-                #    print("corrupted")
-                #    continue
-                #image_paths.append(imgpath) 
-                    
-    elif args.image_path is not None:
-        image_paths = [args.image_path]
+
+    if args.mode == 'loadpaths':
+        if args.image_folder is not None:
+            for path, subdirs, files in os.walk(args.image_folder): #os.walk(u'%s'%args.image_folder):
+                for name in files:
+                    imgpath = os.path.join(path, name)   
+                    for c in specialchars:
+                        if c in imgpath:
+                            image_paths.append(imgpath) 
+                            break
+                        
+        elif args.image_path is not None:
+            image_paths = [args.image_path]
+    elif args.mode == 'custompaths':
+        image_paths = utilsart500k.get_paths_of_paintings()
+    else:
+        raise ValueError("Unvalid mode argument.")
 
     image_paths = image_paths[:100]
-    print(image_paths)
     # -------------------------------- LOAD CFG & SET MODEL PARAMS -----------------------
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) 
@@ -137,7 +144,7 @@ def main():
     with torch.no_grad():
         print("START PREDICTION")
         #Providing prediction for single and multiple images
-        batchsize = 8#2#10 #10-> OOM error
+        batchsize = 10#2#10 #10-> OOM error
         #Percent of predictions not used
         notused = []
         #Number of images with no predictions
@@ -149,11 +156,27 @@ def main():
         #for i,img_path in enumerate(image_paths):
             inputs = []
             imagepaths_batch = []
+            #print(i)
             for img_path in image_paths[i:i+batchsize]:
+                #print("0")
+                #try:
+                #stream = open(img_path.encode('utf-8'), "rb")
+                #bytes = bytearray(stream.read())
+                #print("0.1")
+                #numpyarray = np.asarray(bytes, dtype=np.uint8)
+                #print("0.2")
+                #img = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
+                #    #img = cv2.imdecode(np.fromfile(u'{}'.format(img_path), dtype=np.uint8), cv2.IMREAD_UNCHANGED) #to account for special characters
+                ##except cv2.error as e:
+                ##    print("Image loading error")
+                ##    print(e)
+                ##    continue
+                #img = cv2.imread(img_path)
                 try:
-                    img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED) #to account for special characters
-                except cv2.error as e:
-                    print("Image loading error")
+                    img = np.array(Image.open(img_path.encode('utf-8'), 'r'))
+                    #img = cv2.imdecode(np.fromfile(img_path.encode('utf-8'), dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+                    #img = cv2.imread(img_path.encode('utf-8'))
+                except Exception as e:
                     print(e)
                     continue
 
@@ -169,16 +192,23 @@ def main():
 
                 inputs.append(img)
                 imagepaths_batch.append(img_path)
+                #print("0.3")
 
             #Prediction output:
             #For each image theres an instance-class, which format is:
             #   {'instances': Instances(num_instances=X, image_height=h, image_width=w, fields=[pred_boxes, scores, pred_classes, pred_keypoints])}
+            #print("0.4")
+            #for image in inputs:
+            #    print(image.shape)
             preds = predictor(inputs)
-            
+            #print("test")
 
             for img_path,pred in zip(imagepaths_batch, preds):
-                image_name = os.path.relpath(img_path, os.path.dirname(os.path.normpath(args.image_folder))).replace('../','') #to account for subdirectories, os.path.splitext(os.path.basename(img_path))[0]
-                print(image_name)
+                #print("2")
+                image_name = img_path.replace(args.image_folder, '')
+                #image_name = os.path.relpath(img_path, os.path.dirname(os.path.normpath(args.image_folder))).replace('../','') #to account for subdirectories, os.path.splitext(os.path.basename(img_path))[0]
+                #print(image_name.encode('utf-8'))
+                #print("3")
                 if args.styletransfered: 
                     content_id = image_name.split('_')[0]
                     style_id = image_name.split('_')[1]
@@ -227,7 +257,6 @@ def main():
     #output format of keypoints: (x, y, v), v indicates visibility— v=0: not labeled (in which case x=y=0), v=1: labeled but not visible, and v=2: labeled and visible  
     with open(os.path.join(output_dir, "maskrcnn_predictions.json"), 'w') as f: #, encoding='utf8'
         json.dump(outputs, f, separators=(', ', ': ')) #, ensure_ascii=False)
-    exit(1)
 
     # ------------------------------- SAVE RUN CONFIG -------------------------------
     if args.target == 'train':
@@ -285,7 +314,7 @@ def main():
                 visability_means.append(np.sum(kpt_list[:,2])/len(kpt_list))
         print("Draw all/unfiltered predictions done.")
 
-    if args.visfiltered: #TODO: debug
+    if args.visfiltered:
          #Draw only filtered predictions
         print("Draw topk + treshold predictions...")
         for preds in get_combined_predictions(outputs):
@@ -296,8 +325,6 @@ def main():
         #Statistics
         for pred in outputs:
             kpt_list = pred['keypoints']
-            print(kpt_list)
-            print(type(kpt_list))
             visability_means.append(np.sum(kpt_list[2::3])/len(kpt_list))
 
     if args.visfilteredrandom:
