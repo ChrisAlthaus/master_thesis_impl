@@ -109,7 +109,7 @@ def main():
     else:
         raise ValueError("Unvalid mode argument.")
 
-    image_paths = image_paths[:100]
+    #image_paths = image_paths[:100]
     # -------------------------------- LOAD CFG & SET MODEL PARAMS -----------------------
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")) 
@@ -144,7 +144,7 @@ def main():
     with torch.no_grad():
         print("START PREDICTION")
         #Providing prediction for single and multiple images
-        batchsize = 10#2#10 #10-> OOM error
+        batchsize = 1#10#2#10 #10-> OOM error
         #Percent of predictions not used
         notused = []
         #Number of images with no predictions
@@ -193,7 +193,8 @@ def main():
                 inputs.append(img)
                 imagepaths_batch.append(img_path)
                 #print("0.3")
-
+            if len(imagepaths_batch) == 0:
+                continue
             #Prediction output:
             #For each image theres an instance-class, which format is:
             #   {'instances': Instances(num_instances=X, image_height=h, image_width=w, fields=[pred_boxes, scores, pred_classes, pred_keypoints])}
@@ -205,7 +206,7 @@ def main():
 
             for img_path,pred in zip(imagepaths_batch, preds):
                 #print("2")
-                image_name = img_path.replace(args.image_folder, '')
+                image_name = img_path.replace(args.image_folder, '').strip('/')
                 #image_name = os.path.relpath(img_path, os.path.dirname(os.path.normpath(args.image_folder))).replace('../','') #to account for subdirectories, os.path.splitext(os.path.basename(img_path))[0]
                 #print(image_name.encode('utf-8'))
                 #print("3")
@@ -318,7 +319,6 @@ def main():
          #Draw only filtered predictions
         print("Draw topk + treshold predictions...")
         for preds in get_combined_predictions(outputs):
-            print(preds)
             visualize_and_save(preds['imagepath'], visdir, preds, args, 'treshtopk')
         print("Draw topk + treshold predictions done.")
 
@@ -333,7 +333,6 @@ def main():
         print("Draw topk + treshold predictions...")
         for i in range(100):
             pred = random.choice(preds_comb) #debug, print pred first
-            print(i, pred)
             visualize_and_save(pred['imagepath'], visdir, pred, args, 'treshtopk')
         print("Draw topk + treshold predictions done.")
 
@@ -382,12 +381,22 @@ def main():
 
 
 def visualize_and_save(img_path, output_dir, preds, args, mode):
+    #try:
+    #    print("Loading: ",img_path.encode('utf-8'))
+    #    img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED) #to account for special characters
+    #except cv2.error as e:
+    #    print("Image loading error: ", e)
+    #    return
+
     try:
-        print("Loading: ",img_path)
-        img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED) #to account for special characters
-    except cv2.error as e:
-        print("Image loading error: ", e)
+        print(args.image_folder)
+        img_path = os.path.join(args.image_folder, img_path)
+        print("Loading: ",img_path.encode('utf-8'))
+        img = np.array(Image.open(img_path.encode('utf-8'), 'r'))
+    except Exception as e:
+        print(e)
         return
+
     if img is None:
         print("Warning: Image is none.")
         return
@@ -417,11 +426,12 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
         img_name = os.path.join("%s_topk%s"%(basenames[0], basenames[1]))
         if out == None:
             print("Warning: Image is none.")
-        print("Save visualization image to ", os.path.join(output_dir, img_name))
+        print("Save visualization image to ", os.path.join(output_dir, img_name).encode('utf-8'))
         #cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
-        is_success, im_buf_arr = cv2.imencode(".jpg", out.get_image()[:, :, ::-1])
-        im_buf_arr.tofile(os.path.join(output_dir, img_name))
-        
+        #is_success, im_buf_arr = cv2.imencode(".jpg", out.get_image()[:, :, ::-1])
+        #im_buf_arr.tofile(os.path.join(output_dir, img_name))
+        print(out.get_image()[:, :, ::-1].shape)
+        Image.fromarray(out.get_image()[:, :, ::-1]).save(os.path.join(output_dir, img_name))
 
 
 def get_combined_predictions(singlepreds):
