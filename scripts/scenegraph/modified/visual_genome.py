@@ -3,24 +3,26 @@ import sys
 import torch
 import h5py
 import json
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
 import random
-from maskrcnn_benchmark.data.datasets.validlabels import VALID_LABELS
 
 from maskrcnn_benchmark.structures.bounding_box import BoxList
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 
 BOX_SCALE = 1024  # Scale at which we have the boxes
 
+IMGPATHS_GENERATOR = True #Disable to load images from TEST.CUSTUM_PATH, 
+                          #nevertheless its good to specify TEST.CUSTUM_PATH for possible relative paths
+
 class VGDataset(torch.utils.data.Dataset):
 
     def __init__(self, split, img_dir, roidb_file, dict_file, image_file, transforms=None,
                 filter_empty_rels=True, num_im=-1, num_val_im=5000,
                 filter_duplicate_rels=True, filter_non_overlap=True, flip_aug=False, custom_eval=False, custom_path=''):
-        """
+        """ #TODO: maybe filter_non_overlap =>False
         Torch dataset for VisualGenome
         Parameters:
             split: Must be train, test, or val
@@ -36,10 +38,8 @@ class VGDataset(torch.utils.data.Dataset):
                unless num_im is -1.)
         """
         # for debug
-        # num_im = 10000
-        # num_val_im = 4
-
-        print(img_dir, roidb_file, dict_file, image_file, filter_empty_rels)
+        #num_im = 10000
+        #num_val_im = -4
 
         assert split in {'train', 'val', 'test'}
         self.flip_aug = flip_aug
@@ -54,23 +54,43 @@ class VGDataset(torch.utils.data.Dataset):
 
         self.ind_to_classes, self.ind_to_predicates, self.ind_to_attributes = load_info(dict_file) # contiguous 151, 51 containing __background__
         self.categories = {i : self.ind_to_classes[i] for i in range(len(self.ind_to_classes))}
-
+        print("Custom Eval folder: ", custom_eval)
         self.custom_eval = custom_eval
         if self.custom_eval:
             self.get_custom_imgs(custom_path)
         else:
-            #self, roidb_file, split, num_im, num_val_im, filter_empty_rels, filter_non_overlap, ind_classes)
+            print("Filter non-overlapping bboxes: ",self.filter_non_overlap)
             self.split_mask, self.gt_boxes, self.gt_classes, self.gt_attributes, self.relationships = load_graphs(
-                self.roidb_file, self.split, num_im=num_im, num_val_im=num_val_im,
+                self.roidb_file, self.split, num_im, num_val_im=num_val_im,
                 filter_empty_rels=filter_empty_rels,
                 filter_non_overlap=self.filter_non_overlap,
-                ind_classes = self.ind_to_classes
             )
 
             self.filenames, self.img_info = load_image_filenames(img_dir, image_file) # length equals to split_mask
             self.filenames = [self.filenames[i] for i in np.where(self.split_mask)[0]]
             self.img_info = [self.img_info[i] for i in np.where(self.split_mask)[0]]
 
+            #Remove corrupted image ids from index & annotations
+            delinds = []
+            for i,filename in enumerate(self.filenames):
+                if filename == -1:
+                    delinds.append(i)
+            delinds.sort(reverse=True)
+            print("Delete indices: ",delinds)
+            for k in delinds:
+                del self.filenames[k]
+                del self.img_info[k]
+                del self.gt_boxes[k]
+                del self.gt_classes[k]
+                del self.gt_attributes[k]
+                del self.relationships[k]
+
+            print("Length image info: ", len(self.img_info))
+            print("Length filenames: ", len(self.filenames))
+            print("Length gt boxes: ", len(self.gt_boxes))
+            print("Length relationships: ", len(self.relationships))
+            print("Length split mask: ", len(self.split_mask))
+            print("-"*40)
 
     def __getitem__(self, index):
         #if self.split == 'train':
@@ -85,7 +105,7 @@ class VGDataset(torch.utils.data.Dataset):
         
         img = Image.open(self.filenames[index]).convert("RGB")
         if img.size[0] != self.img_info[index]['width'] or img.size[1] != self.img_info[index]['height']:
-            print('='*20, ' ERROR index ', str(index), ' ', str(img.size), ' ', str(self.img_info[index]['width']), ' ', str(self.img_info[index]['height']), ' ', '='*20)
+            print('='*20, ' ERROR index ', self.img_info[index], str(index), ' ', str(img.size), ' ', str(self.img_info[index]['width']), ' ', str(self.img_info[index]['height']), ' ', '='*20)
 
         flip_img = (random.random() > 0.5) and self.flip_aug and (self.split == 'train')
         
@@ -120,10 +140,31 @@ class VGDataset(torch.utils.data.Dataset):
     def get_custom_imgs(self, path):
         self.custom_files = []
         self.img_info = []
-        for file_name in os.listdir(path):
-            self.custom_files.append(os.path.join(path, file_name))
-            img = Image.open(os.path.join(path, file_name)).convert("RGB")
-            self.img_info.append({'width':int(img.width), 'height':int(img.height)})
+
+        #modified: Optional for getting filenames from a custom loading function
+        filepaths = []
+        if IMGPATHS_GENERATOR:
+            import sys
+            sys.path.append('/home/althausc/master_thesis_impl/scripts/detectron2/utils')
+            import utilsart500k
+            filepaths = utilsart500k.get_paths_of_paintings()
+        else:
+            filepaths = os.listdir(path)
+        #modified end
+        for file_name in filepaths:
+            try:
+                #modified: swapped custom_files append because index error
+                img = Image.open(os.path.join(path, file_name).encode('utf-8'), 'r') #.convert("RGB")
+                if os.path.isabs(file_name):
+                    self.custom_files.append(file_name.encode('utf-8'))
+                else:
+                    self.custom_files.append(os.path.join(path, file_name).encode('utf-8'))
+                #modified end
+                self.img_info.append({'width':int(img.width), 'height':int(img.height)})
+            except UnidentifiedImageError as e:
+                print(e)
+                #print("Image is corrupted: ",file_name.encode('utf-8'))
+
 
     def get_img_info(self, index):
         # WARNING: original image_file.json has several pictures with false image size
@@ -144,7 +185,6 @@ class VGDataset(torch.utils.data.Dataset):
             new_xmax = w - box[:,0]
             box[:,0] = new_xmin
             box[:,2] = new_xmax
-        print("boxes: ", box)
         target = BoxList(box, (w, h), 'xyxy') # xyxy
 
         target.add_field("labels", torch.from_numpy(self.gt_classes[index]))
@@ -163,14 +203,8 @@ class VGDataset(torch.utils.data.Dataset):
         
         # add relation to target
         num_box = len(target)
-        print("tar: ",target)
         relation_map = torch.zeros((num_box, num_box), dtype=torch.int64)
-       
-        print("relationmap: ",relation_map)
-        
-        for i in range(relation.shape[0]): 
-            print("relation: ",relation)
-            print(int(relation[i,0]), int(relation[i,1]))
+        for i in range(relation.shape[0]):
             if relation_map[int(relation[i,0]), int(relation[i,1])] > 0:
                 if (random.random() > 0.5):
                     relation_map[int(relation[i,0]), int(relation[i,1])] = int(relation[i,2])
@@ -305,40 +339,32 @@ def load_image_filenames(img_dir, image_file):
     """
     with open(image_file, 'r') as f:
         im_data = json.load(f)
-    """print(img_dir)
-    for i,elem in enumerate(image_file):
-        print(elem)
-        if(i==100):
-            break"""
+    print("Length of image file: ",len(im_data))
+
     corrupted_ims = ['1592.jpg', '1722.jpg', '4616.jpg', '4617.jpg']
+    #['1592.jpg', '1722.jpg', '4616.jpg', '4617.jpg', '2316942.jpg', '2417331.jpg']
     fns = []
     img_info = []
     for i, img in enumerate(im_data):
         basename = '{}.jpg'.format(img['image_id'])
         if basename in corrupted_ims:
+            print("corrupted")
             continue
 
         filename = os.path.join(img_dir, basename)
         if os.path.exists(filename):
             fns.append(filename)
             img_info.append(img)
-    print(len(fns))
-    assert len(fns) == 108073 or len(fns) == 108062      #(108068 - len(corrupted_ims)) #modified for style images count
-    assert len(img_info) == 108073 or len(img_info) == 108062
+        else:
+            fns.append(-1)
+            img_info.append(-1)
+    print("Length of fns: ",len(fns))  
+    assert len(fns) == 108073 #or len(fns) == 108062 #modified
+    assert len(img_info) == 108073 #or len(img_info) == 108062 #modified
     return fns, img_info
 
-#modified
-def get_validinds(labels, ind_to_classes, type):
-    valid_inds = [ind_to_classes.index(elem) for elem in VALID_LABELS]
-    if type == 'bbox':
-        mask = [True if label in valid_inds else False for label in labels]
-    elif type == 'rel':
-        mask = [True if (rel[0] in valid_inds and rel[1] in valid_inds) else False for rel in labels]
-    
-    return mask
-#modified end
 
-def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter_non_overlap, ind_classes):
+def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter_non_overlap):
     """
     Load the file containing the GT boxes and relations, as well as the dataset split
     Parameters:
@@ -356,29 +382,42 @@ def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter
         relationships: List where each element is a [num_r, 3] array of 
                     (box_ind_1, box_ind_2, predicate) relationships
     """
-    print("Load file: ",roidb_file)
     roi_h5 = h5py.File(roidb_file, 'r')
     data_split = roi_h5['split'][:]
-    split_flag = 2 if split == 'test' else 0
+
+    split_flag = 2 if split == 'val' else 0 #modified: test->val, no test set
     split_mask = data_split == split_flag
+    print("split mask length: ",len(split_mask))
+    #split_mask = [True] * len(data_split)
 
     # Filter out images without bounding boxes
+    #print(split_mask[:20])
     split_mask &= roi_h5['img_to_first_box'][:] >= 0
     if filter_empty_rels:
         split_mask &= roi_h5['img_to_first_rel'][:] >= 0
-
+    #print(split_mask[:20])
+    print("split mask length (no empty rels): ",len(split_mask))
     image_index = np.where(split_mask)[0]
+    #print(image_index[:20])
+    print("index length: ",len(image_index))
     if num_im > -1:
+        print("Only take {} images for {}".format(num_im, split))
         image_index = image_index[:num_im]
     if num_val_im > 0:
         if split == 'val':
-            image_index = image_index[:num_val_im]
+            #print("Get first {} images of the filtered dataset for validation.".format(num_val_im))
+            print("Number of validation images (filtered for empty boxes & rels: {}".format(len(image_index)))
+            #image_index = image_index[:num_val_im]
         elif split == 'train':
-            image_index = image_index[num_val_im:]
-
-
+            #print("Get last {} images of the filtered dataset for training.".format(len(image_index)-num_val_im))
+            #print("First {} images reserved for validation.".format(num_val_im))
+            print("Number of training images (filtered for empty boxes & rels: {}".format(len(image_index)))
+            #image_index = image_index#[num_val_im:]
+    print("index length (cut to num_ims): ",len(image_index))
+    #print(image_index[:20])
     split_mask = np.zeros_like(data_split).astype(bool)
     split_mask[image_index] = True
+    #print("split mask length: ",len(split_mask))
 
     # Get box information
     all_labels = roi_h5['labels'][:, 0]
@@ -388,13 +427,16 @@ def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter
     assert np.all(all_boxes[:, 2:] > 0)  # no empty box
 
     # convert from xc, yc, w, h to x1, y1, x2, y2
+    #print("boxes_1024: ",all_boxes[0])
     all_boxes[:, :2] = all_boxes[:, :2] - all_boxes[:, 2:] / 2
     all_boxes[:, 2:] = all_boxes[:, :2] + all_boxes[:, 2:]
+    #print("boxes_1024: ",all_boxes[0])
 
     im_to_first_box = roi_h5['img_to_first_box'][split_mask]
     im_to_last_box = roi_h5['img_to_last_box'][split_mask]
     im_to_first_rel = roi_h5['img_to_first_rel'][split_mask]
     im_to_last_rel = roi_h5['img_to_last_rel'][split_mask]
+    #print("len first_boxes: ",len(roi_h5['img_to_first_box']), len(split_mask))
 
     # load relation labels
     _relations = roi_h5['relationships'][:]
@@ -407,8 +449,10 @@ def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter
     gt_classes = []
     gt_attributes = []
     relationships = []
-    boxes_compare = []
-    rel_compare = []
+    #print(im_to_first_box[:10])
+    #print(im_to_first_rel[:10])
+    
+    
     for i in range(len(image_index)):
         i_obj_start = im_to_first_box[i]
         i_obj_end = im_to_last_box[i]
@@ -422,11 +466,14 @@ def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter
         if i_rel_start >= 0:
             predicates = _relation_predicates[i_rel_start : i_rel_end + 1]
             obj_idx = _relations[i_rel_start : i_rel_end + 1] - i_obj_start # range is [0, num_box)
+            #print(obj_idx,type(obj_idx), type(obj_idx[0]),_relations[i_rel_start : i_rel_end + 1], i_obj_start, boxes_i.shape)
+            #print(i_rel_start, i_rel_end, i_obj_start, i)
             assert np.all(obj_idx >= 0)
             assert np.all(obj_idx < boxes_i.shape[0])
             rels = np.column_stack((obj_idx, predicates)) # (num_rel, 3), representing sub, obj, and pred
+            
         else:
-            assert not filter_empty_rels
+            #assert not filter_empty_rels
             rels = np.zeros((0, 3), dtype=np.int32)
 
         if filter_non_overlap:
@@ -443,54 +490,13 @@ def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter
             else:
                 split_mask[image_index[i]] = 0
                 continue
-        
-        mask_validlabels = get_validinds(gt_classes_i, ind_classes, 'bbox')
-        mask_validrels = get_validinds(rels, ind_classes, 'rel')
 
-        def masklist(mylist,mymask):
-            return np.array([a for a,b in zip(mylist,mymask) if b])
-        """k = 10
-        print(len(image_index), len(all_labels))
-        print("gt_classes_i: ",gt_classes_i[:k])
-        print("mask_validlabels: ",mask_validlabels[:k])
-        print("boxes_i: ",boxes_i[:k])
-        print("masklist:",masklist(boxes_i, mask_validlabels)[:k])
-        print("gt_classes_i: ",gt_classes_i[:k])
-        print("gt_clamasked: ",masklist(gt_classes_i, mask_validlabels)[:k])
-        """
-        #print(predicates)
-        #print(rels)
-        #print(mask_validrels)
-        #print(masklist(rels,mask_validrels))
-
-        boxes.append(masklist(boxes_i, mask_validlabels))
-        gt_classes.append(masklist(gt_classes_i, mask_validlabels))
-        gt_attributes.append(masklist(gt_attributes_i, mask_validlabels))
-        relationships.append(masklist(rels,mask_validrels))
-
-        boxes_compare.append(boxes_i)
-        rel_compare.append(rels)
-        #print("rels len: ",len(rels))
-        #if len(masklist(rels,mask_validrels)) > 0:
-        #    print("predpredicates)
-        #    print(rels)
-        #    print(mask_validrels)
-        #    print(masklist(rels,mask_validrels))
-        #print(type(boxes_i),type(boxes_i[0]), type(masklist(boxes_i, mask_validlabels)), type(masklist(boxes_i, mask_validlabels)[0]))
-        #print(boxes_i, masklist(boxes_i, mask_validlabels))
-
-        #exit(1)
-            
-    print("Number of unreduced gt boxes: ",len(all_boxes)) 
-    print("Number of reduced gt boxes: ",sum([len(item) for item in boxes])) 
-    print("Number of unreduced relations: ",len(_relations)) 
-    print("Number of reduced relations: ",sum([len(item) for item in relationships]))
-    print(len(split_mask), len(boxes))
-    #print(len(boxes), len(boxes_compare))
-    #print(len(relationships), len(rel_compare))
-    
-    
-
-
+        boxes.append(boxes_i)
+        gt_classes.append(gt_classes_i)
+        gt_attributes.append(gt_attributes_i)
+        relationships.append(rels)
+    #modified
+    print("Number of loaded graphs: ", len(image_index))
+    #print(image_index[:20])
+    #modified end
     return split_mask, boxes, gt_classes, gt_attributes, relationships
-

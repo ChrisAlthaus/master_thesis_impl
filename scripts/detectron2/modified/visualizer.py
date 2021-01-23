@@ -406,7 +406,7 @@ class Visualizer:
                 (predictions.pred_masks.any(dim=0) > 0).numpy()
             )
             alpha = 0.3
-
+        print("draw overlay")
         self.overlay_instances(
             masks=masks,
             boxes=boxes,
@@ -767,7 +767,7 @@ class Visualizer:
             x, y, prob = keypoint
             if prob > _KEYPOINT_THRESHOLD:
                 #modified: draw keypoint joint dependent on visualization probability (used for validation)
-                self.draw_circle((x, y), color=_RED)
+                self.draw_circle((x, y), color=_RED, radius=8)
                 #self.draw_circle((x, y), color=_RED, radius=np.log(prob+1)*20)
                 #modified end
                 if keypoint_names:
@@ -810,25 +810,26 @@ class Visualizer:
         return self.output
 
     #modified
-    def draw_gpddescriptor_jldist(self, jldist):
+    def draw_gpddescriptor_jldist(self, jldist, lw=4):
         for j, lstart, lend, dist in jldist:
+            #print("Draw line: ", j, lstart, lend, dist)
             lmidx = (lstart[0] + lend[0])/2
             lmidy = (lstart[1] + lend[1])/2
             jx = j[0]
             jy = j[1]
             #print("Draw Line: ",[jx, lmidx], [jy, lmidy])
-            self.draw_line([lstart[0], lend[0]], [lstart[1], lend[1]], color='k', linestyle='-', linewidth=1)
-            self.draw_line([jx, lmidx], [jy, lmidy], color='b', linestyle='--', linewidth=0.5)
-            self.draw_text('%.2f'%dist, [(jx+lmidx)/2, (jy+lmidy)/2], color='w', colorbox='blue', alpha=0.5, font_size=4)
+            self.draw_line([lstart[0], lend[0]], [lstart[1], lend[1]], color='k', linestyle='-', linewidth=lw/2, alpha=0.3)
+            self.draw_line([jx, lmidx], [jy, lmidy], color='b', linestyle='--', linewidth=lw)
+            #self.draw_text('%.2f'%dist, [(jx+lmidx)/2, (jy+lmidy)/2], color='w', colorbox='blue', alpha=0.5, font_size=4)
             
-            width, height = self.img.shape[1], self.img.shape[0]
-            self.draw_line([width-100, width-90], [height-75, height-75], color='k', linestyle='-', linewidth=1)
-            self.draw_line([width-100, width-100], [height-78, height-72], color='k', linestyle='-', linewidth=1)
-            self.draw_line([width-90, width-90], [height-78, height-72], color='k', linestyle='-', linewidth=1)
-            self.draw_text('10pix', [width-90, height-70], color='w')
+            #width, height = self.img.shape[1], self.img.shape[0]
+            #self.draw_line([width-100, width-90], [height-75, height-75], color='k', linestyle='-', linewidth=1)
+            #self.draw_line([width-100, width-100], [height-78, height-72], color='k', linestyle='-', linewidth=1)
+            #self.draw_line([width-90, width-90], [height-78, height-72], color='k', linestyle='-', linewidth=1)
+            #self.draw_text('10pix', [width-90, height-70], color='w')
         return self.output
     
-    def draw_gpddescriptor_llangle(self, llangles):
+    def draw_gpddescriptor_llangle(self, llangles, lw=4):
         for l1start, l1end, l2start, l2end, angle in llangles:
             l1midx = (l1start[0] + l1end[0])/2
             l1midy = (l1start[1] + l1end[1])/2
@@ -836,22 +837,26 @@ class Visualizer:
             l2midy = (l2start[1] + l2end[1])/2
 
             #print("Draw Line: ",[l1start, l2start], [l1end, l2end])
-            self.draw_line([l1start[0], l1end[0]], [l1start[1], l1end[1]], color='k', linestyle='-', linewidth=1)
-            self.draw_line([l2start[0], l2end[0]], [l2start[1], l2end[1]], color='k', linestyle='-', linewidth=1)
+            self.draw_line([l1start[0], l1end[0]], [l1start[1], l1end[1]], color='k', linestyle='-', linewidth=lw/2, alpha=0.3)
+            self.draw_line([l2start[0], l2end[0]], [l2start[1], l2end[1]], color='k', linestyle='-', linewidth=lw/2, alpha=0.3)
 
-            self.draw_line([l1midx, l2midx], [l1midy, l2midy], color='g', linestyle='--', linewidth=1)
-            self.draw_text('%.2f'%math.degrees(angle), [(l1midx+l2midx)/2, (l1midy+l2midy)/2], color='w', colorbox='green', alpha=0.5, font_size=4)
+            self.draw_line([l1midx, l2midx], [l1midy, l2midy], color='g', linestyle='--', linewidth=lw)
+            #self.draw_text('%.2f'%math.degrees(angle), [(l1midx+l2midx)/2, (l1midy+l2midy)/2], color='w', colorbox='green', alpha=0.5, font_size=4)
         return self.output
 
-    def draw_gpddescriptor_jjo(self, kptsjj_os, kptdists):
+    def draw_gpddescriptor_jjo(self, kptsjj_os, kptdists, lw=4):
         for i,(kpt,orientation) in enumerate(kptsjj_os):
             dx = orientation[0] * kptdists[i]/3
             dy = orientation[1] * kptdists[i]/3
             endx = kpt[0] + dx
             endy = kpt[1] + dy
-
-            #self.draw_line([kpt[0], endx], [kpt[1], endy], color='r', linestyle='-', linewidth=1)
-            self.output.ax.arrow(kpt[0], kpt[1], dx, dy, color='r', head_width=6, head_length=6, zorder=10)
+            
+            #Invalid entries should not be drawn
+            if orientation[0] == -1 and orientation[1] == -1:
+                continue
+            #print("draw line: ",kpt[0], kpt[1], dx, dy)
+            self.output.ax.arrow(kpt[0], kpt[1], dx, dy, color='r', head_width=6*2, head_length=6*2, zorder=10, linewidth=lw)
+            #self.draw_line([kpt[0], endx], [kpt[1], endy], color='g', linestyle='-', linewidth=1)
         return self.output
     #modified end
 
@@ -1015,7 +1020,7 @@ class Visualizer:
         )
         return self.output
 
-    def draw_line(self, x_data, y_data, color, linestyle="-", linewidth=None):
+    def draw_line(self, x_data, y_data, color, linestyle="-", linewidth=None, alpha=None):
         """
         Args:
             x_data (list[int]): a list containing x values of all the points being drawn.
@@ -1035,15 +1040,27 @@ class Visualizer:
         if linewidth is None:
             linewidth = self._default_font_size / 3
         linewidth = max(linewidth, 1)
-        self.output.ax.add_line(
-            mpl.lines.Line2D(
-                x_data,
-                y_data,
-                linewidth=linewidth * self.output.scale,
-                color=color,
-                linestyle=linestyle,
+        if alpha is None:
+            self.output.ax.add_line(
+                mpl.lines.Line2D(
+                    x_data,
+                    y_data,
+                    linewidth=linewidth * self.output.scale,
+                    color=color,
+                    linestyle=linestyle,
+                )
             )
-        )
+        else:
+            self.output.ax.add_line(
+                mpl.lines.Line2D(
+                    x_data,
+                    y_data,
+                    linewidth=linewidth * self.output.scale,
+                    color=color,
+                    linestyle=linestyle,
+                    alpha = alpha
+                )
+            )
         return self.output
 
     def draw_binary_mask(

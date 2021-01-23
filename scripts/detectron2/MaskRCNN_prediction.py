@@ -92,7 +92,7 @@ def main():
 
     image_paths = []
 
-    if args.mode == 'loadpaths':
+    if args.mode == 'loadpaths' or args.target == 'query':
         if args.image_folder is not None:
             for path, subdirs, files in os.walk(args.image_folder): #os.walk(u'%s'%args.image_folder):
                 for name in files:
@@ -153,12 +153,9 @@ def main():
         if len(image_paths) < 10:
             batchsize = len(image_paths)
         for i in range(0, len(image_paths), batchsize):
-        #for i,img_path in enumerate(image_paths):
             inputs = []
             imagepaths_batch = []
-            #print(i)
             for img_path in image_paths[i:i+batchsize]:
-                #print("0")
                 #try:
                 #stream = open(img_path.encode('utf-8'), "rb")
                 #bytes = bytearray(stream.read())
@@ -173,7 +170,7 @@ def main():
                 ##    continue
                 #img = cv2.imread(img_path)
                 try:
-                    img = np.array(Image.open(img_path.encode('utf-8'), 'r'))
+                    img = np.array(Image.open(img_path.encode('utf-8'), 'r').convert('RGB'))
                     #img = cv2.imdecode(np.fromfile(img_path.encode('utf-8'), dtype=np.uint8), cv2.IMREAD_UNCHANGED)
                     #img = cv2.imread(img_path.encode('utf-8'))
                 except Exception as e:
@@ -186,30 +183,26 @@ def main():
                 if len(img.shape) < 3:
                     print("Image dimensions not valid: ", img.shape)
                     continue
-                if img.shape[2]>3:
+                if img.shape[2] > 3:
                     print("Reducing shape {} to dimension 3".format(img.shape))
                     img = img[:,:,:3]
 
                 inputs.append(img)
                 imagepaths_batch.append(img_path)
-                #print("0.3")
             if len(imagepaths_batch) == 0:
                 continue
             #Prediction output:
             #For each image theres an instance-class, which format is:
             #   {'instances': Instances(num_instances=X, image_height=h, image_width=w, fields=[pred_boxes, scores, pred_classes, pred_keypoints])}
-            #print("0.4")
-            #for image in inputs:
-            #    print(image.shape)
             preds = predictor(inputs)
-            #print("test")
 
             for img_path,pred in zip(imagepaths_batch, preds):
-                #print("2")
-                image_name = img_path.replace(args.image_folder, '').strip('/')
-                #image_name = os.path.relpath(img_path, os.path.dirname(os.path.normpath(args.image_folder))).replace('../','') #to account for subdirectories, os.path.splitext(os.path.basename(img_path))[0]
-                #print(image_name.encode('utf-8'))
-                #print("3")
+                if args.target == 'train':
+                    #Remove image base directory, because the imageids should be relative
+                    image_name = img_path.replace(args.image_folder, '').strip('/')
+                else:
+                    image_name = img_path
+
                 if args.styletransfered: 
                     content_id = image_name.split('_')[0]
                     style_id = image_name.split('_')[1]
@@ -237,7 +230,7 @@ def main():
                 #assert len(pred["instances"].pred_boxes) == c, print(len(pred["instances"].pred_boxes), c)
             if i%1000 == 0 and i!=0:
                 print("Processed %d images."%(i+batchsize))
-                #break
+
         print("PREDICTION FINISHED")
         print("Percentage of not used predictions (averaged): ", np.mean(notused))
         print("Number of images with no predictions: ", len(nopreds))
@@ -245,6 +238,11 @@ def main():
 
         if len(image_paths)-len(nopreds)>0:
             print("Mean number of poses per image: ", len(outputs)/(len(image_paths) - len(nopreds)))   
+    
+        if len(outputs) == 0:
+            print("\nNo predictions made.")
+            print("Raw outputs: ", outputs_raw)
+            exit(1)
 
     # ------------------------------ SAVE PREDICTIONS ------------------------------
     output_dir = os.path.join('/home/althausc/master_thesis_impl/detectron2/out/art_predictions', args.target)
@@ -253,8 +251,7 @@ def main():
         os.makedirs(output_dir)
     else:
         raise ValueError("Output directory %s already exists."%output_dir)
-
-
+ 
     #output format of keypoints: (x, y, v), v indicates visibility— v=0: not labeled (in which case x=y=0), v=1: labeled but not visible, and v=2: labeled and visible  
     with open(os.path.join(output_dir, "maskrcnn_predictions.json"), 'w') as f: #, encoding='utf8'
         json.dump(outputs, f, separators=(', ', ': ')) #, ensure_ascii=False)
@@ -362,7 +359,7 @@ def main():
                 visability_means.append(np.sum(kpt_list[2::3])/len(kpt_list))
         print("Random visualization done.")
         
-    
+    print(visability_means)
     visstatstr = getwhiskersvalues(visability_means)
     #Writing config to file
     with open(os.path.join(output_dir, '.visstats.txt'), 'a') as f:
@@ -389,10 +386,9 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
     #    return
 
     try:
-        print(args.image_folder)
-        img_path = os.path.join(args.image_folder, img_path)
+        #img_path = os.path.join(args.image_folder, img_path)
         print("Loading: ",img_path.encode('utf-8'))
-        img = np.array(Image.open(img_path.encode('utf-8'), 'r'))
+        img = np.array(Image.open(img_path.encode('utf-8'), 'r').convert('RGB'))
     except Exception as e:
         print(e)
         return
@@ -402,15 +398,13 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
         return
 
     if mode == 'all':
-        #Draw unfiltered predictions
+        #Draw unfiltered predictions, format = raw model output
         v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         out = v.draw_instance_predictions(preds["instances"].to("cpu"), args.vistresh)
         img_name = os.path.basename(img_path)
         if out == None:
             print("Warning: Image is none.")
-        #cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
-        is_success, im_buf_arr = cv2.imencode(".jpg", out.get_image()[:, :, ::-1])
-        im_buf_arr.tofile(os.path.join(output_dir, img_name))
+        Image.fromarray(out.get_image()[:, :, ::-1]).save(os.path.join(output_dir, img_name))
 
     elif mode == 'treshtopk':
         #Draw topk predictions
@@ -445,7 +439,12 @@ def get_combined_predictions(singlepreds):
 
     grouped = {}
     for pred_entry in singlepreds:
-        imagepath = os.path.join(imgdir, "%s.jpg"%(pred_entry['image_id'].replace('.jpg', '')))
+        root, ext = os.path.splitext(pred_entry['image_id'])
+        if not ext:
+            imagepath = os.path.join(imgdir, "%s.jpg"%(pred_entry['image_id']))
+        else:
+            imagepath = os.path.join(imgdir, pred_entry['image_id'])
+        
         if imagepath not in grouped:
             grouped[imagepath] = [pred_entry]
         else:

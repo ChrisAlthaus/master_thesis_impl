@@ -3,7 +3,7 @@ import h5py
 import random
 import numpy as np
 from matplotlib.pyplot import imshow
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import datetime
 import os
 
@@ -62,9 +62,9 @@ def main():
     
         img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
                         box_topk, rel_topk, box_scores=bbox_scores, rel_scores=all_rel_scores, filterlabels=args.filterlabels)
-        imgname =  "%s_1scenegraph.jpg"%os.path.splitext(os.path.basename(image_path))[0]
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
+        imgname =  "%s_1scenegraph.png"%os.path.splitext(os.path.basename(image_path))[0]
+        #if img.mode != 'RGB':
+        img = img.convert('RGBA')
         img.save(os.path.join(output_dir, imgname))
 
         annname = "%s_2labels.txt"%os.path.splitext(os.path.basename(image_path))[0]
@@ -84,19 +84,24 @@ def get_filterinds():
 
 
 def draw_single_box(pic, box, color='red', draw_info=None, validsize=None):
-    draw = ImageDraw.Draw(pic)
+    color = (255,0,0,200)
+    draw = ImageDraw.Draw(pic, "RGBA")
     #print("draw: ",box)
     x1,y1,x2,y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
     if validsize != None:
         if x1>validsize[0] or x2>validsize[0] or y1>validsize[1] or y2>validsize[1]:
             print("Box partially not on image: ", box)
     draw.rectangle(((x1, y1), (x2, y2)), outline=color)
+    
+    font = ImageFont.truetype("/usr/share/fonts/liberation-fonts/LiberationSans-Bold.ttf", 15, encoding="unic")
     if draw_info:
-        draw.rectangle(((x1, y1), (x1+50, y1+10)), fill=color)
+        draw.rectangle(((x1, y1), (x1+font.getsize(draw_info)[0], y1+font.getsize(draw_info)[1])), fill=color)
         info = draw_info
-        draw.text((x1, y1), info)
+        
+        draw.text((x1, y1), info, font=font)
 
 def drawline(pic, box1, box2, color='blue', draw_info=None):
+    color = (0,0,255,200)
     draw = ImageDraw.Draw(pic)
     x11,y11,x12,y12 = int(box1[0]), int(box1[1]), int(box1[2]), int(box1[3])
     m1x, m1y = (x11+x12)/2, (y11+y12)/2
@@ -105,11 +110,14 @@ def drawline(pic, box1, box2, color='blue', draw_info=None):
     m2x, m2y = (x21+x22)/2, (y21+y22)/2
     #draw.line([(m1x,m1y), (m2x,m2y)], fill=color)
     draw.line([(x11,y11), (x21,y21)], fill=color)
+    
+    font = ImageFont.truetype("/usr/share/fonts/liberation-fonts/LiberationSans-Bold.ttf", 15, encoding="unic")
     if draw_info:
         linemx = (x11+x21)/2
         linemy = (y11+y21)/2
-        draw.rectangle(((linemx, linemy), (linemx+len(draw_info)*6, linemy+10)), fill=color)
-        draw.text((linemx, linemy), draw_info)
+        draw.rectangle(((linemx, linemy), (linemx+font.getsize(draw_info)[0], linemy+font.getsize(draw_info)[1])), fill=color)
+        
+        draw.text((linemx, linemy), draw_info, font=font)
 
 
    
@@ -140,8 +148,9 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
     else:
         raise ValueError("Input image source {} not supported.".format(type(imagesrc)))
 
-    if pic.mode in ("RGBA", "P"):
-        pic = pic.convert("RGB")
+    #if pic.mode in ("RGBA", "P"):
+    #    pic = pic.convert("RGB")
+    pic = pic.convert("RGBA")
 
     ann_str = ''
     if filterlabels:  #apply class filter

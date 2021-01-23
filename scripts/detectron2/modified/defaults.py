@@ -22,6 +22,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 import detectron2.data.transforms as T
 from detectron2.checkpoint import DetectionCheckpointer
+from fvcore.common.checkpoint import Checkpointer
 from detectron2.data import (
     MetadataCatalog,
     build_detection_test_loader,
@@ -44,6 +45,7 @@ from detectron2.utils.logger import setup_logger
 from . import hooks
 from .train_loop import SimpleTrainer
 
+import random
 import copy
 import time
 
@@ -211,6 +213,7 @@ class DefaultPredictor:
             start_time = time.time()
             inputs = []
             for original_image in images:
+                #print("transform")
                 # Apply pre-processing to image.
                 if self.input_format == "RGB":
                     # whether the model expects BGR inputs or RGB
@@ -218,16 +221,17 @@ class DefaultPredictor:
                 height, width = original_image.shape[:2]
                 image = self.aug.get_transform(original_image).apply_image(original_image)
                 image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
-
+                #print("transform end")
                 image_descriptor = {"image": image, "height": height, "width": width}
                 inputs.append(image_descriptor)
                 #input_list = [copy.deepcopy(inputs) for i in range(10) ]
-            
+           #print("prediction")
             predictions = self.model(inputs)
-           
+            #print("prediction end")
             #predictions = self.model([inputs])[0]
             #predictions = self.model(input_list)[0]
-             print("Time for %d images: %s seconds" % (len(images), time.time() - start_time))
+            if random.random() < 0.05:
+                print("Time for %d images: %s seconds" % (len(images), time.time() - start_time))
             return predictions
 
 
@@ -295,6 +299,16 @@ class DefaultTrainer(SimpleTrainer):
             )
         super().__init__(model, data_loader, optimizer)
 
+        if cfg.RESUME_CPKT:
+            checkpoint = torch.load(cfg.RESUME_CPKT, map_location=torch.device("cpu"))
+            self.start_iter = checkpoint.get("iteration", -1) + 1
+            self.max_iter = self.start_iter + cfg.SOLVER.MAX_ITER
+            del checkpoint
+            cfg.defrost()
+            cfg.SOLVER.STEPS = tuple([self.start_iter + s for s in cfg.SOLVER.STEPS])
+            cfg.freeze()
+            
+
         self.scheduler = self.build_lr_scheduler(cfg, optimizer)
         # Assume no other objects need to be checkpointed.
         # We can later make it checkpoint the stateful hooks
@@ -305,8 +319,10 @@ class DefaultTrainer(SimpleTrainer):
             optimizer=optimizer,
             scheduler=self.scheduler,
         )
-        self.start_iter = 0
-        self.max_iter = cfg.SOLVER.MAX_ITER
+
+        if not cfg.RESUME_CPKT:
+            self.start_iter = 0
+            self.max_iter = cfg.SOLVER.MAX_ITER
         self.cfg = cfg
 
         self.register_hooks(self.build_hooks())
@@ -324,8 +340,10 @@ class DefaultTrainer(SimpleTrainer):
         """
         print("resume start")
         checkpoint = self.checkpointer.resume_or_load(self.cfg.MODEL.WEIGHTS, resume=resume)
-        if resume and self.checkpointer.has_checkpoint():
-            self.start_iter = checkpoint.get("iteration", -1) + 1
+        #if resume and self.checkpointer.has_checkpoint():
+        #    self.start_iter = checkpoint.get("iteration", -1) + 1
+        #    self.max_iter = self.start_iter
+            
             # The checkpoint stores the training iteration that just finished, thus we start
             # at the next iteration (or iter zero if there's no checkpoint).
         print("resume end")
@@ -374,7 +392,7 @@ class DefaultTrainer(SimpleTrainer):
 
         if comm.is_main_process():
             # run writers in the end, so that evaluation metrics are written
-            ret.append(hooks.PeriodicWriter(self.build_writers(), period=20))
+            ret.append(hooks.PeriodicWriter(self.build_writers(), period= self.cfg.TEST.PERIODICWRITER_PERIOD))
         return ret
 
     def build_writers(self):
@@ -400,7 +418,7 @@ class DefaultTrainer(SimpleTrainer):
         # Here the default print/log frequency of each writer is used.
         return [
             # It may not always print what you want to see, since it prints "common" metrics only.
-            CommonMetricPrinter(self.max_iter),
+            CommonMetricPrinter(self.max_iter, self.cfg),
             JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
             TensorboardXWriter(self.cfg.OUTPUT_DIR),
         ]

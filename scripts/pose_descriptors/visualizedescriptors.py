@@ -27,7 +27,8 @@ def main():
     parser.add_argument('-gpdfile',required=True) 
     parser.add_argument('-imagespath',required=True)   
     parser.add_argument('-transformid',action="store_true", 
-                        help='Wheather to split imageid to get image filepath (used for style transfered images.')    
+                        help='Wheather to split imageid to get image filepath (used for style transfered images.')   
+    parser.add_argument('-drawkptsonly',action="store_true")  
     parser.add_argument('-vistresh',type=float, default=0.0)                
     args = parser.parse_args()
 
@@ -65,6 +66,10 @@ def main():
                                               keypoint_connection_rules=KEYPOINT_CONNECTION_RULES)
     
     print("Visualize the predictions onto the original image(s) ...")
+    if args.drawkptsonly:
+        visualize_keypoints(predgpd_map, args.imagespath, outputdir)
+        return
+
     gpdfilename = os.path.basename(args.gpdfile)
     _MODES = ['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced']
     if 'JcJLdLLa_reduced' in gpdfilename:
@@ -89,7 +94,24 @@ body_part_mapping = {
         7: "left_elbow", 8: "right_elbow", 9: "left_wrist", 10: "right_wrist", 11: "left_hip", 12: "right_hip",
         13: "left_knee", 14: "right_knee", 15: "left_ankle", 16: "right_ankle"}
 
-    
+def visualize_keypoints(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False):
+    for imgid, group in predgpds.items():
+        imgid = str(imgid)
+        preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
+        
+        imgname = imgid
+        imgname_out = os.path.basename(imgname)
+        if not os.path.isabs(imgname):
+            img_path = os.path.join(imagedir, imgname)
+        else:
+            img_path = imgname
+
+        v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        print("draw kpts")
+        out = drawkeypoints(preds, img_path, v)
+        print("write")
+        cv2.imwrite(os.path.join(outputdir, imgname_out), out.get_image()[:, :, ::-1])
+
 def visualizeJLdall(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False):  
     l_direct_adjacent = [(0, 1), (0, 2), (2, 4), (1, 3), (6, 8), (8, 10), (5, 7), (7, 9), (12, 14), (14, 16), (11, 13), (13, 15), (6, 5), (6, 12), (5, 11), (12, 11)]
     line_mapping = l_direct_adjacent
@@ -100,14 +122,12 @@ def visualizeJLdall(predgpds, imagedir, outputdir, vistresh=0.0, transformid=Fal
         preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
         gpds = [item for item in group if 'gpd' in item]
 
-        if transformid:
-            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-            imgname_out = "{}_{}".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+        imgname = imgid
+        imgname_out = os.path.basename(imgname)
+        if not os.path.isabs(imgname):
             img_path = os.path.join(imagedir, imgname)
         else:
-            imgname = "%s.jpg"%(imgid)
-            imgname_out = "{}".format(imgid)
-            img_path = os.path.join(imagedir, imgname)
+            img_path = imgname
 
         keypoints = []
         for pred in preds:
@@ -169,14 +189,12 @@ def visualizeJcJLdLLa(predgpds, imagedir, outputdir, vistresh=0.0, transformid=F
         preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
         gpds = [item for item in group if 'gpd' in item]
 
-        if transformid:
-            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-            imgname_out = "{}_{}".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+        imgname = imgid
+        imgname_out = os.path.basename(imgname)
+        if not os.path.isabs(imgname):
             img_path = os.path.join(imagedir, imgname)
         else:
-            imgname = "%s.jpg"%(imgid)
-            imgname_out = "{}".format(imgid)
-            img_path = os.path.join(imagedir, imgname)
+            img_path = imgname
 
         keypoints = []
         for pred in preds:
@@ -241,14 +259,12 @@ def visualizeJJo(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
         preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
         gpds = [item for item in group if 'gpd' in item]
 
-        if transformid:
-            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-            imgname_out = "{}_{}".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+        imgname = imgid
+        imgname_out = os.path.basename(imgname)
+        if not os.path.isabs(imgname):
             img_path = os.path.join(imagedir, imgname)
         else:
-            imgname = "%s.jpg"%(imgid)
-            imgname_out = "{}".format(imgid)
-            img_path = os.path.join(imagedir, imgname)
+            img_path = imgname
 
         keypoints = []
         for pred in preds:
@@ -276,7 +292,7 @@ def visualizeJJo(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
                 k += 2
         #print("kptsjj_os: ",kptsjj_os)
         #print("kptdists: ",kptdists)
-
+        print(img_path)
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         drawkeypoints(preds, img_path, v)
         outjldist = v.draw_gpddescriptor_jjo(kptsjj_os, kptdists)
@@ -292,14 +308,12 @@ def visualizeJcrel(predgpds, imagedir, outputdir, vistresh=0.0, transformid=Fals
         preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
         gpds = [item for item in group if 'gpd' in item]
 
-        if transformid:
-            imgname = "%s_%s.jpg"%( imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
-            imgname_out = "{}_{}".format(imgid[:len(imgid)-6].zfill(12), imgid[len(imgid)-6:])
+        imgname = imgid
+        imgname_out = os.path.basename(imgname)
+        if not os.path.isabs(imgname):
             img_path = os.path.join(imagedir, imgname)
         else:
-            imgname = "%s.jpg"%(imgid)
-            imgname_out = "{}".format(imgid)
-            img_path = os.path.join(imagedir, imgname)
+            img_path = imgname
 
         keypoints = []
         for pred in preds:
@@ -364,8 +378,9 @@ def drawkeypoints(preds, img_path, visualizer, vistresh=0.0):
      instances.scores = torch.Tensor(scores)
      instances.pred_classes = torch.Tensor(classes)
      instances.pred_keypoints = torch.Tensor(keypoints)
+     print("test")
      
-     visualizer.draw_instance_predictions(instances, vistresh)
+     return visualizer.draw_instance_predictions(instances, vistresh)
 
 if __name__=="__main__":
     main()

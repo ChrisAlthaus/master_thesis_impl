@@ -24,6 +24,12 @@ def get_dataset_statistics(cfg):
     get dataset statistics (e.g., frequency bias) from training data
     will be called to help construct FrequencyBias module
     """
+    #modified: to circumvent costly train dataset load
+    if cfg.MODEL.LOAD_DATASETSTATS_PATH:
+        stats = torch.load(cfg.MODEL.LOAD_DATASETSTATS_PATH)
+        return stats
+    #modified end
+
     logger = logging.getLogger(__name__)
     logger.info('-'*100)
     logger.info('get dataset statistics...')
@@ -208,13 +214,18 @@ def make_data_loader(cfg, mode='train', is_distributed=False, start_iter=0):
     )
     DatasetCatalog = paths_catalog.DatasetCatalog
     if mode == 'train':
+        print('cfg.DATASETS.TRAIN: ',cfg.DATASETS.TRAIN)
         dataset_list = cfg.DATASETS.TRAIN
     elif mode == 'val':
+        print('cfg.DATASETS.VAL: ',cfg.DATASETS.VAL)
         dataset_list = cfg.DATASETS.VAL
     elif mode == 'val2':
+        print('cfg.DATASETS.VAL2: ',cfg.DATASETS.VAL2)
         dataset_list = cfg.DATASETS.VAL2
     else:
+        print('cfg.DATASETS.TEST: ',cfg.DATASETS.TEST)
         dataset_list = cfg.DATASETS.TEST
+    print("dataset_list: ", dataset_list)
 
     # If bbox aug is enabled in testing, simply set transforms to None and we will apply transforms later
     # Transformations in: Scene-Graph-Benchmark.pytorch/maskrcnn_benchmark/data/transforms/build.py
@@ -248,7 +259,7 @@ def make_data_loader(cfg, mode='train', is_distributed=False, start_iter=0):
         # the dataset information used for scene graph detection on customized images
         if cfg.TEST.CUSTUM_EVAL:
             custom_data_info = {}
-            custom_data_info['idx_to_files'] = dataset.custom_files
+            custom_data_info['idx_to_files'] = [fname.decode('utf-8') for fname in dataset.custom_files]
             custom_data_info['ind_to_classes'] = dataset.ind_to_classes
             custom_data_info['ind_to_predicates'] = dataset.ind_to_predicates
 
