@@ -19,7 +19,7 @@ import ast
 import csv
 
 from utils import recursive_print_dict, logscorestats
-from utils import checkbyrecalculate
+from utils import checkbyrecalculate, removedublicates
 
 import logging
 
@@ -57,7 +57,7 @@ parser.add_argument('-method_search', help='Select method for searching data.')
 parser.add_argument('-metadata_imgpath', help='To provide name of search input image for resultdirectories configfile.')
 parser.add_argument('-search_personperc', action="store_true", help='Wheather to consider personsize on image for weighting scores.')
 parser.add_argument('-rankingtype', help='Select method for ranking found descriptors.')
-parser.add_argument('-tresh', type=float, help='Similarity treshold for cossim result ranking.')
+parser.add_argument('-search_tresh', type=float, help='Similarity treshold for filtering returned decsriptors.')
 parser.add_argument('-delindex', type=str, help='Delete an index by name.')
 parser.add_argument('-indexstats', type=str, help='Selects an index for debugging.')
 parser.add_argument('-firstn', type=int, default=10, help='Gets firstn documents of the given index.')
@@ -74,10 +74,10 @@ if _DEBUG:
     logging.getLogger('urllib3').setLevel(logging.DEBUG)
 
 #Min score used for cossim #deprecated?
-if args.tresh is None:
+if args.search_tresh is None:
     _SIMILARITY_TRESH = 0.95 #not used yet
 else:
-    _SIMILARITY_TRESH = args.tresh 
+    _SIMILARITY_TRESH = args.search_tresh 
 
 _SEARCH_PERSON_PERC_ENABLED = args.search_personperc
 #Method 1 uses Cosinus-Similarity for comparing features with features in db produced by visual codebook preprocessing, 
@@ -107,8 +107,15 @@ if args.insert_data:
     _INDEX = 'imgid_gpd_raw_jldall_direct_pbn_addperc' #!
     _INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
     _INDEX = 'imgid_gpd_raw_jcrel_pbn_addperc' #!
-
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_metropolitan_addperc' #!
+    _INDEX = 'art500k_jcjldlla_reduced_addperc'
+    _INDEX = 'art500k_jjo_reduced_addperc'
+    _INDEX = 'art500k_jc_rel_addperc'
+    _INDEX = 'art500k_jld_all_direct_addperc'
+
+
+
+
 if args.method_search:
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
     _INDEX = 'patchesindexm10' 
@@ -126,6 +133,18 @@ if args.method_search:
             _INDEX = 'imgid_gpd_raw_jcrel_pbn_addperc' #!
         else:
             raise ValueError()
+    elif args.dbname == 'art500k': 
+        if args.gpd_type == 'JcJLdLLa_reduced':
+            _INDEX = 'art500k_jcjldlla_reduced_addperc' #!
+        elif args.gpd_type == 'JJo_reduced': 
+            _INDEX = 'art500k_jjo_reduced_addperc' #!
+        elif args.gpd_type == 'JLd_all_direct': 
+            _INDEX = 'art500k_jld_all_direct_addperc' #!
+            #_INDEX = 'imgid_gpd_raw_jldall_direct_downsampled_pbn_addperc' #!
+        elif args.gpd_type == 'Jc_rel': 
+            _INDEX = 'art500k_jc_rel_addperc' #!
+        else:
+            raise ValueError()
     elif args.dbname == 'metropolitan':
         _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_metropolitan_addperc' #!
     else:
@@ -134,7 +153,7 @@ if args.method_search:
 print("Current index: ",_INDEX)
 
 if args.gpd_type == 'JLd_all_direct':
-    _ELEMNUM_QUERYRESULT = 100
+    _ELEMNUM_QUERYRESULT = 1000
 else:
     _ELEMNUM_QUERYRESULT = 1000 #bigger because relative score computation, adjust for better performance
 _NUMRES = 100 #adjust for only take topk 
@@ -173,7 +192,9 @@ def main():
                        ca_certs=False,
                        verify_certs=False)
     _INDICES_ALL = es.indices.get_alias("*").keys()
-    print("Existing Indices: ", _INDICES_ALL)
+    print("Existing Indices: ")
+    for index in _INDICES_ALL:
+        print('\t'+index)
     print(es.info())
     
     if args.indexstats:
@@ -189,6 +210,7 @@ def main():
     
     if args.insert_data:
         print("Test sample at position 0:", data[0])
+        print("Timeout = 60 sec, Check for correctness.")
         time.sleep(60)
         createIndex(es, len(data[0]['gpd']), _SRCIMG_DIR)
         insertdata_raw(args, data, es)
@@ -281,6 +303,8 @@ def insertdata_raw(args, data ,es):
     id = 0
     print("Inserting image descriptors from %s ..."%args.file)
     for item in data:
+        if item['score'] < 0.95:
+            continue
         d = {'gpd': item['gpd'], 'mask': item['mask']}
         metadata ={'image_id': item['image_id'], 'score': item['score'], 'percimage': item['percimage']}
         insertdoc(es, d, metadata, id, 'gpd')
@@ -580,8 +604,14 @@ def query(es, descriptor, size, method):
         checkbyrecalculate(resultlist, docs, method , featurevector, maskstr)
     
     docs = res['hits']['hits']
-    imageids = [item['_source']['imageid'] for item in docs]
-    scores = [item['_score'] for item in docs] 
+    imageids = []
+    scores = []
+
+    for item in docs:
+        if item['_source']['score']>=_SIMILARITY_TRESH:
+            imageids.append(item['_source']['imageid'])
+            scores.append(item['_score'])
+    imageids, scores = removedublicates(imageids, scores) 
 
     return imageids, scores
 

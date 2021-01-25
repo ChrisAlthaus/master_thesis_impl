@@ -56,7 +56,7 @@ def predict(imgpath, queue):
     transform_arg = "-styletransfered" if is_styletranfered_img(imgpath) else ""
     target = 'query'
     topk = 10
-    score_tresh = 0.4 #0.95
+    score_tresh = 0.90
     logfile = os.path.join(logpath, '1-maskrcnn.txt')
 
     cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -img {} -topk {} -score_tresh {} {} -target {} -visfiltered &> {}"\
@@ -169,7 +169,7 @@ def transform_to_gpd(annpath, methodgpd, pca_on=False, pca_model=None, flip=Fals
         return
     return gpdfile
 
-def search(gpdfile, method_search, gpdtype, rankingtype, percperson=True, imagepath=None, queue=None):
+def search(gpdfile, method_search, gpdtype, rankingtype, percperson=True, imagepath=None, tresh=0.95, queue=None):
     # -------------------------- ELASTIC SEARCH -----------------------------
     print("SEARCH FOR GPD IN DATABASE...")
 
@@ -183,15 +183,12 @@ def search(gpdfile, method_search, gpdtype, rankingtype, percperson=True, imagep
     assert gpdtype in _GPD_TYPES
     assert rankingtype in _RANKING_TYPES
 
-    dbname = 'paintersbynumbers' #['paintersbynumbers', 'metropolitan']
-
-    #evaltresh_on = True
-    tresh = -1 #deprected
+    dbname = 'art500k'#['paintersbynumbers', 'metropolitan', 'art500k']
 
     #Querying on the database images
-    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -dbname {} -method_search {} -gpd_type {} {} -rankingtype {} -metadata_imgpath {}"+ \
+    cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/elastic_search_init.py -file {} -search -dbname {} -method_search {} -gpd_type {} {} -rankingtype {} -search_tresh {} -metadata_imgpath {}"+ \
                                                                                         " &> {}")\
-                                                            .format(inputfile, dbname, method_search, gpdtype, ' -search_personperc' if percperson else '', rankingtype, imagepath, logfile)
+                                                            .format(inputfile, dbname, method_search, gpdtype, ' -search_personperc' if percperson else '', rankingtype, tresh, imagepath, logfile)
     if _PRINT_CMDS:
         print(cmd)
     os.system(cmd)

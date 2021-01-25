@@ -163,8 +163,11 @@ class VGDataset(torch.utils.data.Dataset):
                 self.img_info.append({'width':int(img.width), 'height':int(img.height)})
             except UnidentifiedImageError as e:
                 print(e)
+            except OSError as e:
+                print(e)
                 #print("Image is corrupted: ",file_name.encode('utf-8'))
-
+        self.custom_files = self.custom_files #[203700:203800]
+        self.img_info =  self.img_info #[203700:203800]
 
     def get_img_info(self, index):
         # WARNING: original image_file.json has several pictures with false image size

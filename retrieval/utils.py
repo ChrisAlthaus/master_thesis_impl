@@ -1,5 +1,6 @@
 import numpy as np
 import ipyplot
+import os
 
 def recursive_print_dict( d, indent = 0 ):
     if not isinstance(d, list) and not isinstance(d, dict):
@@ -94,3 +95,18 @@ def checkbyrecalculate(resultlist, docs, method , featurevector, maskstr):
             c = c + 1
     else:
         raise ValueError()
+
+
+def removedublicates(imgids, scores):
+    #Some paintings maybe dubpliates, therefore remove them
+    #Usually for statues which are e.g. in folder metal & bronze 
+    baseimgids = []
+    rids = []
+    rscores = []
+    for imgpath,score in zip(imgids, scores):
+        bimgid = os.path.basename(imgpath)
+        if bimgid not in baseimgids:
+            baseimgids.append(bimgid)
+            rids.append(imgpath)
+            rscores.append(score)
+    return rids, rscores   

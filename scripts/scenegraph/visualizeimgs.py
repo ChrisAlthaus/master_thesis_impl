@@ -6,6 +6,7 @@ from matplotlib.pyplot import imshow
 from PIL import Image, ImageDraw, ImageFont
 import datetime
 import os
+import random
 
 import argparse
 
@@ -53,6 +54,8 @@ def main():
 
     for image_idx in ids:
         image_path = custom_data_info['idx_to_files'][image_idx]
+        if str(image_idx) not in custom_prediction:
+            continue
         bbox = custom_prediction[str(image_idx)]['bbox']
         bbox_labels = custom_prediction[str(image_idx)]['bbox_labels']
         bbox_scores = custom_prediction[str(image_idx)]['bbox_scores']

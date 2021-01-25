@@ -8,6 +8,7 @@ import sys
 import json
 import torch
 from tqdm import tqdm
+import math
 
 from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.data.datasets.evaluation import evaluate
@@ -16,6 +17,7 @@ from ..utils.comm import all_gather
 from ..utils.comm import synchronize
 from ..utils.timer import Timer, get_time_str
 from .bbox_aug import im_detect_bbox_aug
+from maskrcnn_benchmark.structures.bounding_box import BoxList
 
 
 def compute_on_dataset(model, data_loader, device, synchronize_gather=True, timer=None):
@@ -23,35 +25,40 @@ def compute_on_dataset(model, data_loader, device, synchronize_gather=True, time
     results_dict = {}
     cpu_device = torch.device("cpu")
     torch.cuda.empty_cache()
+    flag = True
     for i, batch in enumerate(data_loader):
-        #MATTHIAS
-       # print(f'Val {torch.distributed.get_rank()}:{i}')
         with torch.no_grad():
             images, targets, image_ids = batch
             targets = [target.to(device) for target in targets]
             if timer:
                 timer.tic()
-            if cfg.TEST.BBOX_AUG.ENABLED:
-                output = im_detect_bbox_aug(model, images, device)
-            else:
-                # relation detection needs the targets
-                output = model(images.to(device), targets)
-            if timer:
-                if not cfg.MODEL.DEVICE == 'cpu':
-                    # MATTHIAS
-                    #print('Val {torch.distributed.get_rank()}: cuda.synchronize')
-                    torch.cuda.synchronize()
-                timer.toc()
-            output = [o.to(cpu_device) for o in output]
+           
+            #print(i, images, "TARGET:", targets, "ID", image_ids)    
+            #modified: catch assertion error
+            try:
+                if cfg.TEST.BBOX_AUG.ENABLED:
+                    output = im_detect_bbox_aug(model, images, device)
+                else:
+                    # relation detection needs the targets
+                    output = model(images.to(device), targets)
+                #print("OUTPUT: ",output, type(output))
+
+                if timer:
+                    if not cfg.MODEL.DEVICE == 'cpu':
+                        torch.cuda.synchronize()
+                    timer.toc()
+                output = [o.to(cpu_device) for o in output] 
+                
+            except AssertionError as e:
+                print("WARNING: ", e)
+                output = [None] * len(image_ids) #To assure correct indexing of imageids
+
         if synchronize_gather:
-            #MATTHIAS
-            #print('Val {torch.distributed.get_rank()}: synchronize')
             synchronize()
             multi_gpu_predictions = all_gather({img_id: result for img_id, result in zip(image_ids, output)})
             if is_main_process():
                 for p in multi_gpu_predictions:
                     results_dict.update(p)
-            #print('Val {torch.distributed.get_rank()}: done')
 
         else:
             results_dict.update(
@@ -160,8 +167,18 @@ def inference(
 
     if cfg.TEST.CUSTUM_EVAL:
         detected_sgg = custom_sgg_post_precessing(predictions, cfg)
+        #modified: save huge number of predictions in multiple files to prevent error
+        
+        #batchsize = 10000
+        #for i in range(0, math.ceil(len(detected_sgg)/batchsize)):
+        #    dsplit = {k:detected_sgg[k] for k in list(detected_sgg.keys())[i*batchsize: (i+1)*batchsize]}
+        #    with open(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_prediction_{}.json'.format(i)), 'w') as outfile:  
+        #        json.dump(dsplit, outfile)
+        #        print("Saved custom_prediction_{}.json".format(i))
         with open(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_prediction.json'), 'w') as outfile:  
-            json.dump(detected_sgg, outfile)
+                json.dump(detected_sgg, outfile)
+
+        #modified end
         print('=====> ' + str(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_prediction.json')) + ' SAVED !')
         return [], -1.0
     print("End inference")
@@ -176,17 +193,32 @@ def inference(
 filtermod_dir = '/home/althausc/master_thesis_impl/scripts/scenegraph'
 sys.path.insert(0,filtermod_dir)
 from filter_resultgraphs_modules import get_topkpredictions
+
+sys.path.insert(0,'/home/althausc/master_thesis_impl/scripts/utils')
+from statsfunctions import getwhiskersvalues
 #modified end
 
 def custom_sgg_post_precessing(predictions, cfg):
-
+    #modified: Postprocessing parameters & stats variable for filtering
     boxes_topk = cfg.TEST.POSTPROCESSING.TOPKBOXES
     rels_topk = cfg.TEST.POSTPROCESSING.TOPKRELS
     filtertresh_boxes = cfg.TEST.POSTPROCESSING.TRESHBOXES
     filtertresh_rels = cfg.TEST.POSTPROCESSING.TRESHRELS
 
+    stats = {'Raw bbox nums': [],
+             'Reduced bbox nums': [],
+             'Raw rels nums': [],
+             'Reduced rels nums': []
+    }
+
+    #modified end
+
     output_dict = {}
     for idx, boxlist in enumerate(predictions):
+        #modified
+        if boxlist is None:
+            continue
+        #modified end
         xyxy_bbox = boxlist.convert('xyxy').bbox
         # current sgg info
         current_dict = {}
@@ -221,14 +253,27 @@ def custom_sgg_post_precessing(predictions, cfg):
         current_dict['rel_scores'] = rel_scores
         current_dict['rel_all_scores'] = rel_all_scores
         
-        #modified
+        #modified: Postprocessing
         #output_dict[idx] = current_dict
-        output_dict[idx], stats = get_topkpredictions(current_dict, boxes_topk, rels_topk, filtertresh_boxes, filtertresh_rels)
-        with open(os.path.join(cfg.DETECTED_SGG_DIR, 'stats.txt'), 'a') as f:
-            for name, statsstr in stats.items():
-                f.write(name + os.linesep)
-                f.write(statsstr + os.linesep)
+        output_dict[idx], statsnum, tstr = get_topkpredictions(current_dict, boxes_topk, rels_topk, filtertresh_boxes, filtertresh_rels)
+
+        stats['Raw bbox nums'].append(statsnum['Raw bbox num'])
+        stats['Reduced bbox nums'].append(statsnum['Reduced bbox num'])
+        stats['Raw rels nums'].append(statsnum['Raw rels num'])
+        stats['Reduced rels nums'].append(statsnum['Reduced rels num'])
+
+        if idx<1000:
+            with open(os.path.join(cfg.DETECTED_SGG_DIR, 'stats-singlepred.txt'), 'a') as f:
+                f.write(tstr + os.linesep)
         #modified end
+
+    #modified: Save transform statistics
+    with open(os.path.join(cfg.DETECTED_SGG_DIR, 'stats.txt'), 'a') as f:
+        for name, statslist in stats.items():
+            print(name,statslist)
+            f.write(name + os.linesep)
+            f.write(getwhiskersvalues(statslist) + os.linesep)
+    #modified end
     return output_dict
     
 def get_sorted_bbox_mapping(score_list):

@@ -406,7 +406,7 @@ class Visualizer:
                 (predictions.pred_masks.any(dim=0) > 0).numpy()
             )
             alpha = 0.3
-        print("draw overlay")
+
         self.overlay_instances(
             masks=masks,
             boxes=boxes,
@@ -767,7 +767,7 @@ class Visualizer:
             x, y, prob = keypoint
             if prob > _KEYPOINT_THRESHOLD:
                 #modified: draw keypoint joint dependent on visualization probability (used for validation)
-                self.draw_circle((x, y), color=_RED, radius=8)
+                self.draw_circle((x, y), color=_RED) #,radius=8)
                 #self.draw_circle((x, y), color=_RED, radius=np.log(prob+1)*20)
                 #modified end
                 if keypoint_names:
@@ -818,7 +818,9 @@ class Visualizer:
             jx = j[0]
             jy = j[1]
             #print("Draw Line: ",[jx, lmidx], [jy, lmidy])
-            self.draw_line([lstart[0], lend[0]], [lstart[1], lend[1]], color='k', linestyle='-', linewidth=lw/2, alpha=0.3)
+            self.draw_line([lstart[0], lend[0]], [lstart[1], lend[1]], color='k', linestyle='-', linewidth=lw/1.7, alpha=0.5)
+
+            #self.draw_doubleside_arrow([jx, lmidx], [jy, lmidy], 'b', '--', lw)
             self.draw_line([jx, lmidx], [jy, lmidy], color='b', linestyle='--', linewidth=lw)
             #self.draw_text('%.2f'%dist, [(jx+lmidx)/2, (jy+lmidy)/2], color='w', colorbox='blue', alpha=0.5, font_size=4)
             
@@ -837,12 +839,18 @@ class Visualizer:
             l2midy = (l2start[1] + l2end[1])/2
 
             #print("Draw Line: ",[l1start, l2start], [l1end, l2end])
-            self.draw_line([l1start[0], l1end[0]], [l1start[1], l1end[1]], color='k', linestyle='-', linewidth=lw/2, alpha=0.3)
-            self.draw_line([l2start[0], l2end[0]], [l2start[1], l2end[1]], color='k', linestyle='-', linewidth=lw/2, alpha=0.3)
+            self.draw_line([l1start[0], l1end[0]], [l1start[1], l1end[1]], color='k', linestyle='-', linewidth=lw/1.7, alpha=0.5)
+            self.draw_line([l2start[0], l2end[0]], [l2start[1], l2end[1]], color='k', linestyle='-', linewidth=lw/1.7, alpha=0.5)
 
-            self.draw_line([l1midx, l2midx], [l1midy, l2midy], color='g', linestyle='--', linewidth=lw)
+            #self.draw_line([l1midx, l2midx], [l1midy, l2midy], color='g', linestyle='--', linewidth=lw)
+            self.draw_doubleside_arrow([l1midx, l2midx], [l1midy, l2midy], 'g', '-', lw)
             #self.draw_text('%.2f'%math.degrees(angle), [(l1midx+l2midx)/2, (l1midy+l2midy)/2], color='w', colorbox='green', alpha=0.5, font_size=4)
         return self.output
+
+    def draw_doubleside_arrow(self,xs, ys, color, ls, lw):
+        self.output.ax.arrow(xs[0], ys[0], xs[1]-xs[0], ys[1]-ys[0], color=color, head_width=6*2, head_length=6*2, zorder=10, linewidth=lw, linestyle=ls, length_includes_head=True)
+        self.output.ax.arrow(xs[1], ys[1], xs[0]-xs[1], ys[0]-ys[1], color=color, head_width=6*2, head_length=6*2, zorder=10, linewidth=lw, linestyle=ls, length_includes_head=True)
+
 
     def draw_gpddescriptor_jjo(self, kptsjj_os, kptdists, lw=4):
         for i,(kpt,orientation) in enumerate(kptsjj_os):

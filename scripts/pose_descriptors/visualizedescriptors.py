@@ -116,7 +116,7 @@ def visualizeJLdall(predgpds, imagedir, outputdir, vistresh=0.0, transformid=Fal
     l_direct_adjacent = [(0, 1), (0, 2), (2, 4), (1, 3), (6, 8), (8, 10), (5, 7), (7, 9), (12, 14), (14, 16), (11, 13), (13, 15), (6, 5), (6, 12), (5, 11), (12, 11)]
     line_mapping = l_direct_adjacent
 
-    display_percent = 0.075
+    display_percent = 0.20
     for imgid, group in predgpds.items():
         imgid = str(imgid)
         preds = [item for item in group if 'bbox' in item or 'keypoints' in item]
@@ -139,6 +139,8 @@ def visualizeJLdall(predgpds, imagedir, outputdir, vistresh=0.0, transformid=Fal
             continue
 
         jld_kpts = []
+        c = -1
+        cprint = []
         for i in range(len(keypoints)):
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
@@ -146,19 +148,29 @@ def visualizeJLdall(predgpds, imagedir, outputdir, vistresh=0.0, transformid=Fal
 
             for k1,k2 in line_mapping:
                 for j,joint in enumerate(kpts):
+                    c += 1
+                    if c % 2 == 0:
+                        continue
+                    
+                    #print(c,k1,k2,j)
+                    #if gpdindex >= len(gpd):
+                    #    break
                     #if joint is the same as either start or end point of the line, continue
                     if j==k1 or j==k2: 
                         continue
                     #print('%s->(%s,%s) %f'%(body_part_mapping[j], body_part_mapping[k1], body_part_mapping[k2], gpd[gpdindex]))
-                    if random.random() < display_percent:
-                        jltuple = [kpts[j][:2], kpts[k1][:2], kpts[k2][:2], gpd[gpdindex]]
-                        jld_kpts.append(jltuple)
+                    
+                    jltuple = [kpts[j][:2], kpts[k1][:2], kpts[k2][:2], gpd[gpdindex]]
+                    jld_kpts.append(jltuple)
                     gpdindex = gpdindex + 1
+                    
+        jld_kpts = random.sample(jld_kpts, int(display_percent * len(jld_kpts)))
+        print("Number of triples to plot: ",len(jld_kpts))
 
-        
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         drawkeypoints(preds, img_path, v)
-        outjldist = v.draw_gpddescriptor_jldist(jld_kpts)
+        outjldist = v.draw_gpddescriptor_jldist(jld_kpts, lw=2)
+        print("Write Image to: ", os.path.join(outputdir, imgname_out+'_jLdall_{}.jpg'.format(display_percent)))
         cv2.imwrite(os.path.join(outputdir, imgname_out+'_jLdall_{}.jpg'.format(display_percent)), outjldist.get_image()[:, :, ::-1])
     
 
