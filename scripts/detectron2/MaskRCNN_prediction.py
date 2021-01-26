@@ -120,7 +120,8 @@ def main():
         cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")
 
     #cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
-    cfg.MODEL.DEVICE= 'cuda' #'cpu'
+   
+    cfg.MODEL.DEVICE= 'cpu'#'cuda' #'cpu' #change to switch between GPU and CPU
 
 
     #Set necessary flags for freezing net
@@ -377,7 +378,7 @@ def main():
     print("Output directory: ",output_dir)
 
 
-def visualize_and_save(img_path, output_dir, preds, args, mode):
+def visualize_and_save(img_path, output_dir, preds, args, mode, resize=True):
     #try:
     #    print("Loading: ",img_path.encode('utf-8'))
     #    img = cv2.imdecode(np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED) #to account for special characters
@@ -389,6 +390,7 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
         #img_path = os.path.join(args.image_folder, img_path)
         print("Loading: ",img_path.encode('utf-8'))
         img = np.array(Image.open(img_path.encode('utf-8'), 'r').convert('RGB'))
+
     except Exception as e:
         print(e)
         return
@@ -397,6 +399,15 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
         print("Warning: Image is none.")
         return
 
+    def resize(imagearray):
+        basewidth = 512
+        imgout = Image.fromarray(imagearray)
+        wpercent = (basewidth/float(imgout.size[0]))
+        hsize = int((float(imgout.size[1])*float(wpercent)))
+        imgout = imgout.resize((basewidth,hsize), Image.ANTIALIAS) 
+        print("Resized image to: ", imgout.size)
+        return imgout
+
     if mode == 'all':
         #Draw unfiltered predictions, format = raw model output
         v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
@@ -404,7 +415,11 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
         img_name = os.path.basename(img_path)
         if out == None:
             print("Warning: Image is none.")
-        Image.fromarray(out.get_image()[:, :, ::-1]).save(os.path.join(output_dir, img_name))
+        if resize:
+            imgout = resize(out.get_image()[:, :, ::-1])
+        else:
+            imgout = Image.fromarray(out.get_image()[:, :, ::-1])
+        imgout.save(os.path.join(output_dir, img_name))
 
     elif mode == 'treshtopk':
         #Draw topk predictions
@@ -424,9 +439,11 @@ def visualize_and_save(img_path, output_dir, preds, args, mode):
         #cv2.imwrite(os.path.join(output_dir, img_name),out.get_image()[:, :, ::-1])
         #is_success, im_buf_arr = cv2.imencode(".jpg", out.get_image()[:, :, ::-1])
         #im_buf_arr.tofile(os.path.join(output_dir, img_name))
-        print(out.get_image()[:, :, ::-1].shape)
-        Image.fromarray(out.get_image()[:, :, ::-1]).save(os.path.join(output_dir, img_name))
-
+        if resize:
+            imgout = resize(out.get_image()[:, :, ::-1])
+        else:
+            imgout = Image.fromarray(out.get_image()[:, :, ::-1])
+        imgout.save(os.path.join(output_dir, img_name))
 
 def get_combined_predictions(singlepreds):
      #Zip single predictions (every annotation is one item) to composed prediction (like output of model)

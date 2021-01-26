@@ -51,7 +51,7 @@ def predict(imgpath, queue):
     # ----------------- MASK-RCNN PREDICTIONS ---------------------
     print("MASK-RCNN PREDICTION ...")
     maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch/model_final.pth'
-    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
+    gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run-1.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
     out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query'
     transform_arg = "-styletransfered" if is_styletranfered_img(imgpath) else ""
     target = 'query'
@@ -230,10 +230,10 @@ def getImgs(rankingfile, drawkpts=True):
         if drawkpts:
             basename, suffix = os.path.splitext(item[1]['filename'])
             kfilename = '{}_overlay{}'.format(basename, suffix) 
-            imgs.append(Image.open(os.path.join(drawkptsdir, kfilename)))
+            imgs.append(Image.open(os.path.join(drawkptsdir, kfilename)).convert('RGB'))
         else: 
             basewidth = 512
-            img = Image.open(os.path.join(imagedir, item[1]['filename']))
+            img = Image.open(os.path.join(imagedir, item[1]['filename'])).convert('RGB')
             wpercent = (basewidth/float(img.size[0]))
             hsize = int((float(img.size[1])*float(wpercent)))
             img = img.resize((basewidth,hsize), Image.ANTIALIAS)
@@ -308,7 +308,7 @@ def drawborder(imgpath):
     return img_pil
 
 def getimg(imgpath):
-    img = Image.open(imgpath)
+    img = Image.open(imgpath).convert('RGB')
     return img
 
 def cropImage(imagepath, p1, p2, resize=True):
