@@ -12,7 +12,6 @@ import cv2
 
 import ipyplot
 
-
 def latestdir(dir):
     diritems = [os.path.join(dir, d) for d in os.listdir(dir)]
     all_subdirs = [d for d in diritems if os.path.isdir(d)]
@@ -262,6 +261,13 @@ def getRandomImages(k=100):
         imgs.append(img)
         scores.append(0.0)
     return imgs,scores
+
+def generateRandomRankedlists(num, k, savedir):
+    import sys
+    sys.path.append('/home/althausc/master_thesis_impl/scripts/detectron2/utils')
+    import utilsart500k
+    
+    return utilsart500k.randomrankings(num, k, savedir)
                           
 def treshIndex(tresh, results):
     with open (results, "r") as f:
@@ -310,6 +316,21 @@ def drawborder(imgpath):
 def getimg(imgpath):
     img = Image.open(imgpath).convert('RGB')
     return img
+
+def removebyindex(imgs, scores, resultlist, indices):
+    indices.sort(reverse=True)
+    for ind in indices:
+        del imgs[ind-1]
+        del scores[ind-1]
+        if str(resultlist[ind-1][0]) == str(ind-1):
+            del resultlist[ind-1]
+        else:
+            print("Warning: indices not matching.")
+
+    #Reindex ranking list
+    for i in range(len(resultlist)):
+        resultlist[i] = (str(i), resultlist[i][1])
+
 
 def cropImage(imagepath, p1, p2, resize=True):
     outfile = os.path.join('.images', os.path.splitext(imagepath)[0] + "_transformed.jpg")

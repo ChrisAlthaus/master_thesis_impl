@@ -85,6 +85,7 @@ def main():
     # ------------------------ Get most similar topk graphs with corresponding image ---------------------
     if args.inference:
         with open(args.model,'rb') as f:
+            print("Load model: ", args.model) 
             model = dill.load(f)
 
         output_dir = os.path.join('/home/althausc/master_thesis_impl/retrieval/out/scenegraphs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
@@ -105,7 +106,6 @@ def main():
         #Subsequent calls to the inference function may infer different representations for the same document. 
         #For a more stable representation, increase the number of steps to assert a stricket convergence.  
         #model.random.seed(0)
-        print("test")
         vector = model.infer_vector(document_collections[0].words, steps=args.steps_infer) #TODO: do eval of best step size, Only 1 graph?? TODO:batch of graphs
         sims = model.docvecs.most_similar([vector], topn = args.topk)
         print("Top k similarities (with cos-sim): ",sims)
@@ -113,7 +113,7 @@ def main():
         # -------------------- Reweight based on query & results label distributions -----------------------
         if args.reweight: #reweight on box and rel labels occurance similarities on the query and the result topk
                           #e.g. annotation a1 with ['tree' * 5, ...] should be ranked higher for query image including ['tree']
-                          #     than for example a2 with ['car' *2, ...]    #NOTE: not build-in & tested so far!
+                          #     than for example a2 with ['car' *2, ...]    #NOTE: not build-in & tested so far!!!
             if args.reweightmode not in _REWEIGHT_MODES:
                 raise ValueError("No valid reweight mode specified.")
             
@@ -257,10 +257,11 @@ def saveconfigsearch(output_dir, args, numresults):
         f.write("Graph File: %s"%args.inputpath + os.linesep)
         f.write("Wl-Iterations: %d"%args.wl_iterations + os.linesep)
         f.write("Min Feature Dimension: %d"%args.min_featuredim + os.linesep)
-        f.write("Reweight enabled: %d"%args.reweight + os.linesep)
-        f.write("Reweight Mode: %d"%args.reweightmode + os.linesep)
+        if args.reweight:
+            f.write("Reweight Mode: %s"%args.reweightmode + os.linesep)
         f.write("Number of Results: %d"%numresults + os.linesep)
-        f.write("Search Image: %d"%args.metadata_imgpath + os.linesep)
+        if args.metadata_imgpath:
+            f.write("Search Image: %d"%args.metadata_imgpath + os.linesep)
 
 def saveresults(ranking, output_dir):
     #Output file format:

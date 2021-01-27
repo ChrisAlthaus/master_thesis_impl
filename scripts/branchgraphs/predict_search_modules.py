@@ -41,7 +41,7 @@ def filewithname(dir, searchstr):
             return os.path.join(dir,item)
     return None
 
-def predict(imagepath, queue):
+def predict(imagepath, queue=None):
     #Create a tmp image dir
     img_dir = os.path.join('/home/althausc/master_thesis_impl/scripts/branchgraphs/.images/singledirs', datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
     if not os.path.exists(img_dir):
@@ -69,10 +69,10 @@ def predict(imagepath, queue):
     fusion_type = _FUSION_TYPES[0]
     contextlayer_type = _CONTEXTLAYER_TYPES[0] 
 
-    topkboxes = -1#10
-    topkrels = 75#20
-    treshboxes = 0.1
-    treshrels = 0.1
+    topkboxes = -1 #10 #-1
+    topkrels = 75 #20 #75
+    treshboxes = 0.15
+    treshrels = 0.15
 
     #print("Logfile: ", logfile)
     masterport = random.randint(10020, 10100)
@@ -161,7 +161,7 @@ def transform_into_g2vformat(anndir, relasnodes=True, queue=None):
         return
     return graphfile
 
-def search(graphfile, reweight=False, r_mode='jaccard', queue=None):
+def search(graphfile, reweight=False, r_mode='jaccard', steps=3000, queue=None):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
     g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-16_11-47-55/g2vmodelc65839d128e40'
@@ -179,8 +179,8 @@ def search(graphfile, reweight=False, r_mode='jaccard', queue=None):
     logfile = os.path.join(logpath, '4-retrieval.txt')
 
     wliters = 3
-    min_featuredim = 132 #136 #-1 #136
-    steps = 100
+    min_featuredim = 100 #136 #-1 #136
+    #steps = 2000
     print("wliters: ", wliters)
 
     if reweight:
@@ -192,7 +192,7 @@ def search(graphfile, reweight=False, r_mode='jaccard', queue=None):
             raise RuntimeError('Scene graph search failed.')            
     else:
         cmd = ("python3.6 /home/althausc/master_thesis_impl/retrieval/graph_search.py --model {} --inputpath {} " +\
-    				 "--inference --min-featuredim {} --topk {} &> {}").format(g2v_model, inputfile, min_featuredim, topk, logfile)
+    				 "--inference --min-featuredim {} --steps-infer {} --topk {} &> {}").format(g2v_model, inputfile, min_featuredim, steps, topk, logfile)
         print(cmd)
         if os.system(cmd):
             raise RuntimeError('Scene graph search failed.')         
@@ -236,10 +236,28 @@ def getImgs(topkresults, drawgraphs = False):
             gfilename = '{}_1scenegraph{}'.format(basename, suffix) 
             imgs.append(Image.open(os.path.join(imagedir,gfilename)))
         else:
-            imgs.append(Image.open(os.path.join(imagedir,item[1]['filename'])))
+            basewidth = 512
+            img = Image.open(os.path.join(imagedir, item[1]['filename'])).convert('RGB')
+            wpercent = (basewidth/float(img.size[0]))
+            hsize = int((float(img.size[1])*float(wpercent)))
+            img = img.resize((basewidth,hsize), Image.ANTIALIAS)
+            imgs.append(img)
         scores.append(item[1]['relscore'])
     
-    return imgs, scores
+    return imgs, scores, rankedlist
+
+
+def getimg(imgpath):
+    img = Image.open(imgpath).convert('RGB')
+    return img
+
+
+def generateRandomRankedlists(num, k, savedir):
+    import sys
+    sys.path.append('/home/althausc/master_thesis_impl/scripts/detectron2/utils')
+    import utilspbn
+    
+    return utilspbn.randomrankings(num, k, savedir)
 
 def drawborder(imgpath):
     im = cv2.imread(imgpath)

@@ -81,6 +81,26 @@ def searchcsv(filestr):
             if filestr in row[-1]:
                 print(row[-1])
     
+def randomrankings(numberrankings, k, savedir):
+    artworkpaths = get_paths_of_paintings()
+    rankingpaths = []
+
+    for i in range(numberrankings):
+        imgpaths = random.sample(artworkpaths, k)
+        rankingdict = {"imagedir": "/nfs/data/iart/art500k/img/"}
+        for n,imgpath in enumerate(imgpaths):
+            rankingdict[str(n)] = { "filename": imgpath, "relscore": 0.0}
+
+        json_file = 'result-ranking-random-{}'.format(i)
+        with open(os.path.join(savedir, json_file+'.json'), 'w') as f:
+            print("Writing to file: ",os.path.join(savedir,json_file+'.json'))
+            json.dump(rankingdict, f, indent=4, separators=(',', ': '))
+
+        rankingpaths.append(os.path.join(savedir, json_file+'.json'))
+    return rankingpaths
+
+
+
 def testing():
     headers = None
     with open('/nfs/data/iart/art500k/img/head_info.csv', newline='') as f:
