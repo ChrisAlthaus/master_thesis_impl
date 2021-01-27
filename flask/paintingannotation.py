@@ -7,29 +7,40 @@ import random
 app = Flask(__name__)
 app.secret_key = "sdf79w3hsdfz83250fdg1287sdgf546dfg"
 
-rhtml_files = []
-rhtmlfiles_metadata = {}
-for path, subdirs, files in os.walk('retrieval'):
+html_files = []
+htmlfiles_metadata = {}
+for path, subdirs, files in os.walk('retrieval/data'):
 	for name in files:
-		rhtml_path = os.path.join(path, name)
-		if '.json' in rhtml_path:
+		html_path = os.path.join(path, name)
+		if '.json' in html_path:
 			continue
-		rhtml_files.append(rhtml_path)
-		with open(os.path.join(os.path.dirname(rhtml_path), 'metadata', os.path.basename(rhtml_path).replace('.html', '.json'))) as f:
+		html_files.append(html_path)
+		with open(os.path.join(os.path.dirname(html_path), 'metadata', os.path.basename(html_path).replace('.html', '.json'))) as f:
 			metadata = json.load(f)
-			rhtmlfiles_metadata[rhtml_path] = metadata
-rhtml_files.sort()
-random.shuffle(rhtml_files)
-rhtml_files.sort(key=lambda x:('scenegraphs' in x), reverse=False)
+			htmlfiles_metadata[html_path] = metadata
+html_files.sort()
 
-print(rhtml_files)
-fileindex = 0
+def getrandomfiles():
+	global html_files
+	rhtml_files = random.sample(html_files, 20)
+	hppaths = []
+	sgpaths = []
+	for filepath in rhtml_files:
+		if filepath.find('scenegraphs') != -1:
+			sgpaths.append(filepath)
+		else:
+			hppaths.append(filepath)
+	random.shuffle(hppaths)
+	random.shuffle(sgpaths)
+	rhtmlfiles = hppaths + sgpaths
+	return rhtmlfiles
 
 
 @app.route("/artuserstudy/annotate", methods=['GET', 'POST'])
 def annotate():
 	fileindex = session["fileindex"]
-	
+	rhtml_files = session['rhtmls']
+
 	if "user" not in session: #not logged in
 		return redirect(url_for("login"))
 
@@ -44,7 +55,7 @@ def annotate():
 			annotations = request.form.getlist('image-checkbox')
 			metadata = rhtmlfiles_metadata[rhtml_files[fileindex]]
 			data = {'query': metadata['querypath'], 'ranking': metadata['resultpath'], 'annotations': annotations, 'retrievalfiles': metadata['retrievaltopk']}
-			json.dump(data, f)
+			json.dump(data, f, indent=4, separators=(',', ': '))
 
 		fileindex += 1
 		session["fileindex"] = fileindex
@@ -70,21 +81,17 @@ def scenegraph():
 	else:
 		return render_template("scenegraph-start.html")
 
+@app.route("/", methods=["POST", "GET"])
 @app.route("/artuserstudy/login", methods=["POST", "GET"])
 def login():
-	global rhtml_files
 	if request.method == "POST":
 		#session.permanent = True
 		user = request.form["username"]
 		if not user:
 			return render_template("login.html")
 		session["user"] = ''.join(user.split()).lower()
-		print("USER:", session["user"])
-
-		#Randomize order
-		random.shuffle(rhtml_files)
-		rhtml_files.sort(key=lambda x:('scenegraphs' in x), reverse=False)
-		print("Login:", rhtml_files)
+		print("User:", session["user"])
+		print("Login:", session['rhtmls'])
 
 		session["fileindex"] = 0
 		session["section"] = 1 
@@ -92,6 +99,7 @@ def login():
 	else:
 		#if "user" in session:
 		#	return redirect(url_for("annotate"))
+		session['rhtmls'] = getrandomfiles()
 
 		return render_template("login.html")
 
