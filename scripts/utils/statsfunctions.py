@@ -1,5 +1,7 @@
 
 import numpy as np
+import statistics
+
 
 def getwhiskersvalues(values, mode='str'):
     #Computes the box-plot whiskers values.
@@ -19,9 +21,13 @@ def getwhiskersvalues(values, mode='str'):
     minv = np.min(values)
     maxv = np.max(values)
 
-    Qs = [minv, actual_loval, loval, Q1, median, Q3, hival, actual_hival, maxv]
+    if len(values)>=2:
+        std = statistics.stdev(values)
+    else:
+        std = 'None'
+    Qs = [minv, actual_loval, loval, Q1, median, Q3, hival, actual_hival, maxv, std]
     Qname = ["Min", "Actual LO", "Q1-1.5xIQR", "Q1", "median", "Q3", "Q3+1.5xIQR", 
-             "Actual HI", "Max"]
+             "Actual HI", "Max", "Std"]
     if mode=='str':
         logstr = ''.join(["\t{}:{} \n".format(a,b) for a,b in zip(Qname,Qs)])
         return logstr

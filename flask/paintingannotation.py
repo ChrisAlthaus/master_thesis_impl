@@ -18,9 +18,9 @@ for path, subdirs, files in os.walk('retrieval/data'):
 		with open(os.path.join(os.path.dirname(html_path), 'metadata', os.path.basename(html_path).replace('.html', '.json'))) as f:
 			metadata = json.load(f)
 			htmlfiles_metadata[html_path] = metadata
-html_files.sort()
 
 def getrandomfiles():
+	print("Get random files")
 	global html_files
 	rhtml_files = random.sample(html_files, 20)
 	hppaths = []
@@ -38,6 +38,8 @@ def getrandomfiles():
 
 @app.route("/artuserstudy/annotate", methods=['GET', 'POST'])
 def annotate():
+	global htmlfiles_metadata
+
 	fileindex = session["fileindex"]
 	rhtml_files = session['rhtmls']
 
@@ -53,7 +55,7 @@ def annotate():
 
 		with open(os.path.join('results', foldername, filename), 'w') as f:
 			annotations = request.form.getlist('image-checkbox')
-			metadata = rhtmlfiles_metadata[rhtml_files[fileindex]]
+			metadata = htmlfiles_metadata[rhtml_files[fileindex]]
 			data = {'query': metadata['querypath'], 'ranking': metadata['resultpath'], 'annotations': annotations, 'retrievalfiles': metadata['retrievaltopk']}
 			json.dump(data, f, indent=4, separators=(',', ': '))
 
@@ -81,7 +83,10 @@ def scenegraph():
 	else:
 		return render_template("scenegraph-start.html")
 
-@app.route("/", methods=["POST", "GET"])
+@app.route("/", methods=["GET"])
+def rootpage():
+	return redirect(url_for("login"))
+
 @app.route("/artuserstudy/login", methods=["POST", "GET"])
 def login():
 	if request.method == "POST":

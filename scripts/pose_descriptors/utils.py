@@ -259,6 +259,36 @@ def calc_neutralpose_median():
         json_data = json.load(f)
     neutralgpd = json_data[0]['gpd']
     print("Median of neutral pose feature: ", np.mean(neutralgpd))
+
+
+def calc_stats(mode):
+    #if mode == 'JcJLdLLa_reduced':
+    #    file = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    #elif mode == 'JLd_all_direct':
+    #    file = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    #elif mode == 'JJo_reduced':
+    #    file = '/home/althausc/master_thesis_impl/posedescriptors/out/query/12-16_15-46-17/geometric_pose_descriptor_c_1_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    #else:
+    #    raise ValueError()
+    file = '/home/althausc/master_thesis_impl/posedescriptors/out/insert/01-25_11-41-01-JcJLdLLa_reduced-insert/geometric_pose_descriptor_c_127107_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json'
+    #file = '/home/althausc/master_thesis_impl/posedescriptors/out/insert/01-25_13-35-34-JJo_reduced-insert/geometric_pose_descriptor_c_161972_mJJo_reduced_t0.05_f1_mkpt7n1.json'
+    #file = '/home/althausc/master_thesis_impl/posedescriptors/out/insert/01-25_13-38-03-Jc_rel-insert/geometric_pose_descriptor_c_161972_mJc_rel_t0.05_f1_mkpt7n1.json'
+    #file = '/home/althausc/master_thesis_impl/posedescriptors/out/insert/01-25_13-38-36-JLd_all_direct-insert/geometric_pose_descriptor_c_161972_mJLd_all_direct_t0.05_f1_mkpt7n1.json'
+
+    with open (file, "r") as f:
+        json_data = json.load(f)
+    gpd_allvalues = []
+    for item in json_data:
+        values = [v for v in item['gpd'] if v != -1]
+        gpd_allvalues.extend(values)
+
+    statsdict = getwhiskersvalues(gpd_allvalues, mode='dict')
+    print(statsdict)
+
+    output_dir = os.path.dirname(file)
+    with open(os.path.join(output_dir, 'feature-statistics.json'), 'w') as f:
+        print("Writing to folder: ",output_dir)
+        json.dump(statsdict, f, indent=1)
     
 
 

@@ -232,7 +232,7 @@ def main():
         print("Searching image descriptors from %s ..."%args.file)
         #Number of result pairs (imgid, l2score) = #input descriptors * _ELEMNUM_QUERYRESULT
         for k,img_descriptor in enumerate(data):
-            image_ids, scores = query(es, img_descriptor, _ELEMNUM_QUERYRESULT, args.method_search)
+            image_ids, scores = query(es, img_descriptor, _ELEMNUM_QUERYRESULT, args.method_search, args.gpd_type)
             results.append(list(zip(image_ids,scores)))
             print("Number of results for GPD {} = {}".format(k,len(image_ids)))
         print("Searching image descriptors done.")
@@ -328,21 +328,21 @@ def createIndex(es, dim, imgdir):
             "properties": {
                 "imageid": {
                     "type": "text"
-                },
-                "score": {
-                    "type": "float"
-                },  
-                #Used to get the descriptor values in the script
-                'gpd-array': {
-                    "type": "double" #"half_float"
-                },
-                "mask": {
-                    "type" : "keyword"
-                    #"index" : False
-                },
-                "percimage":{
-                    "type": "float"
-                }
+                    },
+                    "score": {
+                        "type": "float"
+                    },  
+                    #Used to get the descriptor values in the script
+                    'gpd-array': {
+                        "type": "double"
+                    },
+                    "mask": {
+                        "type" : "keyword"
+                    },
+                    "percimage":{
+                        "type": "float"
+                    }
+            }
                 
                 # "imid": {
                 #    "type": "integer"
@@ -356,7 +356,6 @@ def createIndex(es, dim, imgdir):
                 #},    
             }               
         }
-    }
 
     if es.indices.exists(index=_INDEX):
         print("Deleting existing index {}".format(_INDEX))
@@ -386,7 +385,7 @@ def insertdoc(es, data, metadata, id, featurelabel):
     if res['result'] != 'created':
         raise ValueError("Document not created.")
 
-def query(es, descriptor, size, method):
+def query(es, descriptor, size, method, mgpd):
     featurevector = descriptor['gpd']
     maskstr = descriptor['mask']
     percentage = descriptor['percimage']
@@ -403,6 +402,11 @@ def query(es, descriptor, size, method):
     #   1. Cos-Similarity Score: higher value means closer/better match (unlike cossim defined normaly)!
     if _DEBUG:
         print("QUERY:", featurevector)
+
+    #penalties = {'JcJLdLLa_reduced':0.414, 'JLd_all_direct':0.38, 'JJo_reduced':0.128, 'Jc_rel':0.365} #mean pbn
+    penalties = {'JcJLdLLa_reduced':0.369813, 'JLd_all_direct':0.259143, 'JJo_reduced':0.589776, 'Jc_rel':0.28383} #std art500k
+    print(penalties)
+
     if method == _METHODS_SEARCH[0]: #COSSIM
 
         request = { "size": size,
@@ -416,7 +420,7 @@ def query(es, descriptor, size, method):
                         "source": """
                             def m1 = params._source['mask'];
                             def m2 = params.queryMask;
-                            double penalty = 0.128; //Penalty values: JcJLdLLa_reduced = 0.414, JL_all_direct = 0.38, JJo_reduced = 0.128, Jc_rel = 0.365
+                            double penalty = 0;//0.128; //Penalty values: JcJLdLLa_reduced = 0.414, JL_all_direct = 0.38, JJo_reduced = 0.128, Jc_rel = 0.365
                             double c = 0.0;
 
                             ArrayList qeffective = new ArrayList();
@@ -478,7 +482,7 @@ def query(es, descriptor, size, method):
                         "source": """
                             def m1 = params._source['mask'];
                             def m2 = params.queryMask;
-                            double penalty = 0.5; //0.5 since majority of entries are between [0,1] & Manhatten distance
+                            double penalty = params.penalty; //0.5 since majority of entries are between [0,1] & Manhatten distance
                             double c = 0.0;
 
                             ArrayList qeffective = new ArrayList();
@@ -509,7 +513,8 @@ def query(es, descriptor, size, method):
                             "queryVector": list(featurevector),
                             "queryMask": maskstr,
                             "queryPercImage": percentage,
-                            'percenabled': _SEARCH_PERSON_PERC_ENABLED
+                            'percenabled': _SEARCH_PERSON_PERC_ENABLED,
+                            'penalty': penalties[mgpd]
                         }   
                     }
                 }
@@ -532,7 +537,7 @@ def query(es, descriptor, size, method):
                             def m1 = params._source['mask'];
                             def m2 = params.queryMask;
                              
-                            double penalty = 0.414/params.queryVector.size(); //Penalty values: JcJLdLLa_reduced = 0.414, JL_all_direct = 0.38, JJo_reduced = 0.128, Jc_rel = 0.365
+                            double penalty = params.penalty/params.queryVector.size(); //Penalty values: JcJLdLLa_reduced = 0.414, JL_all_direct = 0.38, JJo_reduced = 0.128, Jc_rel = 0.365
                             double c = 0.0;
 
                             ArrayList qeffective = new ArrayList();
@@ -565,7 +570,8 @@ def query(es, descriptor, size, method):
                             "queryVector": list(featurevector),
                             "queryMask": maskstr,
                             "queryPercImage": percentage,
-                            'percenabled': _SEARCH_PERSON_PERC_ENABLED
+                            'percenabled': _SEARCH_PERSON_PERC_ENABLED,
+                            'penalty': penalties[mgpd]
                         }   
                     }
                 }
