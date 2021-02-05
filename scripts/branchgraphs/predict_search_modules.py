@@ -259,6 +259,20 @@ def generateRandomRankedlists(num, k, savedir):
     
     return utilspbn.randomrankings(num, k, savedir)
 
+
+def getRankedFilesFromMetadata():
+    imgdir = '/home/althausc/nfs/data/userstudy-tests/retrieval-previous/data/scenegraphs/metadata'
+    mpaths = [os.path.join(imgdir, f) for f in os.listdir(imgdir)]
+    mpaths.sort()
+    print(mpaths)
+    rankedlists = []
+
+    for mpath in mpaths:
+        with open(mpath) as json_file:
+            mdata = json.load(json_file)
+        rankedlists.append(mdata['resultpath'])
+    return rankedlists
+
 def drawborder(imgpath):
     im = cv2.imread(imgpath)
     row, col = im.shape[:2]

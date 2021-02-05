@@ -27,8 +27,8 @@ _CREATE_FOLDERS = True
 
 # ----------------- EVALUATE MASK-RCNN PREDICTIONS WITH DETAILED EVALUATION ---------------------
 print("DETAILED MASK-RCNN EVALUATION:")
-predfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/11-17_16-27-51/maskrcnn_predictions.json'
-gtannfile = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
+predfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-11_15-47-31/maskrcnn_predictions.json'#'/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/11-17_16-27-51/maskrcnn_predictions.json'
+gtannfile = '/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_val2017_stAPI.json'#'/home/althausc/nfs/data/coco_17_medium/annotations_styletransfer/person_keypoints_train2017_stAPI.json'
 outdir = '/home/althausc/master_thesis_impl/results/posedetection/maskrcnn'
 teamname = 'artinfer'
 version = 1.0
@@ -47,7 +47,7 @@ print(cmd)
 
 outrun_dir = latestdir(outdir)
 print("Output Directory: %s\n"%outdir)
-#exit(1)
+exit(1)
 
 # ----------------- EVALUATE POSEFIX PREDICTIONS WITH DETAILED EVALUATION ---------------------
 print("DETAILED POSEFIX EVALUATION:")

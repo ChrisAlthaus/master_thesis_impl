@@ -210,7 +210,7 @@ def create_reference_feature(descriptors, mode='JcJLdLLa_reduced'):
         print("Writing to folder: ",output_dir)
         json.dump(statsperindex, f, indent=1)
 
-def get_reference_feature():
+def get_reference_feature(mode):
     if mode == 'JcJLdLLa_reduced':
         featuresstats_path = '/home/althausc/master_thesis_impl/posedescriptors/out/eval/12-17_09-28-55_reference-JcJLdLLa_reduced/features-per-index-statistics.json'
     elif mode == 'JLd_all_direct':

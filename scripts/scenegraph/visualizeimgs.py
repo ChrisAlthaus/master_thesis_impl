@@ -24,6 +24,8 @@ def main():
                               Not necessary when filtered previously.')
     parser.add_argument('-boxestopk', default=-1, type=int, help='Only draw best scored first k boxes')
     parser.add_argument('-relstopk', default=-1, type=int, help='Only draw best scored first k relationships')
+    parser.add_argument('-boxestresh', default=0.0, type=float)
+    parser.add_argument('-relstresh', default=0.0, type=float)
     parser.add_argument('-visrandom', action='store_true', help='Only draw random subset of predictions.')
     args = parser.parse_args()
 
@@ -43,12 +45,14 @@ def main():
 
     box_topk = args.boxestopk # select top k bounding boxes
     rel_topk = args.relstopk # select top k relationships
+    box_tresh = args.boxestresh
+    rel_tresh = args.relstresh
     ind_to_classes = custom_data_info['ind_to_classes']
     ind_to_predicates = custom_data_info['ind_to_predicates']
 
     c = 0
     if args.visrandom:
-        ids = random.sample(list(range(len(custom_data_info['idx_to_files']))), 100)
+        ids = random.sample(list(range(len(custom_data_info['idx_to_files']))), 1000)
     else:
         ids = list(range(len(custom_data_info['idx_to_files'])))
 
@@ -64,7 +68,8 @@ def main():
         all_rel_pairs = custom_prediction[str(image_idx)]['rel_pairs']
     
         img, ann_str = draw_image(image_path, bbox, bbox_labels, all_rel_pairs, all_rel_labels,
-                        box_topk, rel_topk, box_scores=bbox_scores, rel_scores=all_rel_scores, filterlabels=args.filterlabels)
+                        box_topk, rel_topk, box_scores=bbox_scores, rel_scores=all_rel_scores, filterlabels=args.filterlabels, 
+                        box_tresh=box_tresh, rel_tresh = rel_tresh)
         imgname =  "%s_1scenegraph.png"%os.path.splitext(os.path.basename(image_path))[0]
         #if img.mode != 'RGB':
         img = img.convert('RGBA')
@@ -133,7 +138,7 @@ def print_list(name, input_list, scores=None):
 
     
 def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None, rel_topk=None, 
-                box_scores=None, rel_scores=None, filterlabels=False, box_indstart = None):
+                box_scores=None, rel_scores=None, filterlabels=False, box_indstart = None, box_tresh= 0.0, rel_tresh = 0.0):
     #Draw the scene graph onto the input image. 
     #Additional options which can be used:
     #   - Filter out invalid labels from the input scene graph annotation
@@ -180,7 +185,7 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
     for i in range(num_obj):
         if c == box_topk:
             break
-        if box_labels[i] in validlabels:
+        if box_labels[i] in validlabels and box_scores[i]>= box_tresh:
             info = str(i) + '_' + ind_to_classes[box_labels[i]]
             draw_single_box(pic, boxes[i], draw_info=info, color='red', validsize=pic.size)
             addedlabels.append(i)
@@ -189,10 +194,10 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
                 info = info + "; " + str(box_scores[i])
             ann_str = ann_str + info + '\n'
             c = c + 1
-        else:
-            #draw bounding box of class not considered which acutally be in top-k
-            info = str(i) + '_' + ind_to_classes[box_labels[i]]
-            draw_single_box(pic, boxes[i], draw_info=info, color='green')
+        #else:
+        #    #draw bounding box of class not considered which acutally be in top-k
+        #    info = str(i) + '_' + ind_to_classes[box_labels[i]]
+        #    draw_single_box(pic, boxes[i], draw_info=info, color='green')
 
     ann_str = ann_str + 'Rel labels: \n'
     c = 0        
@@ -209,6 +214,8 @@ def draw_image(imagesrc, boxes, box_labels, rel_pairs, rel_labels, box_topk=None
     for i in range(len(rel_pairs)):
         if c == rel_topk:
             break
+        if rel_scores[i]<rel_tresh:
+            continue
         id1, id2 = rel_pairs[i]
         b1 = boxes[id1]
         b2 = boxes[id2]

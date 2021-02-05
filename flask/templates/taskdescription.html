@@ -10,6 +10,7 @@
 	margin-left: 20px;
 }
 
+
 .heading-list li {
     display: flex;
     align-items: center;
@@ -37,6 +38,18 @@ body, input{
    font-size: 12px
 }
 
+table {
+  font-family: arial, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td, th {
+  border: 1px solid #dddddd;
+  text-align: left;
+  padding: 8px;
+}
+
 </style>
 </head>
 
@@ -62,27 +75,49 @@ images, taking into account two aspects:
 		</li>
 		<li class="auto-style1" style="height: 461px; margin-bottom:0"><strong>Arrangement of 
 		Objects in the Scene: </strong>The scene composition in the query and 
-		retrieved image should be similar. This means that there<br />
-		are multiple objects which are contained in both images, e.g. mountain, 
+		retrieved image should be similar. <br />This means that there
+		are multiple objects which are contained in both images, <br />e.g. mountain, 
 		trees, buildings or chairs.<br />
 		<img alt="" height="353" src="/static/similar-scenes.png" style="float: left; padding-left: 180px; padding-top: 20px;  margin-bottom:0" width="430" />
 		</li>
 
     </ul>
-<p>The next pages show retrieval results which are ranked from 0 to 50. The 
-query image is presented in the left upper corner. <br />
-Please select all images which you consider relevant for the query image. The 
-search engine considers the arrangement of similar persons more important than<br />
-the arrangement of similar objects. Therefore please primarily focus on 
-relevance based on similar human poses. </p>
+<p>
+This user study seperates the retrieval of paintings w.r. to similar human poses and the retrieval of similar scenes.<br />
+Therefore, the first subset of the following pages shows retrieval results w.r. to similar human poses and the second subset <br />of the following pages
+shows retrieval results w.r. to similar objects in the images. There will be a reminder page <br />when the task is changed to scene/object similarity.<br />
+<br />
+
+<u>Notes on relevance selection:</u>
+<ul style="margin-top: -10px; margin-bottom: 5px;">
+	<li><strong>Human Poses: </strong>
+	<ul type="circle">  
+		<li>For 1 person in the query image: If there are multiple poses in the retrieved image and one matched the query pose, </br>the image also should be relevant.
+			<br />In general, if the query pose is in a retrieved image, this image should be relevant.</li>  
+		<li>For >1 persons in the query image: The prime poses (not too small and well visible) of the query image </br>should be present in the retrieved image.</li>  
+	</ul>  
+	</li>
+	<li ><strong>Object in Scenes: </strong>
+		<ul type="circle" style="margin-bottom: 10px;"> 
+			<li>The retrieved image may contain a subset of the query image's objects. </br>Not all objects necessarily have to be present in the retrieved image (e.g. like the house in the mountain painting above).</li>  
+		</ul> 
+	</li>
+</ul>
+
+
+The next pages show retrieval results which are ranked from 1 to 20. The query image is presented in the left upper corner. <br />
+Please select all images which you consider relevant for the query image under consideration of the task description <br />at the top of each page. </p>
 <p>Note: </p>
 <ul>
 	<li>Please keep the browser open for the whole session, otherwise data may 
 	be lost.</li>
     <li>You can also select nothing, if no image is relevant. </li>
 	<li>When finished the user study please close the browser window.</li>
-	<li>There are 40 pages in total, followed by a logout screen.</li>
-    <li>In case there's an error please restart the browser.</li>
+	<li>You can zoom in/out of the windows by pressing STRG and +/-.</li>
+	<li>Please do not jump back with the arrows at the navigation bar of your browser. This will lead to errors.<br />
+		Once submited, the selections cannot be changed.
+	</li>
+    <li>In case there's an error please restart the browser. Navigate to the login page and start again.</li>
 </ul>
 </div>
 <form method="post">

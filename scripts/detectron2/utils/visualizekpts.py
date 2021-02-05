@@ -3,8 +3,8 @@ import argparse
 import json
 import logging
 
-#import sys
-#sys.path.append('/home/althausc/.local/lib/python3.6/site-packages/')
+import sys
+sys.path.append('/home/althausc/.local/lib/python3.6/site-packages/')
 from detectron2.structures import Instances
 from detectron2.structures import Boxes
 from detectron2.utils.visualizer import Visualizer
@@ -24,6 +24,7 @@ import random
 
 NUMBER_VISUALIZE = 100
 
+#sbatch -w devbox4 -J visimages -o /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.vislog.txt /home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/maskrcnn_predictions.json -imagespath /nfs/data/iart/kaggle/img/ -outputdir /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages
 #sbatch -w devbox4 -J visimages -o /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.vislog.txt /home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/maskrcnn_predictions.json -imagespath /nfs/data/iart/kaggle/img/ -outputdir /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages
 def main():
     parser = argparse.ArgumentParser()
@@ -75,7 +76,7 @@ def visualize(grouped_by_imageid, imagedir, outputdir, args, drawbboxes = True, 
                 imgname_out = os.path.basename("{}_{}{}".format(root, suffix, ext))
         
         try:
-            print("Loading: ",img_path.encode('utf-8'))
+            #print("Loading: ",img_path.encode('utf-8'))
             img = np.array(Image.open(img_path.encode('utf-8'), 'r').convert('RGB'))
 
         except Exception as e: #Guard against too large images
@@ -112,14 +113,16 @@ def visualize(grouped_by_imageid, imagedir, outputdir, args, drawbboxes = True, 
         if boxes and drawbboxes:
             instances.pred_boxes = torch.Tensor(boxes)    
         instances.pred_keypoints = torch.Tensor(keypoints)
+
+        scale = 512/max(width, height)
         
-        v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
+        v = Visualizer(img[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=scale)
         out = v.draw_instance_predictions(instances, args.vistresh)
 
-        print("Save visualization image to ", os.path.join(outputdir, imgname_out).encode('utf-8'))
+        #print("Save visualization image to ", os.path.join(outputdir, imgname_out).encode('utf-8'))
         try:
             imgout = Image.fromarray(out.get_image()[:, :, ::-1])
-            print(out.get_image()[:, :, ::-1].shape)
+            #print(out.get_image()[:, :, ::-1].shape)
             imgout.save(os.path.join(outputdir, imgname_out))
         except UnicodeError as e:
             print(e)
@@ -142,7 +145,7 @@ def getvisualized(image, gtinstances):
     instances.pred_classes = gtinstances.gt_classes
     instances.pred_keypoints = gtinstances.gt_keypoints
     
-    v = Visualizer(image[:, :, ::-1], MetadataCatalog.get("my_dataset_val"), scale=1.2)
+    v = Visualizer(image[:, :, ::-1], MetadataCatalog.get("my_dataset_val"), scale=1.0)
     out = v.draw_instance_predictions(instances)
     outimg = out.get_image()[:, :, ::-1]
     return outimg

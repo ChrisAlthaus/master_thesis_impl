@@ -97,9 +97,6 @@ if args.insert_data:
     #_INDEX = 'bitseq4'   
     #_INDEX = 'bitseq4' 
     #_INDEX = '2vecstest' 
-    _INDEX = 'patchesindexm10' 
-    _INDEX = 'patchesindexm7'   
-    _INDEX = 'patchesindexm5' 
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn' #!
     _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc' #!
@@ -112,15 +109,18 @@ if args.insert_data:
     _INDEX = 'art500k_jjo_reduced_addperc'
     _INDEX = 'art500k_jc_rel_addperc'
     _INDEX = 'art500k_jld_all_direct_addperc'
-
+    _INDEX = 'patchesindexm10' 
+    _INDEX = 'patchesindexm7'   
+    #_INDEX = 'patchesindexm5'
 
 
 
 if args.method_search:
-    _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
-    _INDEX = 'patchesindexm10' 
-    _INDEX = 'patchesindexm7'
-    _INDEX = 'patchesindexm5' 
+    #_INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn10k'
+    #_INDEX = 'patchesindexm10' 
+    #_INDEX = 'patchesindexm7'
+    #_INDEX = 'patchesindexm5' 
+    
     if args.dbname == 'paintersbynumbers': 
         if args.gpd_type == 'JcJLdLLa_reduced':
             _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_pbn_addperc' #!
@@ -148,8 +148,10 @@ if args.method_search:
     elif args.dbname == 'metropolitan':
         _INDEX = 'imgid_gpd_raw_jcjldlla_reduced_metropolitan_addperc' #!
     else:
+        #print("no args dbname")
         raise ValueError()
 
+_INDEX = 'patchesindexm5_jc_rel'
 print("Current index: ",_INDEX)
 
 if args.gpd_type == 'JLd_all_direct':
@@ -303,8 +305,8 @@ def insertdata_raw(args, data ,es):
     id = 0
     print("Inserting image descriptors from %s ..."%args.file)
     for item in data:
-        if item['score'] < 0.95:
-            continue
+        #if item['score'] < 0.95:
+        #    continue
         d = {'gpd': item['gpd'], 'mask': item['mask']}
         metadata ={'image_id': item['image_id'], 'score': item['score'], 'percimage': item['percimage']}
         insertdoc(es, d, metadata, id, 'gpd')
@@ -420,14 +422,13 @@ def query(es, descriptor, size, method, mgpd):
                         "source": """
                             def m1 = params._source['mask'];
                             def m2 = params.queryMask;
-                            double penalty = 0;//0.128; //Penalty values: JcJLdLLa_reduced = 0.414, JL_all_direct = 0.38, JJo_reduced = 0.128, Jc_rel = 0.365
-                            double c = 0.0;
+                            double penalty = params.penalty;
 
                             ArrayList qeffective = new ArrayList();
                             for(int i; i < m1.length(); i++) {
                                 if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
-                                    qeffective.add(params._source['gpd-array'][i]);
-                                    c = c + penalty;
+                                    //L1qeffective.add(params._source['gpd-array'][i]);
+                                    qeffective.add(penalty);
                                 }else{
                                     qeffective.add(params.queryVector[i]);
                                 }
@@ -455,14 +456,14 @@ def query(es, descriptor, size, method, mgpd):
                             
                             return (cossim + 1) * params._source['score'] * warea;  
                             //return cosineSimilarity(qeffective, doc['gpd']) + 1 //not working
-                            //return 1 / (1 + l1norm + c) *  params._source['score'];
                             """
                         ,
                         "params": {
                             "queryVector": list(featurevector),
                             "queryMask": maskstr,
                             "queryPercImage": percentage,
-                            'percenabled': _SEARCH_PERSON_PERC_ENABLED
+                            'percenabled': _SEARCH_PERSON_PERC_ENABLED,
+                            'penalty': penalties[mgpd]
                         }   
                     }
                 }
@@ -537,14 +538,14 @@ def query(es, descriptor, size, method, mgpd):
                             def m1 = params._source['mask'];
                             def m2 = params.queryMask;
                              
-                            double penalty = params.penalty/params.queryVector.size(); //Penalty values: JcJLdLLa_reduced = 0.414, JL_all_direct = 0.38, JJo_reduced = 0.128, Jc_rel = 0.365
+                            double penalty = params.penalty; //params.queryVector.size()
                             double c = 0.0;
 
                             ArrayList qeffective = new ArrayList();
                             for(int i; i < m1.length(); i++) {
                                 if (m1.charAt(i) == '0'.charAt(0) || m2.charAt(i) == '0'.charAt(0)) {
                                     qeffective.add(params._source['gpd-array'][i]);
-                                    c = c + penalty;
+                                    c = c + penalty * penalty;
                                 }else{
                                     qeffective.add(params.queryVector[i]);
                                 }
@@ -555,14 +556,14 @@ def query(es, descriptor, size, method, mgpd):
                                 double diff = params._source['gpd-array'][dim] - qeffective[dim];
                                 l2norm += diff * diff;
                             }
-                            l2norm = Math.sqrt(l2norm);
+                            l2norm = Math.sqrt(l2norm + c);
 
                             double warea = 1.0;
                             if (params.percenabled){
                                 warea =  1 - Math.abs(params.queryPercImage - params._source['percimage'])
                             }
 
-                            return 1 / (1 + l2norm + c) *  params._source['score'] * warea;
+                            return 1 / (1 + l2norm) *  params._source['score'] * warea;
                             //return l2norm(qeffective, doc['gpd']) *  params._source['score']; note: not working
                             """
                         ,

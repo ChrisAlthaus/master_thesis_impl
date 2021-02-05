@@ -278,7 +278,6 @@ def getImgs(topkresults, drawgraphs=None, drawkpts=None):
 
     return imgs, scores
 
-
 def drawborder(imgpath):
     im = cv2.imread(imgpath)
     row, col = im.shape[:2]

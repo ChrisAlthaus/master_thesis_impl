@@ -36,6 +36,7 @@ parser.add_argument("-validateMethod", "-val", help="Helping wih choosing the ri
 parser.add_argument("-validateks", "-ks", nargs=2, type=int, help="Range for ks (kmin,kmax) used for evaluation method.")
 parser.add_argument("-modelState", "-model", help="Choosing model state of k-means clustering.")
 parser.add_argument("-buildk", help="Building kmeans with specific k.", type=int)
+parser.add_argument("-gpdtype", type=str)
 parser.add_argument("-imagedir", help="Base image directory for TSNE-visualization.", type=str)
 parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
@@ -54,6 +55,11 @@ if args.verbose:
 #if args.validateMethod not in _VALIDATION_METHODS:
 #    raise ValueError("No valid validation mode.")
 
+#python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors /home/althausc/master_thesis_impl/posedescriptors/out/insert/12-18_16-44-58-JcJLdLLa_reduced-insert/geometric_pose_descriptor_c_53615_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json -validateMethod K-MEANSIMAGES -validateks 30 40 -v -gpdtype JcJLdLLa_reduced
+#python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors /home/althausc/master_thesis_impl/posedescriptors/out/insert/12-18_16-44-58-JcJLdLLa_reduced-insert/geometric_pose_descriptor_c_53615_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json -validateMethod SILHOUETTE -validateks 10 200 -v -gpdtype JcJLdLLa_reduced
+#/home/althausc/master_thesis_impl/posedescriptors/out/insert/12-22_22-34-21-JLd_all-insert/geometric_pose_descriptor_c_68753_mJLd_all_direct_t0.05_f1_mkpt7n1.json
+#/home/althausc/master_thesis_impl/posedescriptors/out/insert/12-23_11-28-42-jcrel_insert/geometric_pose_descriptor_c_68753_mJc_rel_t0.05_f1_mkpt7n1.json
+
 def main():
     output_dir = '/home/althausc/master_thesis_impl/posedescriptors/clustering/%s'%('eval' if args.validateMethod is not None else 'out')
     output_dir = os.path.join(output_dir, datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
@@ -67,8 +73,8 @@ def main():
         json_data = json.load(f)
 
 
-    create_reference_feature(json_data, mode='JLd_all_direct') #['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced', 'Jc_rel']
-    exit(1)
+    #create_reference_feature(json_data, mode='JLd_all_direct') #['JcJLdLLa_reduced', 'JLd_all_direct', 'JJo_reduced', 'Jc_rel']
+    #exit(1)
 
     # ------------------------------- EVALUATION BASED ON NUMBER(S) OF CLUSTERS K ---------------------------------   
     if args.validateMethod is not None:
@@ -95,7 +101,7 @@ def main():
                 delinds.extend([k for k,score in sindices[1:]])
 
         delinds.sort(reverse=True)
-        print(delinds[:100])
+        #print(delinds[:100])
         for ind in delinds:
             del descriptors[ind]
             del imageids[ind]
@@ -105,13 +111,12 @@ def main():
         #Replace unvalid entries -1 with values of neutral pose gpd, because clustering sensitive to outlier -1
         #->other values in ranges [0,1] & [0,3.14]
         #referencefeature = get_neutral_pose_feature()
-        referencefeature =  get_reference_feature()
+        referencefeature =  get_reference_feature(args.gpdtype)
         print("Replacing unvalid entries with reference featurevalues...")
         for i,descr in enumerate(descriptors):
             replace_unvalidentries(descr, referencefeature)
-
-        descriptors = np.array(descriptors)
-        imageids = np.array(imageids)
+        descriptors = np.array(descriptors)#[:1000]
+        imageids = np.array(imageids)#[:1000]
 
         if args.validateMethod == 'ELBOW':
             #Elbow method: > Within-Cluster-Sum of Squared Errors (WSS) for different values of k
@@ -131,12 +136,30 @@ def main():
             X = getdummydataset()
             ks, silouettes = calc_silouette_scores(X, 3, 6, plot_clustersilhouettes = True, output_dir= output_dir)"""
             kmin, kmax = args.validateks
-            ks, silouettes = calc_silouette_scores(descriptors, kmin, kmax, stepsize=10, plot_clustersilhouettes=True, output_dir=output_dir)
+            ks, silouettes, silouettecoeffs = calc_silouette_scores(descriptors, kmin, kmax, stepsize=10, plot_clustersilhouettes=True, output_dir=output_dir)
 
-            df = pd.DataFrame({'k':ks , 'silouette score':silouettes})
-            ax = sns.relplot(x="k", y='silouette score', sort=False, kind="line", markers=True, data=df)
+            df = pd.DataFrame({'k':ks , 'Silhouette Score':silouettes})
+            ax = sns.relplot(x="k", y='Silhouette Score', sort=False, kind="line", markers=True, data=df)
+            ax.fig.savefig(os.path.join(output_dir,"eval_silouettes_c%dd_%d.svg"%(len(descriptors), len(descriptors[0]))))
             ax.fig.savefig(os.path.join(output_dir,"eval_silouettes_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))))
             plt.clf()
+
+            scatterpoints = np.array([[k,s]  for i,k in enumerate(ks) for s in silouettecoeffs[i]])
+
+            df = pd.DataFrame({"Number of Clusters":scatterpoints[:,0] , 'Silhouette Coefficients':scatterpoints[:,1]})
+            ax = sns.scatterplot(x="Number of Clusters", y='Silhouette Coefficients', data=df, alpha =0.4)
+            plt.plot(ks, silouettes, marker='o', color='r')
+
+            ratio = 1/1.3
+            xleft, xright = ax.get_xlim()
+            ybottom, ytop = ax.get_ylim()
+            ax.set_aspect(abs((xright-xleft)/(ybottom-ytop))*ratio)
+            
+            ax.get_figure().savefig(os.path.join(output_dir,"eval_silouettecoefficients_c%dd_%d.svg"%(len(descriptors), len(descriptors[0]))))
+            ax.get_figure().savefig(os.path.join(output_dir,"eval_silouettecoefficients_c%dd_%d.png"%(len(descriptors), len(descriptors[0]))))
+            plt.clf()
+
+
 
         elif args.validateMethod == 'K-MEANSIMAGES':
             #Visualize clusters by image grids
@@ -149,39 +172,55 @@ def main():
             #print(set(labels))
             #print(distancemat[0])
 
+            validimgids = os.listdir('/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages')
+
+
             labeltoimgids = {}
             for i,cluster_l in enumerate(labels):
+                if '{}_overlay.jpg'.format(imageids[i]) not in validimgids:
+                    continue
                 cdist = distancemat[i][cluster_l]
                 if cluster_l not in labeltoimgids:
                     labeltoimgids[cluster_l] = [(imageids[i], cdist)]
                 else:
                     labeltoimgids[cluster_l].append((imageids[i], cdist))
-            print(list(labeltoimgids.items())[:2])
+            #print(list(labeltoimgids.items())[:2])
 
             #imagefiles = imagefiles[np.random.choice(len(imagefiles), size=nrows*ncolumns, replace=False)]
-            rankedchunks = True
+            rankedchunks = False#True
             labeltoclusterdata = {}
-            nrows = 6
-            ncolumns = 8
+            nrows = 4
+            ncolumns = 5
+            firstn_summarized = 2 #first n rows are together
+            
+
             for cluster_l, items in labeltoimgids.items():
                 items.sort(key=lambda x: x[1])
                 items = np.array(items)
                 cdata = {'ids':[], 'imagenames':[], 'cdistances':[]}
 
                 if rankedchunks:
-                    itemchunks = np.array_split(items, nrows)
-                    ids = np.array_split(range(len(items)), nrows)
-
+                    itemchunks = np.array_split(items, nrows - (firstn_summarized - 1))
+                    ids = np.array_split(range(len(items)), nrows - (firstn_summarized - 1))
+                    added_firstn = False
+                    
                     for rids, imchunk in zip(ids, itemchunks):
                         cdata['ids'].extend(rids[:ncolumns])
                         cdata['imagenames'].extend(imchunk[:,0][:ncolumns])
                         cdata['cdistances'].extend(imchunk[:,1][:ncolumns])
+
+                        if not added_firstn:
+                            cdata['ids'].extend(rids[ncolumns:ncolumns*2])
+                            cdata['imagenames'].extend(imchunk[:,0][ncolumns:ncolumns*2])
+                            cdata['cdistances'].extend(imchunk[:,1][ncolumns:ncolumns*2])
+                            added_firstn = True
+
                     labeltoclusterdata[cluster_l] = cdata
                 else:
                     rids = np.random.choice(len(items), size=nrows*ncolumns, replace=False)
-                    cdata['ids'].extend(rids[:ncolumns])
-                    cdata['imagenames'].extend(items[:,0][:ncolumns])
-                    cdata['cdistances'].extend(items[:,1][:ncolumns])
+                    cdata['ids'].extend(list(range(nrows*ncolumns))) #rids[:ncolumns])
+                    cdata['imagenames'].extend(items[:,0][:ncolumns*nrows])
+                    cdata['cdistances'].extend(items[:,1][:ncolumns*nrows])
                     labeltoclusterdata[cluster_l] = cdata 
         
             c = 0
@@ -396,7 +435,8 @@ def calculate_WSS(points, kmin, kmax, stepsize=1):
     return range(kmin,kmax+1,stepsize), sse
 
 def calc_silouette_scores(points, kmin, kmax, stepsize=1, plot_clustersilhouettes = False, output_dir=None):
-    sil = []
+    sil = [] #total score
+    sil_values_per_cluster = [] # all cluster scores
     # minimum number of clusters should be 2
     for k in range(kmin, kmax+1, stepsize):
         print("Clustering for k = %d ..."%k)
@@ -422,8 +462,9 @@ def calc_silouette_scores(points, kmin, kmax, stepsize=1, plot_clustersilhouette
             ax = sns.barplot(y='Cluster Label', x='Silhouette Score', data=df, orient = 'h')
             ax.figure.savefig(os.path.join(output_dir,"eval_cluster%dsilouettes.png"%k))
             plt.clf()
+            sil_values_per_cluster.append(sil_values)
     
-    return range(kmin,kmax+1,stepsize), sil 
+    return range(kmin,kmax+1,stepsize), sil, sil_values_per_cluster
 
 def calc_tsne(points,k):
     print("Number of input features = %d"%len(points))
@@ -462,12 +503,12 @@ def calc_kmeans(points,k):
 
 
 def plotImageGrid(clusterdata, title, nrows, ncolumns, imgdir, savepath, drawkpts=False):
-    fig = plt.figure(figsize=(4., 4.))
+    fig = plt.figure(figsize=(4.0, 4.0))
     #fig.suptitle(title, y=0.9, fontsize=5)
     fig.tight_layout()
     grid = ImageGrid(fig, 111,  # similar to subplot(111)
                     nrows_ncols=(nrows, ncolumns),  # creates 2x2 grid of axes
-                    axes_pad=0.05,  # pad between axes in inch.
+                    axes_pad=0.15,  # pad between axes in inch.
                     share_all=True
                     )   
 
@@ -479,23 +520,44 @@ def plotImageGrid(clusterdata, title, nrows, ncolumns, imgdir, savepath, drawkpt
         else:
             filepath = os.path.join(imgdir, '{}.jpg'.format(filename))
         img = Image.open(filepath)
-        print(rid, img.size)
-        img = resizeimage(img)
-        print(img.size)
+        #print(rid, img.size)
+        #img = resizeimage(img)
+        #print(img.size)
         images.append(np.array(img))
     
     c_added = 0
+    """
     for ax, im, rid, cdist in zip(grid, images, clusterdata['ids'], clusterdata['cdistances']):
         # Iterating over the grid returns the Axes.
         ax.axis('off')
-        ax.imshow(im)
         imtitle = 'r={} d={:0.2f}'.format(rid, float(cdist))
+        #ax.set_title(imtitle, fontdict=None, loc='center', color = "k", y=-0.01)
+        ax.imshow(im)
+        
+        #ax.set_xlabel(imtitle)
         ax.text(0.5,-0.1, imtitle, size=2, ha="center", transform=ax.transAxes)
+        c_added = c_added + 1"""
+
+    _, axs = plt.subplots(nrows, ncolumns, figsize=(12, 12))
+    axs = axs.flatten()
+    for img, ax, rid, cdist in zip(images, axs, clusterdata['ids'], clusterdata['cdistances']): 
+        #ax.set_anchor('NW')
+        ax.imshow(img)
+        #ax.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        imtitle = 'r={} d={:0.2f}'.format(rid, float(cdist))
+        ax.set_xlabel(imtitle, labelpad = 4, fontsize=12) #fontweight='bold'
         c_added = c_added + 1
-    
-    if c_added<nrows*ncolumns:
-        for i in range(c_added,nrows*ncolumns):
-            grid[i].axis('off')
+    plt.subplots_adjust(wspace=0.05, hspace=0.12)
+    #if c_added<nrows*ncolumns:
+    #    for i in range(c_added,nrows*ncolumns):
+    #        grid[i].axis('off')
+    #        ax.text(0.5,-0.1, "Image", size=2, ha="center", transform=ax.transAxes)
 
     plt.savefig(savepath, dpi=400, bbox_inches='tight', pad_inches=0.01)
     plt.clf()

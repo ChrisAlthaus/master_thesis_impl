@@ -31,16 +31,23 @@ window.</span></strong>
 <form method="post">
 	<table align="center" style="width: 36%; padding-top: 40 px; margin-top: 50px">
 		<tr>
-			<td style="text-align: center;"><strong>Optional: Here you can write a message if something went 
+			<td style="text-align: center; font-size: large;"><strong>Optional: Here you can write a message if something went 
 			wrong and the like.</strong></td>
 		</tr>
 		<tr>
 			<td>
 				<div style="text-align: center;">
-				<textarea name="feedback" style="width: 380px; height: 86px; text-align: center;" rows='5' cols='15'></textarea>
-							<input name="Submit1" type="submit" value="Send" /></td>	
+				<textarea name="feedback" style="width: 380px; height: 86px; text-align: left;" rows='5' cols='15'></textarea>
+							<input name="Submit1" type="submit" value="Send" style="width: 52px; height: 34px"/></td>	
 				</div>
 		</tr>	
+		<tr>
+		<td class="auto-style1"><strong><div class="flashes">
+			{% for message in get_flashed_messages() %}
+			  {{ message }}
+			{% endfor %}
+		  </div></strong></td>
+		</tr>
 	</table>
 </form>
 </p>

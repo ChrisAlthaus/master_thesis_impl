@@ -56,7 +56,7 @@ _REFs = {5: "left_shoulder", 6: "right_shoulder"} #{1: "left_shoulder"}
 _NUMKPTS = 17
 
 _FILTER = True
-_MINKPTs = 7#5 #7#10
+_MINKPTs = 5#7#5 #7#10
 _KPTS_THRESHOLD = 0.05 #same as in detectron2/utils/visualizer.py
 
 _NORM = True

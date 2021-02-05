@@ -49,7 +49,7 @@ _PREDICT_POSEFIX = False
 def predict(imgpath, queue):
     # ----------------- MASK-RCNN PREDICTIONS ---------------------
     print("MASK-RCNN PREDICTION ...")
-    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch/model_final.pth'
+    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch-best/model_final.pth'
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run-1.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
     out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query'
     transform_arg = "-styletransfered" if is_styletranfered_img(imgpath) else ""
@@ -216,7 +216,7 @@ def getImgs(rankingfile, drawkpts=True):
     imagedir = json_data['imagedir']
     del json_data['imagedir']
    
-    drawkptsdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages'
+    drawkptsdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/eval/12-01_10-30-06_subimages/.evalimages' #'/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages'
 
     rankedlist = sorted(json_data.items(), key= lambda x: int(x[0])) 
     imgs = []
@@ -229,7 +229,11 @@ def getImgs(rankingfile, drawkpts=True):
         if drawkpts:
             basename, suffix = os.path.splitext(item[1]['filename'])
             kfilename = '{}_overlay{}'.format(basename, suffix) 
-            imgs.append(Image.open(os.path.join(drawkptsdir, kfilename)).convert('RGB'))
+            try:
+                imgs.append(Image.open(os.path.join(drawkptsdir, kfilename)).convert('RGB'))
+            except:
+                print("Warning: Error (Image load) for ", os.path.join(drawkptsdir, kfilename))
+                continue
         else: 
             basewidth = 512
             img = Image.open(os.path.join(imagedir, item[1]['filename'])).convert('RGB')
@@ -262,12 +266,27 @@ def getRandomImages(k=100):
         scores.append(0.0)
     return imgs,scores
 
-def generateRandomRankedlists(num, k, savedir):
-    import sys
-    sys.path.append('/home/althausc/master_thesis_impl/scripts/detectron2/utils')
-    import utilsart500k
-    
-    return utilsart500k.randomrankings(num, k, savedir)
+def generateRandomRankedlists(num, k, savedir, frommetadata=False):
+    if not frommetadata:
+        import sys
+        sys.path.append('/home/althausc/master_thesis_impl/scripts/detectron2/utils')
+        import utilsart500k
+        
+        return utilsart500k.randomrankings(num, k, savedir)
+    else:
+        imgdir = '/home/althausc/nfs/data/userstudy-tests/retrieval-previous/data/scenegraphs/metadata'
+        mpaths = [os.path.join(imgdir, f) for f in os.listdir(imgdir)]
+        print(mpaths)
+        rankedlists = []
+
+        for mpath in mpaths:
+            with open(mpath) as json_file:
+                mdata = json.load(json_file)
+            rankedlists.append(mdata['resultpath'])
+        return rankedlists
+            
+            
+            
                           
 def treshIndex(tresh, results):
     with open (results, "r") as f:

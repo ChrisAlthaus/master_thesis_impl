@@ -24,11 +24,11 @@
         }
         head, h4, p{
         font-family: Verdana, sans-serif;
-        font-size: 14px
+        font-size: 18px
         }
         body{
         font-family: Verdana, sans-serif;
-        font-size: 14px
+        font-size: 16px
         }
         #content {
     display: table;
@@ -46,8 +46,14 @@
     
     
 
-    <h4 style="text-align: left;">Please Select all Images which you consider relevant to the Query Image. </h4>
-    <p style="text-align: left;">Note: Relevance here is defined as a similar arrangement of persons body poses and/or a similar scene composition.</p>
+    <h3 style="text-align: left;">Please select all images which you consider relevant to the query image. </h3>
+    {%if section == 1%}
+    <p style="text-align: left;">Note: Relevance here is defined as similarity of persons body poses. </br>
+                                
+    {% else %}
+    <p style="text-align: left;">Note: Relevance here is defined as a similar scene composition.</p>
+    {% endif %}
+
     </head>
     <form method="post">
         {{content | safe}}

@@ -42,7 +42,7 @@ parser.add_argument('-image_path','-img',
                     help='Path to the image for which pose inference will be calculated.')
 parser.add_argument('-image_folder','-imgdir', 
                     help='Path to a directory containing images only.')
-parser.add_argument('-mode',
+parser.add_argument('-mode', default='loadpaths',
                     help='Wheather to load the image path(s) from given directory/file or from custom loading function.')
 parser.add_argument('-topk', type=int, default=20,
                     help='Filter the predictions and take best k poses.')
@@ -204,7 +204,8 @@ def main():
                 else:
                     image_name = img_path
 
-                if args.styletransfered: 
+                if args.styletransfered:
+                    image_name = os.path.splitext(image_name)[0]
                     content_id = image_name.split('_')[0]
                     style_id = image_name.split('_')[1]
                     image_id = int("%s%s"%(content_id,style_id))
@@ -456,7 +457,7 @@ def get_combined_predictions(singlepreds):
 
     grouped = {}
     for pred_entry in singlepreds:
-        root, ext = os.path.splitext(pred_entry['image_id'])
+        root, ext = os.path.splitext(str(pred_entry['image_id']))
         if not ext:
             imagepath = os.path.join(imgdir, "%s.jpg"%(pred_entry['image_id']))
         else:

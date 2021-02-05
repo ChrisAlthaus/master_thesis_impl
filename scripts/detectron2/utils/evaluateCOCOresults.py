@@ -9,11 +9,11 @@ import argparse
 
 import sys
 sys.path.append('/home/althausc/.local/lib/python3.6/site-packages/detectron2/evaluation')
-from fast_eval_api import COCOeval_opt
+#from fast_eval_api import COCOeval_opt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-predictions', '-preds',  help='Path to a prediction json file in coco format.')
-parser.add_argument('-gt_annotations', '-gt_ann', help='Path to gt annotation json file in coco format.')
+parser.add_argument('-gt_annotations', '-gt_ann', required=True, help='Path to gt annotation json file in coco format.')
 parser.add_argument('-outputdir')
 #Calculate predictions on-the-fly
 parser.add_argument('-model_cp', help='Path to the model checkpoint (no prediction file needed).')
@@ -37,12 +37,10 @@ if args.model_cp:
     score_tresh = 0.0 #For evaluation use all predictions
     styletransfered = True
 
-    cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target train {} -visrandom"\
+    cmd = "{} python3.6 /home/althausc/master_thesis_impl/scripts/detectron2/MaskRCNN_prediction.py -model_cp {} -imgdir {} -topk {} -score_tresh {} -target train {} -mode loadpaths"\
                                                     .format(gpu_cmd, args.model_cp, args.imagedir, topk, score_tresh, '-styletransfered' if styletransfered else ' ')
     print(cmd)
-    exit(1)
     os.system(cmd)
-    time.sleep(10)
 
     out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train'
     predictionfile = os.path.join(latestdir(out_dir), 'maskrcnn_predictions.json')
@@ -78,7 +76,7 @@ evalstr = ''
 evalstr = evalstr + "----------- EVALUATION FOR KEYPOINTS -------------" + os.linesep
 # running evaluation
 #Path of Cocoeval: .local/lib64/python3.6/site-packages/pycocotools/cocoeval.py
-cocoEval = COCOeval_opt(cocoGt,cocoDt,'keypoints')
+cocoEval = COCOeval(cocoGt,cocoDt,'keypoints')
 cocoEval.params.imgIds  = imgIds
 cocoEval.evaluate()
 cocoEval.accumulate()
@@ -87,7 +85,7 @@ evalstr = evalstr + cocoEval.evalresults + os.linesep
 
 evalstr = evalstr + "-------------- EVALUATION FOR BBOX ----------------" + os.linesep
 # running evaluation
-cocoEval = COCOeval_opt(cocoGt,cocoDt,'bbox')
+cocoEval = COCOeval(cocoGt,cocoDt,'bbox')
 cocoEval.params.imgIds  = imgIds
 cocoEval.evaluate()
 cocoEval.accumulate()
