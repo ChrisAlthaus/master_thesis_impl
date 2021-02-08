@@ -24,9 +24,14 @@ import torch
 
 def main():
     
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-config_file', help='Path to the model file.')
-    parser.add_argument('-dataset', help='String descriptor of the dataset used for evaluation.')
+    parser = argparse.ArgumentParser(description="PyTorch Object Detection Inference")
+    parser.add_argument(
+        "--config-file",
+        default="/private/home/fmassa/github/detectron.pytorch_v2/configs/e2e_faster_rcnn_R_50_C4_1x_caffe2.yaml",
+        metavar="FILE",
+        help="path to config file",
+    )
+    parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
@@ -40,8 +45,10 @@ def main():
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
 
-    cfg.DATASETS.VAL = (args.dataset,)
-    cfg.MODEL.LOAD_DATASETSTATS_PATH = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3/VG_stanford_filtered_with_attribute_train_statistics.cache'
+    #cfg.DATASETS.VAL = (args.dataset,)
+    cfg.DATASETS.TRAIN = ("VG_styletransfer_train",)
+    cfg.DATASETS.VAL = ("VG_styletransfer_val",)
+    #cfg.MODEL.LOAD_DATASETSTATS_PATH = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3/VG_stanford_filtered_with_attribute_train_statistics.cache'
     cfg.freeze()
     print(cfg)
 
@@ -55,12 +62,7 @@ def main():
     
     dataset_name = cfg.DATASETS.VAL 
 
-    output_dir = os.path.join(model_dir, '.eval')
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    else:
-        print("Warning: Output directory %s already exists."%output_dir)
-
+    output_dir = cfg.OUTPUT_DIR
     #Writing config to file
     with open(os.path.join(output_dir, 'config.txt'), 'a') as f:
         f.write("Model: %s"%model_dir + os.linesep)
@@ -73,7 +75,7 @@ def main():
         )
 
     valresults = run_val(cfg, dataset_name, model, val_data_loaders[0], False, None)
-    savetocsv(valresults, output_dir)
+    savetocsv(valresults, output_dir, cfg)
 
     
 
@@ -98,7 +100,7 @@ def run_val(cfg, datasetname, model, val_data_loader, distributed, logger):
     return dataset_results
 
 
-def savetocsv(val_results, outputdir):
+def savetocsv(val_results, outputdir, cfg):
     print("Save following scores to CSV-file:")
     headers = []
     scores = []
@@ -112,7 +114,7 @@ def savetocsv(val_results, outputdir):
         print(tag , np.mean(v))
         headers.append(tag)
         scores.append(np.mean(v))
-    for k, v in val_results['eval_zeroshot_recall'].result_dict['sgdet_zeroshot_recall'].items():
+    """for k, v in val_results['eval_zeroshot_recall'].result_dict['sgdet_zeroshot_recall'].items():
         tag = 'recall_zero/R@{}'.format(k)
         print(tag , np.mean(v))
         headers.append(tag)
@@ -121,7 +123,7 @@ def savetocsv(val_results, outputdir):
         tag = 'recall_ng_zero/R@{}'.format(k)
         print(tag , np.mean(v))
         headers.append(tag)
-        scores.append(np.mean(v))
+        scores.append(np.mean(v))"""
     for k, v in val_results['eval_mean_recall'].result_dict['sgdet_mean_recall'].items():
         tag = 'recall_mean/R@{}'.format(k)
         print(tag , float(v))
@@ -133,7 +135,7 @@ def savetocsv(val_results, outputdir):
         headers.append(tag)
         scores.append(float(v))
 
-    filepath = os.path.join(outputdir, 'evalresults.csv')
+    filepath = os.path.join(outputdir, 'evalresults-{}.csv'.format(cfg.MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE))
     with open(filepath, 'w') as f:
         writer = csv.writer(f, delimiter='\t')
         writer.writerow(headers)
