@@ -5,12 +5,19 @@ import numpy as np
 
 #Generate groundtruth annotation set
 filepaths1 = []
-for path, subdirs, files in os.walk('results/JJo_reduced'):
-	for name in files:
-		filepath = os.path.join(path, name)
-		if 'feedback' in filepath:
-			continue
-        filepaths1.append(filepath)
+annfolder = '/home/althausc/master_thesis_impl/flask/results/testresults'
+humanposefolders = ['JJo_reduced', 'Jc_rel', 'JcJLdLLa_reduced', 'JLd_all_direct', 'random'] 
+
+for descriptortype in humanposefolders:
+    descriptordir = os.path.join(annfolder, descriptortype)
+    onlyfiles = [os.path.join(descriptordir, f) for f in os.listdir(descriptordir) if os.path.isfile(os.path.join(descriptordir, f))]
+    filepaths1.extend(onlyfiles)
+
+backgrounds = ['art_history', 'computer_science', 'others']
+groundtruth = {'positives': defaultdict(list), 'negatives': defaultdict(list)}
+groundtruth_b = {}
+for b in backgrounds:
+    groundtruth_b.update({b: {'positives': defaultdict(list), 'negatives': defaultdict(list)}})
 
 id_gt1 = defaultdict(set)
 id_annlists1 = defaultdict(list)
@@ -19,14 +26,86 @@ id_retimgpaths1 = defaultdict(list)
 
 for fpath in filepaths1:
     with open(fpath) as f:
-		annitem = json.load(f)
-    qrid = annitem['id']
-    id_gt1[qrid].update(annitem['annotations']) 
-    id_annlists1[qrid].append(annitem['annotations'])
-    for sannid in annitem['annotations']:
-        id_annimgpaths1[qrid].add(annitem['retrievalfiles'][sannid]['filename'])
-    id_retimgpaths1[qrid].append(sorted(annitem['retrievalfiles'].items(), key= lambda x: int(x[0])))
+        annitem = json.load(f)
+    qname = os.path.splitext(os.path.basename(annitem['query']))[0]
+    b = annitem['background']
 
+    posfilenames = [annitem['retrievalfiles'][str(int(index)-1)]['filename'] for index in annitem['annotations']]
+    negfilenames = [annitem['retrievalfiles'][str(int(index)-1)]['filename'] for index in annitem['negativs']]
+    
+    groundtruth_b[b]['positives'][qname].extend(posfilenames)
+    groundtruth_b[b]['negatives'][qname].extend(negfilenames)
+    groundtruth['positives'][qname].extend(posfilenames)
+    groundtruth['negatives'][qname].extend(negfilenames)
+
+
+
+    #id_gt1[qrid].update(annitem['annotations']) 
+    #
+    #id_annlists1[qrid].append(annitem['annotations'])
+    #for sannid in annitem['annotations']:
+    #    id_annimgpaths1[qrid].add(annitem['retrievalfiles'][sannid]['filename'])
+    #id_retimgpaths1[qrid].append(sorted(annitem['retrievalfiles'].items(), key= lambda x: int(x[0])))
+
+
+searchfolders = {'L1': '/home/althausc/master_thesis_impl/flask/results/testresults'}
+humanposefolders = ['JJo_reduced', 'Jc_rel', 'JcJLdLLa_reduced', 'JLd_all_direct', 'random'] 
+
+results_precision = {}
+for h in humanposefolders:
+    results_precision[h] = {}
+
+for metric, basefolder in searchfolders.items():
+    
+    for descriptortype in humanposefolders:
+        results = defaultdict(list)
+        descriptordir = os.path.join(basefolder, descriptortype)
+        onlyfiles = [os.path.join(descriptordir, f) for f in os.listdir(descriptordir) if os.path.isfile(os.path.join(descriptordir, f))]
+        print(onlyfiles, os.path.join(basefolder, descriptortype))
+        for fpath in onlyfiles:
+            with open(fpath) as f:
+                sranking = json.load(f)
+            qname = os.path.splitext(os.path.basename(sranking['query']))[0]
+            print(fpath)
+            retrievalfiles = sorted(list(sranking['retrievalfiles'].items()), key= lambda x: int(x[0]))
+            positives = [] # saves for each rank if image is positive (1) or not (0) 
+            for r, item in retrievalfiles:
+                rfilename = item['filename']
+                if rfilename in groundtruth['positives'][qname]:
+                    positives.append(1)
+                else:
+                    positives.append(0)
+            print(positives)
+            results[qname].append(positives)
+
+        print(list(results))
+        p5s = []
+        p10s = []
+        p20s = []
+        for qname, positives in results.items():
+            print(positives)
+            n5 = np.sum(positives[:5])
+            n10 = np.sum(positives[:10])
+            n20 = np.sum(positives[:20])
+
+            p5s.append(n5/5)
+            p10s.append(n10/10)
+            p20s.append(n20/20)
+        print(p5s)
+        print(p10s)
+        print(p20s)
+        print()
+        p5 = np.mean(p5s)
+        p10 = np.mean(p10s)
+        p20 = np.mean(p20s)
+        results_precision[descriptortype][metric] = {"P@5": p5, "P@10": p10, "P@20": p20}
+
+print(results_precision)
+    
+
+
+
+"""
 #Generate comparison annotation set
 filepaths2 = []
 descriptor = 'JcJLdLLa_reduced'
@@ -113,3 +192,4 @@ for k in ks:
 
 with open(os.path.join('/home/althausc/master_thesis_impl/results/userstudy', filename_total), 'w') as f:
     json.dump(mApstotal, f, indent=2)
+"""

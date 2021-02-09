@@ -127,6 +127,9 @@ if _EXEC_CMDS:
 
 print("Output Directory: %s\n"%out_dir)
 
+"""
+sbatch -w devbox4 -J graphprediction -o /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/logs/02-08_21-39-04.txt /home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-2.sh python3.6 -m torch.distributed.launch     --master_port 10056     --nproc_per_node=1 /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_test_net.py    --config-file "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml"     MODEL.ROI_RELATION_HEAD.USE_GT_BOX False        MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False        MODEL.ROI_RELATION_HEAD.PREDICTOR CausalAnalysisPredictor       MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE TDE  MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE sum  MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER motifs     TEST.IMS_PER_BATCH 1     DTYPE "float16"         GLOVE_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/glove      MODEL.PRETRAINED_DETECTOR_CKPT /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3   OUTPUT_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3        TEST.CUSTUM_EVAL True   TEST.CUSTUM_PATH /home/althausc/nfs/data/artimages/painterbynumbers10k       TEST.POSTPROCESSING.TOPKBOXES -1        TEST.POSTPROCESSING.TOPKRELS 75  TEST.POSTPROCESSING.TRESHBOXES 0.17     TEST.POSTPROCESSING.TRESHRELS 0.15       DETECTED_SGG_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs
+"""
 
 # ----------------- SCENE GRAPH PREDICTION ---------------------
 print("SCENE GRAPH PREDICTION:")

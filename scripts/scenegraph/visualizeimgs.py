@@ -9,6 +9,8 @@ import os
 import random
 
 import argparse
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 from validlabels import ind_to_classes, ind_to_predicates, VALID_BBOXLABELS
 

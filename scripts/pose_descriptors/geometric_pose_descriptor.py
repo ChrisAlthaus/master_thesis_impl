@@ -615,7 +615,7 @@ def filterKeypoints(pose_keypoints, mode):
     #Skip pose if too few keypoints or reference point is not contained (for keypoint coordinate descriptor)
     #Probability = confidence score for the keypoint (not visibility flag!)
     
-    if mode == 'JcJLdLLa_reduced':
+    if mode == 'JcJLdLLa_reduced': #TODO: plus Jc_rel?
         for ref in _REFs.keys():
             if pose_keypoints[ref*3+2] <= _KPTS_THRESHOLD:
                 return False  

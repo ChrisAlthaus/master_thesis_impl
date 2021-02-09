@@ -6,12 +6,13 @@ gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-2-
 jobname = 'sg-eval'
 masterport = random.randint(10020, 10100)
 _NUMGPUS = 1
-configfile ='/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_detector_X_101_32_8_FPN_1x.yaml'
+configfile ='/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml'
 glovedir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/glove'
-cpktdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/causal_motif_sgdet' #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3' 
+cpktdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-10_08-49-49-dev3' 
+    #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3'  #
     #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-10_08-49-49-dev3' 
     # #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/causal_motif_sgdet'
-effecttype = 'TE'#'TDE' #'NIE', 'TE', 'none'
+effecttype = 'none'#'TDE' #'NIE', 'TE', 'none'
 fusiontype = 'gate' #'sum'
 outputdir = os.path.join(cpktdir, '.eval')
 if not os.path.isdir(outputdir):
