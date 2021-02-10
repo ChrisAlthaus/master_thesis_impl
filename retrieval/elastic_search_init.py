@@ -111,7 +111,8 @@ if args.insert_data:
     _INDEX = 'art500k_jld_all_direct_addperc'
     _INDEX = 'patchesindexm10' 
     _INDEX = 'patchesindexm7'   
-    #_INDEX = 'patchesindexm5'
+    _INDEX = 'patchesindexm5'
+    _INDEX = 'patchesindexm5_jc_rel'
 
 
 
@@ -151,7 +152,6 @@ if args.method_search:
         #print("no args dbname")
         raise ValueError()
 
-_INDEX = 'patchesindexm5_jc_rel'
 print("Current index: ",_INDEX)
 
 if args.gpd_type == 'JLd_all_direct':
@@ -454,7 +454,7 @@ def query(es, descriptor, size, method, mgpd):
                                 warea =  1 - Math.abs(params.queryPercImage - params._source['percimage'])
                             }
                             
-                            return (cossim + 1) * params._source['score'] * warea;  
+                            return Math.max(0, (cossim + 1) * params._source['score'] * warea);  
                             //return cosineSimilarity(qeffective, doc['gpd']) + 1 //not working
                             """
                         ,

@@ -103,7 +103,7 @@ def draw_single_box(pic, box, color='red', draw_info=None, validsize=None):
             print("Box partially not on image: ", box)
     draw.rectangle(((x1, y1), (x2, y2)), outline=color)
     
-    font = ImageFont.truetype("/usr/share/fonts/liberation-fonts/LiberationSans-Bold.ttf", 15, encoding="unic")
+    font = ImageFont.truetype("/usr/share/fonts/liberation-fonts/LiberationSans-Bold.ttf", 18, encoding="unic")
     if draw_info:
         draw.rectangle(((x1, y1), (x1+font.getsize(draw_info)[0], y1+font.getsize(draw_info)[1])), fill=color)
         info = draw_info
@@ -121,7 +121,7 @@ def drawline(pic, box1, box2, color='blue', draw_info=None):
     #draw.line([(m1x,m1y), (m2x,m2y)], fill=color)
     draw.line([(x11,y11), (x21,y21)], fill=color)
     
-    font = ImageFont.truetype("/usr/share/fonts/liberation-fonts/LiberationSans-Bold.ttf", 15, encoding="unic")
+    font = ImageFont.truetype("/usr/share/fonts/liberation-fonts/LiberationSans-Bold.ttf", 18, encoding="unic")
     if draw_info:
         linemx = (x11+x21)/2
         linemy = (y11+y21)/2

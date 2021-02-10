@@ -216,7 +216,7 @@ def getImgs(rankingfile, drawkpts=True):
     imagedir = json_data['imagedir']
     del json_data['imagedir']
    
-    drawkptsdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/eval/12-01_10-30-06_subimages/.evalimages' #'/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages'
+    drawkptsdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages'# '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/eval/12-01_10-30-06_subimages/.evalimages'
 
     rankedlist = sorted(json_data.items(), key= lambda x: int(x[0])) 
     imgs = []
