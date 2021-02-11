@@ -23,7 +23,8 @@ def main():
     for b in backgrounds:
         groundtruth_b.update({b: {'positives': defaultdict(list), 'negatives': defaultdict(list), 'dontknow': defaultdict(list)}})
 
-    print("Annotation files used for groundtruth set:", filepaths1)
+    print("Human Pose annotations:", filepaths1)
+    print("Number of annotations", len(filepaths1))
     print()
 
     for fpath in filepaths1:
@@ -69,6 +70,7 @@ def main():
     for metric, basefolder in searchfolders.items():
 
         for descriptortype in humanposefolders: #evaluate each descriptor type independent
+            print('Calculation: {} {}'.format(metric, descriptortype))
             results = defaultdict(list) #query image -> array of 0/1 (1 indicate a positive)
             results_graded = defaultdict(list) #query image -> array of 0/1/2 (0:negatives, 1:don't know, 2: positives)
             metadatadir = os.path.join(basefolder, descriptortype, 'metadata')
@@ -83,7 +85,7 @@ def main():
                 #print(fpath)
                 retrievalfiles = sorted(list(sranking['retrievaltopk'].items()), key= lambda x: int(x[0]))
                 positives = [] # saves for each rank if image is positive (1) or not (0) 
-                graded = [] # saves for each rank 0,1,2
+                graded = [] # saves for each rank 0,1,2, (0 for negatives and not seen images, 1= dontknow, 2= positives)
                 for r, item in retrievalfiles:
                     rfilename = item['filename']
                     if rfilename in groundtruth['positives'][qname]:
@@ -93,9 +95,10 @@ def main():
                         positives.append(0)
                         if rfilename in groundtruth['negatives'][qname]:
                             graded.append(0)
-                        else:
+                        elif rfilename in groundtruth['dontknow'][qname]:
                             graded.append(1)
-                print(len(graded))
+                        else:
+                            graded.append(0)
                
                 results[qname].append(positives)
                 results_graded[qname].append(graded)
@@ -125,7 +128,9 @@ def main():
         onlyfiles = [os.path.join(descriptordir, f) for f in os.listdir(descriptordir) if os.path.isfile(os.path.join(descriptordir, f))]
         filepaths2.extend(onlyfiles)
 
-    print(filepaths2)
+    print("Scene graph annotations", filepaths2)
+    print("Number of annotations", len(filepaths2))
+    print()
 
     backgrounds_sg = ['art_history', 'computer_science', 'others']
     groundtruth_sg = {'positives': defaultdict(list), 'negatives': defaultdict(list), 'dontknow': defaultdict(list)}
@@ -173,10 +178,12 @@ def main():
     results_precision_sg = {}
 
     for task, folder in searchfolders_sg.items():
+        print('Calculation: {}'.format(task))
         results = defaultdict(list) #query image -> array of 0/1 (1 indicate a positive)
         results_graded = defaultdict(list) #query image -> array of 0/1/2 (0:negatives, 1:don't know, 2: positives)
         metadatadir = os.path.join(folder, 'metadata')
         onlyfiles = [os.path.join(metadatadir, f) for f in os.listdir(metadatadir) if os.path.isfile(os.path.join(metadatadir, f))]
+        print(onlyfiles)
         print("Calculating metrics for {} files in directory {}.".format(len(onlyfiles), metadatadir))
         for fpath in onlyfiles:
             with open(fpath) as f:
@@ -184,29 +191,30 @@ def main():
             qname = os.path.splitext(os.path.basename(sranking['querypath']))[0]
             
             retrievalfiles = sorted(list(sranking['retrievaltopk'].items()), key= lambda x: int(x[0]))
-            positives = [] # saves for each rank if image is positive (1) or not (0) 
+            positives = [] # saves for each rank if image is positive (1) or not (0)
+            graded = [] # saves for each rank 0,1,2, (0 for negatives and not seen images, 1= dontknow, 2= positives) 
             for r, item in retrievalfiles:
-                    rfilename = item['filename']
-                    if rfilename in groundtruth_sg['positives'][qname]:
-                        positives.append(1)
-                        graded.append(2)
+                rfilename = item['filename']
+                if rfilename in groundtruth_sg['positives'][qname]:
+                    positives.append(1)
+                    graded.append(2)
+                else:
+                    positives.append(0)
+                    if rfilename in groundtruth_sg['negatives'][qname]:
+                        graded.append(0)
+                    elif rfilename in groundtruth_sg['dontknow'][qname]:
+                        graded.append(1)
                     else:
-                        positives.append(0)
-                        if rfilename in groundtruth_sg['negatives'][qname]:
-                            graded.append(0)
-                        else:
-                            graded.append(1)
+                        graded.append(0)
             results[qname].append(positives)
             results_graded[qname].append(graded)
 
         results_precision_sg[task] = getresults_queryimages(results, results_graded, groundtruth_sg, task)
 
-
     print("Results:")
     for task,metricresults in results_precision_sg.items():
         print(task)
-        for metric, results in metricresults.items():
-            print(metric, results)
+        print(metricresults)
 
     filename = 'scenegraph-results.json'
     with open(os.path.join('/home/althausc/master_thesis_impl/results/userstudy', filename), 'w') as f:
@@ -232,6 +240,10 @@ def getresults_queryimages(qnames_results, qnames_gresults, groundtruth, task):
             p20s.append(n20/20)
             p50s.append(n50/50)
 
+            print("----------")
+            print("Positives: ", positives)
+            print("----------")
+
             if len(groundtruth['positives'][qname])>0:
                 pks = []
                 for r,p in enumerate(positives, start=1):
@@ -243,11 +255,11 @@ def getresults_queryimages(qnames_results, qnames_gresults, groundtruth, task):
                 aps.append(ap)
 
     print("Stats for descriptor/task ", task)
-    print(p5s)
-    print(p10s)
-    print(p20s)
-    print(p50s)
-    print(aps)
+    print("P@5s", p5s)
+    print("P@10s", p10s)
+    print("P@20s", p20s)
+    print("P@50s", p50s)
+    print("Aps", aps)
     print("------------------------")
     # 0.1 = 0.1%
     p5 = "%.2f"%np.mean(p5s)
@@ -281,12 +293,13 @@ def getresults_queryimages(qnames_results, qnames_gresults, groundtruth, task):
             idcg20 = np.sum([rel/math.log2(r+1) for r,rel in enumerate(idealordering[:20], start=1)])
             idcg50 = np.sum([rel/math.log2(r+1) for r,rel in enumerate(idealordering[:50], start=1)])
             
-            if task == 'random':
-                print("----------------")
-                print(grades[:50])
-                print(idealordering[:50])
-                print(dcg50 , idcg50, dcg50/idcg50)
-                print("----------------")
+            #if task == 'JLd_all_direct':
+
+            print("----------------")
+            print("Grades[:50]:", grades[:50])
+            print("Ideal[:50]:", idealordering[:50])
+            print(dcg50 , idcg50, dcg50/idcg50)
+            print("----------------")
 
             ndcg5s.append(dcg5/idcg5)
             ndcg10s.append(dcg10/idcg10)
@@ -294,10 +307,10 @@ def getresults_queryimages(qnames_results, qnames_gresults, groundtruth, task):
             ndcg50s.append(dcg50/idcg50)
 
     print("Stats for descriptor/task ", task)
-    print(ndcg5s)
-    print(ndcg10s)
-    print(ndcg20s)
-    print(ndcg50s)
+    print("nDCG5s:", ndcg5s)
+    print("nDCG10s:", ndcg10s)
+    print("nDCG20s:", ndcg20s)
+    print("nDCG50s:", ndcg50s)
     print("------------------------")
     # 0.1 = 0.1%
     ndcg5 = "%.2f"%np.mean(ndcg5s)

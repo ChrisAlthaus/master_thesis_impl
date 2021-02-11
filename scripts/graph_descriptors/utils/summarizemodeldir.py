@@ -50,7 +50,9 @@ for runfolder in cpktfolders:
     
         cfgdata.append(cfgcurrent)
 
-cfgdata.sort(key=lambda x: (int(x[headers.index("Number of graphs")]), int(x[headers.index("Vector dimensions")])))
+#cfgdata.sort(key=lambda x: (int(x[headers.index("Number of graphs")]), int(x[headers.index("Vector dimensions")])))
+cfgdata.sort(key=lambda x: (x[headers.index("Folder")], int(x[headers.index("Vector dimensions")])))
+
 with open(os.path.join('/home/althausc/master_thesis_impl/graph2vec/models', 'models-summary.csv'),'w') as csvfile:    
      writer = csv.writer(csvfile, delimiter=',')
      writer.writerow(headers)  

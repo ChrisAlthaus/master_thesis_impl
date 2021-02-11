@@ -61,7 +61,7 @@ def get_paths_of_paintings():
     print("Pre-Processing of filepaths from .csv done.")
     
     print("\nNumber of artworks in .csv:", c)
-    print("Total Number of painting paths found:", len(artwork_paths))
+    print("Total Number of painting paths found:", len(artwork_paths))  #Output: 238223
     print("Number of paintings paths not found:", n_notfound)
     print("Number of paintings paths found in other base directories:", n_refound)
     

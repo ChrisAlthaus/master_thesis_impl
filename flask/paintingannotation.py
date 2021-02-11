@@ -104,7 +104,7 @@ def login():
 	else:
 		#if "user" in session:
 		#	return redirect(url_for("annotate"))
-		session['rhtmls'] = getrandomfiles()
+		session['rhtmls'] = ['/home/althausc/master_thesis_impl/flask/retrieval/data/scenegraphs/2.html'] #getrandomfiles()
 
 		return render_template("login.html")
 
