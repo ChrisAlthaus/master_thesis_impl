@@ -23,6 +23,8 @@ import branchgraphs.predict_search_modules as graphm
 
 from multiprocessing import Process, Queue
 
+_DEBUG = True #False
+
 """parser = argparse.ArgumentParser()
 parser.add_argument('-inputImg',required=True,
                     help='Image for which to infer best k matching images.')
@@ -97,10 +99,12 @@ def transform_into_gpd_and_g2vfeature(kpt_annpath, g_annpath, methodgpd='JcJLdLL
 def search(gpdfile, graphfile, gpdmsearch='L2', gpdrankingtype='max', gpdtype='JcJLdLLa_reduced', percperson=True, imgpath=None):
     rw = False #True #not used
     rm = 'jaccard' #'euclid' #not used
+    kptthresh = 0.95
+    sgstepsinfer = 3000
 
     q = Queue()
-    processes = [ Process(target = kptm.search, args=(gpdfile, gpdmsearch, gpdrankingtype, gpdtype, percperson, imgpath, q)),
-                  Process(target = graphm.search, args=(graphfile, rw, rm, q))]
+    processes = [ Process(target = kptm.search, args=(gpdfile, gpdmsearch, gpdtype, gpdrankingtype, percperson, imgpath, kptthresh, q)),
+                  Process(target = graphm.search, args=(graphfile, rw, rm, sgstepsinfer,  q))]
     for p in processes:
         p.start()
 
@@ -119,7 +123,7 @@ def search(gpdfile, graphfile, gpdmsearch='L2', gpdrankingtype='max', gpdtype='J
     return rets_dict['gpdrankingfile'], rets_dict['graphrankingfile']
 
 
-def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, rankingmode='everynthweighted', weight_branches = 0.5):
+def merge_retrievalresults(topkkpt_file, topngraph_file, topk=20, rankingmode='highestscore', weight_branches = 0.5, norm='zscore'):
     # Format of input files: 
     # {
     #"imagedir": "/home/althausc/nfs/data/coco_17_medium/train2017_styletransfer",
@@ -148,8 +152,39 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, rankingmode='e
     #assert kpt_imagedir == graph_imagedir, 'Keypoint imagedir {} not equal to scene graph imagedir {}.'\
     #                                        .format(kpt_imagedir, graph_imagedir)
 
-    kpt_data = sorted(list(kpt_data.items()), key=lambda x: x[0])
-    graph_data = sorted(list(graph_data.items()), key=lambda x: x[0])
+    kptscores = [item["relscore"] for item in kpt_data.values()]
+    graphscores = [item["relscore"] for item in graph_data.values()]
+    if _DEBUG:
+        print("Before normalization (kpts): ", kptscores)
+        print("Before normalization (graphs): ", graphscores)
+
+    #Normalize scores
+    for k,v in kpt_data.items():
+        if norm == 'zscore':
+            kpt_data[k]["relscore"] = (kpt_data[k]["relscore"] - np.mean(kptscores))/np.std(kptscores)
+        elif norm == 'linear':
+            kpt_data[k]["relscore"] = (kpt_data[k]["relscore"] - np.min(kptscores))/(np.max(kptscores) - np.min(kptscores))   
+        elif norm == 'sum':
+            kpt_data[k]["relscore"] = (kpt_data[k]["relscore"] - np.min(kptscores))/(np.sum(kptscores) - np.min(kptscores))  
+        else:
+            raise ValueError()  
+
+    for k,v in graph_data.items():
+        if norm == 'zscore':
+            graph_data[k]["relscore"] = (graph_data[k]["relscore"] - np.mean(graphscores))/np.std(graphscores)
+        elif norm == 'linear':
+            graph_data[k]["relscore"] = (graph_data[k]["relscore"] - np.min(graph_data))/(np.max(graph_data) - np.min(graph_data))  
+        elif norm == 'sum': 
+            graph_data[k]["relscore"] = (graph_data[k]["relscore"] - np.min(graph_data))/(np.sum(graph_data) - np.min(graph_data))  
+        else:
+            raise ValueError() 
+
+    if _DEBUG:
+        print("After normalization (kpts): ", [item["relscore"] for item in kpt_data.values()])
+        print("After normalization: (graphs)", [item["relscore"] for item in graph_data.values()])
+
+    kpt_data = sorted(list(kpt_data.items()), key=lambda x: x[1]["relscore"], reverse=True)
+    graph_data = sorted(list(graph_data.items()), key=lambda x: x[1]["relscore"], reverse=True)
 
     mergedtopk = {'imagedir': [kpt_imagedir, graph_imagedir]}
     c_graphs = 0
@@ -161,7 +196,7 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, rankingmode='e
         for pos2,item2 in graph_data:
             if os.path.basename(item1['filename']) == os.path.basename(item2['filename']):
                 mergedtopk[str(kpos)] = {'filename': item1['filename'], 'krelscore': item1['relscore'], 'grelscore': item2['relscore'],
-                                         'relscore': (item1['relscore'] + item2['relscore'])/2, 'posmerged': '{}{}'.format(pos1,pos2)}
+                                         'relscore': (item1['relscore'] + item2['relscore']), 'posmerged': '{}{}'.format(pos1,pos2)}
                 del graph_data[graph_data.index((pos2,item2))]
                 del kpt_data[kpt_data.index((pos1,item1))]
                 kpos = kpos + 1
@@ -211,7 +246,7 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, rankingmode='e
         merged = kpt_data + graph_data
         merged.sort(key=lambda x: x[1]['relscore'], reverse=True)
 
-        for _, item in merged:
+        for _, item in merged[:(topk-kpos)]:
              mergedtopk[str(kpos)] = item
              kpos = kpos + 1
 
@@ -237,13 +272,17 @@ def getImgs(topkresults, drawgraphs=None, drawkpts=None):
 
     topkdata = sorted(json_data.items(), key= lambda x: int(x[0])) 
 
-    drawkptsdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages'
-    drawgraphdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.visimages'
+    drawkptsdir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages' #not valid
+    drawgraphdir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/12-10_17-57-13/.visimages' #not valid
 
     def getimg(imgpath):
-        print("getting image: ",imgpath)
         try:
-            img = Image.open(imgpath)
+            basewidth = 256
+            print("resize")
+            img = Image.open(imgpath).convert('RGB')
+            wpercent = (basewidth/float(img.size[0])) #resize 
+            hsize = int((float(img.size[1])*float(wpercent)))
+            img = img.resize((basewidth,hsize), Image.ANTIALIAS)  
         except Exception as e: #Guard against too large images
             print(e)
             img = Image.new('RGB', (600, 400), (0,0,0))
@@ -252,26 +291,31 @@ def getImgs(topkresults, drawgraphs=None, drawkpts=None):
     imgs = []
     scores = []
     for item in topkdata:
-        print(item)
         if item[1]['type'] == 'kpts':
         #os.path.isfile(os.path.join(imagedir[0], item[1]['filename'])):
             if drawkpts:
-                basename, suffix = os.path.splitext(item[1]['filename'])
+                filename = os.path.basename(item[1]['filename']) #no directories 
+                basename, suffix = os.path.splitext(filename)
                 kfilename = '{}_overlay{}'.format(basename, suffix) 
                 imgs.append(getimg(os.path.join(drawkptsdir, kfilename)))
-                print("add: ",os.path.join(drawkptsdir, kfilename))
+                if _DEBUG:
+                    print("add: ",os.path.join(drawkptsdir, kfilename))
             else:
                 imgs.append(getimg(os.path.join(imagedir[0], item[1]['filename'])))
-                print("add: ",os.path.join(imagedir[0], item[1]['filename']))
+                if _DEBUG:
+                    print("add: ",os.path.join(imagedir[0], item[1]['filename']))
         elif item[1]['type'] == 'graph':
             if drawgraphs:
-                basename, suffix = os.path.splitext(item[1]['filename'])
+                filename = os.path.basename(item[1]['filename']) #no directories 
+                basename, suffix = os.path.splitext(filename)
                 gfilename = '{}_1scenegraph{}'.format(basename, suffix)
                 imgs.append(getimg(os.path.join(drawgraphdir, gfilename)))
-                print("add: ",os.path.join(drawgraphdir, gfilename))
+                if _DEBUG:
+                    print("add: ",os.path.join(drawgraphdir, gfilename))
             else:
-                im = getimg(os.path.join(imagedir[0], item[1]['filename']))
-                print("add: ",os.path.join(imagedir[0], item[1]['filename']))
+                imgs.append(getimg(os.path.join(imagedir[1], item[1]['filename'])))
+                if _DEBUG:
+                    print("add: ",os.path.join(imagedir[1], item[1]['filename']))
         else:
             raise ValueError()
         scores.append(item[1]['relscore'])

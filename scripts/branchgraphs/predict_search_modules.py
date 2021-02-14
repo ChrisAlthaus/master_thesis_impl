@@ -164,7 +164,7 @@ def transform_into_g2vformat(anndir, relasnodes=True, queue=None):
 def search(graphfile, reweight=False, r_mode='jaccard', steps=3000, queue=None):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
-    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-16_11-47-55/g2vmodelc65839d128e40'
+    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-16_11-47-55*/g2vmodelc65839d128e40'
                 #'/home/althausc/master_thesis_impl/graph2vec/models/12-14_17-51-56/g2vmodelc65839d128e40'
                 #'/home/althausc/master_thesis_impl/graph2vec/models/12-12_10-34-58-kaggle-from-here-on/g2vmodelc65839d128e40'
                 #'/home/althausc/master_thesis_impl/graph2vec/models/12-11_11-11-43/g2vmodelc9211d128e100'

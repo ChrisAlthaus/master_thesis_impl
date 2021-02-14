@@ -210,7 +210,7 @@ if _PRINT_CMDS:
 if _EXEC_CMDS:
     os.system(cmd)
 
-print("VISUALIZE SCENEGRAPH DONE.")
+print("VISUALIZE SCENEGRAPH DONE.\n")
 
 
 # ----------------- TRANSFORM PREDICTIONS INTO GRAPH2VEC FORMAT ---------------

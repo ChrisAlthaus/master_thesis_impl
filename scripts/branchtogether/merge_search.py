@@ -39,7 +39,7 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, weight_branche
 
     intersection = []
     #First get all intersections
-    for pos1,item1 in list(kpt_data.items())
+    for pos1,item1 in list(kpt_data.items()):
         for pos2,item2 in list(graph_data.items()):
             if os.path.basename(item1['filename']) == os.path.basename(item2['filename']):
                 intersection.append(item1['filename'])
@@ -56,7 +56,7 @@ def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, weight_branche
     assert weight_branches>= 0 and weight_branches<=1
 
     additional = []
-    for pos,item1 in list(kpt_data.items())
+    for pos,item1 in list(kpt_data.items()):
         if item1['filename'] in intersection:
             continue
         else:
@@ -91,7 +91,7 @@ def getImgs(imagedir, topkresults):
     imgs = []
     scores = []
     for item in topkdata:
-        imgs.append(Image.open(os.path.join(imagedir,item[0)))
+        imgs.append(Image.open(os.path.join(imagedir,item[0])))
         scores.append(item[1])
     
     return imgs, scores
@@ -120,8 +120,39 @@ def drawborder(imgpath):
     img_pil = Image.fromarray(img)
 
     return img_pil
-            
+
+def testnormalizations():
+
+    a = [0.1, 0.85, 0.85, 0.85, 0.85, 0.85, 0.9, 0.9, 0.9, 0.95]
+    ax = [0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.9, 0.9, 0.9, 0.95]
+    b = [0.1, 0.1, 0.1, 0.1,0.1, 0.1, 0.1, 0.1, 0.1, 0.95]
+    c = [0.5, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.61]
+    d = [0.5, 0.6, 0.7, 0.7, 0.75, 0.8, 0.8, 0.8, 0.8, 0.81]
+    e = [0.59, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.61]
+
+    for array in [a, ax, b, c, d, e]:
+        result1 = []
+        result2 = []
+        result3 = []
+        for i in array:
+            score_minmax =  (i - np.min(array))/(np.max(array) - np.min(array))  
+            result1.append(score_minmax) 
+
+            score_sumnorm =  (i - np.min(array))/(np.sum(np.array(array) - np.min(array)))
+            result2.append(score_sumnorm) 
+
+            zscore = (i- np.mean(array))/np.std(array)
+            result3.append(zscore)
+
+        print(array)
+        print(result1)
+        print(result2)
+        print(result3)
+        print("------------------------")
 
 
+
+if __name__ == "__main__":
+    testnormalizations()
 
     
