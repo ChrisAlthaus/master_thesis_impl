@@ -34,7 +34,7 @@ sys.path.insert(0, '/home/althausc/master_thesis_impl/scripts/utils')
 from statsfunctions import getwhiskersvalues
 from utils import utilsart500k
 
-
+#Prediction and visualization of keypoints
 parser = argparse.ArgumentParser()
 parser.add_argument('-model_cp','-mc',required=True, 
                     help='Path to the model checkpoint file.')
@@ -85,11 +85,6 @@ if args.score_tresh > 1 or args.score_tresh < 0:
 
 def main():
     # -------------------------------- GET IMAGE PATH(S) --------------------------------
-    specialchars = 'ÆÐƎƏƐƔĲŊŒẞÞǷȜæðǝəɛɣĳŋœĸſßþƿȝĄƁÇĐƊĘĦĮƘŁØƠŞȘŢȚŦŲƯY̨Ƴąɓçđɗęħįƙłøơşșţțŧųưy̨ƴÁÀÂÄǍĂĀÃÅǺĄÆǼǢƁĆĊĈČÇĎḌĐƊÐÉÈĖÊËĚĔĒĘẸƎƏƐĠĜǦĞĢƔáàâäǎăāãåǻąæǽǣ'+\
-                    'ɓćċĉčçďḍđɗðéèėêëěĕēęẹǝəɛġĝǧğģɣĤḤĦIÍÌİÎÏǏĬĪĨĮỊĲĴĶƘĹĻŁĽĿʼNŃN̈ŇÑŅŊÓÒÔÖǑŎŌÕŐỌØǾƠŒĥḥħıíìiîïǐĭīĩįịĳĵķƙĸĺļłľŀŉńn̈ňñņŋóòôöǒŏōõőọøǿơœŔŘŖŚŜŠŞȘ'+\
-                    'ṢẞŤŢṬŦÞÚÙÛÜǓŬŪŨŰŮŲỤƯẂẀŴẄǷÝỲŶŸȲỸƳŹŻŽẒŕřŗſśŝšşșṣßťţṭŧþúùûüǔŭūũűůųụưẃẁŵẅƿýỳŷÿȳỹƴźżžẓ'
-    specialchars = [c for c in specialchars]
-
     image_paths = []
 
     if args.mode == 'loadpaths' or args.target == 'query':
@@ -97,11 +92,7 @@ def main():
             for path, subdirs, files in os.walk(args.image_folder): #os.walk(u'%s'%args.image_folder):
                 for name in files:
                     imgpath = os.path.join(path, name)   
-                    for c in specialchars:
-                        if c in imgpath:
-                            image_paths.append(imgpath) 
-                            break
-                        
+                    image_paths.append(imgpath)                         
         elif args.image_path is not None:
             image_paths = [args.image_path]
     elif args.mode == 'custompaths':

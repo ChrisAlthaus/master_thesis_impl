@@ -25,6 +25,7 @@ try:
 except ImportError:
     raise ImportError('Use APEX for mixed precision via apex.amp')
 
+#sbatch -w devbox4 -J graphprediction -o /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs/logs/02-11_18-00-04.txt /home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun1-2.sh python3.6 -m torch.distributed.launch     --master_port 10056     --nproc_per_node=1 /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/tools/relation_test_net.py    --config-file "/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/configs/e2e_relation_X_101_32_8_FPN_1x.yaml"     MODEL.ROI_RELATION_HEAD.USE_GT_BOX False        MODEL.ROI_RELATION_HEAD.USE_GT_OBJECT_LABEL False        MODEL.ROI_RELATION_HEAD.PREDICTOR CausalAnalysisPredictor       MODEL.ROI_RELATION_HEAD.CAUSAL.EFFECT_TYPE TE  MODEL.ROI_RELATION_HEAD.CAUSAL.FUSION_TYPE sum  MODEL.ROI_RELATION_HEAD.CAUSAL.CONTEXT_LAYER motifs     TEST.IMS_PER_BATCH 1     DTYPE "float16"         GLOVE_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/glove      MODEL.PRETRAINED_DETECTOR_CKPT /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3   OUTPUT_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3        TEST.CUSTUM_EVAL True   TEST.CUSTUM_PATH /nfs/data/iart/art500k/img       TEST.POSTPROCESSING.TOPKBOXES -1        TEST.POSTPROCESSING.TOPKRELS 50  TEST.POSTPROCESSING.TRESHBOXES 0.1    TEST.POSTPROCESSING.TRESHRELS 0.1       DETECTED_SGG_DIR /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/graphs
 
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Inference")
@@ -66,6 +67,7 @@ def main():
         synchronize()
 
     cfg.merge_from_file(args.config_file)
+    cfg.MODEL.DEVICE = 'cpu' #'cuda' #'cpu'
 
     #modified: config for postprocessing & prevent from loading dataset (costly)   
     #cfg.TEST.POSTPROCESSING.TOPKBOXES = 100

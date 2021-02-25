@@ -11,6 +11,8 @@ import sys
 sys.path.append('/home/althausc/.local/lib/python3.6/site-packages/detectron2/evaluation')
 #from fast_eval_api import COCOeval_opt
 
+#Evaluate human pose predictions w.r. to bbox and keypoint APs
+#(input = either prediction file or model with image directory)
 parser = argparse.ArgumentParser()
 parser.add_argument('-predictions', '-preds',  help='Path to a prediction json file in coco format.')
 parser.add_argument('-gt_annotations', '-gt_ann', required=True, help='Path to gt annotation json file in coco format.')

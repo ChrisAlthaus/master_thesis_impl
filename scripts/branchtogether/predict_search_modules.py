@@ -23,7 +23,7 @@ import branchgraphs.predict_search_modules as graphm
 
 from multiprocessing import Process, Queue
 
-_DEBUG = True #False
+_DEBUG = False #False
 
 """parser = argparse.ArgumentParser()
 parser.add_argument('-inputImg',required=True,
@@ -278,7 +278,6 @@ def getImgs(topkresults, drawgraphs=None, drawkpts=None):
     def getimg(imgpath):
         try:
             basewidth = 256
-            print("resize")
             img = Image.open(imgpath).convert('RGB')
             wpercent = (basewidth/float(img.size[0])) #resize 
             hsize = int((float(img.size[1])*float(wpercent)))

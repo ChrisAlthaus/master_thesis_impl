@@ -155,7 +155,6 @@ class FPN(Backbone):
     #modified
     def freeze(self):
         for m in self.lateral_convs:
-            print(type(m))
             for p in m.parameters():
                 p.requires_grad = False
         for m in self.output_convs:

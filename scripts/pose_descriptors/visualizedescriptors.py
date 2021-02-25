@@ -292,8 +292,6 @@ def visualizeJJo(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
         for i in range(len(keypoints)):
             kpts = keypoints[i]
             gpd = gpds[i]['gpd']
-            #print("kpts: ",kpts)
-            #print("gpd: ",gpd)
 
             k = 0
             for j1,j2 in kpt_kpt_mapping:
@@ -302,8 +300,7 @@ def visualizeJJo(predgpds, imagedir, outputdir, vistresh=0.0, transformid=False)
                 kptsjj_os.append((kptstart, orientation))
                 kptdists.append(math.hypot(kpts[j2][0]- kpts[j1][0],  kpts[j2][1]- kpts[j1][1]))
                 k += 2
-        #print("kptsjj_os: ",kptsjj_os)
-        #print("kptdists: ",kptdists)
+                
         print(img_path)
         v = Visualizer(cv2.imread(img_path)[:, :, ::-1],MetadataCatalog.get("my_dataset_val"), scale=1.2)
         drawkeypoints(preds, img_path, v)

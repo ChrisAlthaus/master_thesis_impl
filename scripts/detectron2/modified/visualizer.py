@@ -31,6 +31,7 @@ _LARGE_MASK_AREA_THRESH = 120000
 _OFF_WHITE = (1.0, 1.0, 240.0 / 255)
 _BLACK = (0, 0, 0)
 _RED = (1.0, 0, 0)
+_GREEN = (0, 175.0/255, 0)
 
 _KEYPOINT_THRESHOLD = 0.05
 
@@ -288,13 +289,11 @@ class VisImage:
         # canvas.print_rgba(buf)
         # width, height = self.width, self.height
         # s = buf.getvalue()
-
         buffer = np.frombuffer(s, dtype="uint8")
 
         # imshow is slow. blend manually (still quite slow)
         img_rgba = buffer.reshape(height, width, 4)
         rgb, alpha = np.split(img_rgba, [3], axis=2)
-
         try:
             import numexpr as ne  # fuse them with numexpr
 
@@ -302,7 +301,6 @@ class VisImage:
         except ImportError:
             alpha = alpha.astype("float32") / 255.0
             visualized_image = img * (1 - alpha) + rgb * alpha
-
         visualized_image = visualized_image.astype("uint8")
 
         return visualized_image
@@ -648,6 +646,8 @@ class Visualizer:
             assigned_colors = [assigned_colors[idx] for idx in sorted_idxs]
             keypoints = keypoints[sorted_idxs] if keypoints is not None else None
 
+        instance_areas = []
+
         for i in range(num_instances):
             color = assigned_colors[i]
             if boxes is not None:
@@ -678,6 +678,9 @@ class Visualizer:
                     continue  # drawing the box confidence for keypoints isn't very useful.
                 # for small objects, draw text at the side to avoid occlusion
                 instance_area = (y1 - y0) * (x1 - x0)
+                #modified
+                instance_areas.append(instance_area)
+                #modified end
                 if (
                     instance_area < _SMALL_OBJECT_AREA_THRESH * self.output.scale
                     or y1 - y0 < 40 * self.output.scale
@@ -704,9 +707,10 @@ class Visualizer:
 
         # draw keypoints
         if keypoints is not None:
+            #modified
             for keypoints_per_instance in keypoints:
                 self.draw_and_connect_keypoints(keypoints_per_instance)
-
+            #modified end
         return self.output
 
     def overlay_rotated_instances(self, boxes=None, labels=None, assigned_colors=None):
@@ -767,13 +771,13 @@ class Visualizer:
             x, y, prob = keypoint
             if prob > _KEYPOINT_THRESHOLD:
                 #modified: draw keypoint joint dependent on visualization probability (used for validation)
-                self.draw_circle((x, y), color=_RED) #,radius=8)
+                self.draw_circle((x, y), color=_RED, radius=3.5)
                 #self.draw_circle((x, y), color=_RED, radius=np.log(prob+1)*20)
                 #modified end
                 if keypoint_names:
                     keypoint_name = keypoint_names[idx]
                     visible[keypoint_name] = (x, y)
-
+     
         if self.metadata.get("keypoint_connection_rules"):
             for kp0, kp1, color in self.metadata.keypoint_connection_rules:
                 if kp0 in visible and kp1 in visible:
@@ -782,7 +786,7 @@ class Visualizer:
                     color = tuple(x / 255.0 for x in color)
                     #print("Draw Line: ",[x0, x1], [y0, y1])
                     self.draw_line([x0, x1], [y0, y1], color=color)
-
+        
         # draw lines from nose to mid-shoulder and mid-shoulder to mid-hip
         # Note that this strategy is specific to person keypoints.
         # For other keypoints, it should just do nothing
@@ -863,7 +867,7 @@ class Visualizer:
             if orientation[0] == -1 and orientation[1] == -1:
                 continue
             #print("draw line: ",kpt[0], kpt[1], dx, dy)
-            self.output.ax.arrow(kpt[0], kpt[1], dx, dy, color='r', head_width=6*2, head_length=6*2, zorder=10, linewidth=lw)
+            self.output.ax.arrow(kpt[0], kpt[1], dx, dy, color='g', head_width=6*2, head_length=6*2, zorder=10, linewidth=lw)
             #self.draw_line([kpt[0], endx], [kpt[1], endy], color='g', linestyle='-', linewidth=1)
         return self.output
     #modified end
@@ -1023,6 +1027,14 @@ class Visualizer:
             output (VisImage): image object with box drawn.
         """
         x, y = circle_coord
+        #addradius = int(self.output.height / 100) if self.output.height>800 else 0
+        #addradius = min(15,addradius)
+        #radius = radius + addradius
+
+        #linewidth = self._default_font_size / 3
+        #linewidth = linewidth * min(self.output.height / 512, 2) 
+        #linewidth = max(linewidth, 1)
+        #radius = linewidth * 1.1
         self.output.ax.add_patch(
             mpl.patches.Circle(circle_coord, radius=radius, fill=True, color=color)
         )
@@ -1047,6 +1059,7 @@ class Visualizer:
         """
         if linewidth is None:
             linewidth = self._default_font_size / 3
+            #linewidth = linewidth * min(self.output.height / 512, 2) 
         linewidth = max(linewidth, 1)
         if alpha is None:
             self.output.ax.add_line(

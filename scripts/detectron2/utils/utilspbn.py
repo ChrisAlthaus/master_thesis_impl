@@ -2,6 +2,8 @@ import json
 import os
 import random
 
+#Utility functions for the PaintersByNumbers dataset
+
 def randomrankings(numberrankings, k, savedir):
     datasetfolder = '/nfs/data/iart/kaggle/img/'
     artworkpaths = [f for f in os.listdir(datasetfolder) if os.path.isfile(os.path.join(datasetfolder, f))]

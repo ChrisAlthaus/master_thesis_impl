@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 
+#deprecated: not used
 
 fig = plt.figure(figsize=(4.0, 4.0))
 #fig.suptitle(title, y=0.9, fontsize=5)

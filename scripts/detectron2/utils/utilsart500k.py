@@ -7,6 +7,9 @@ import ast
 import random
 import pathlib
 
+#Utility functions for the Art500k dataset
+#(Loading of paths, get random paths, ...)
+
 def get_paths_of_paintings():
     #Get all painting related filepaths from the artwork500k csv file.
     #That is necessary because there are a lot of photographs and other non-relevant images in the dataset like fragments or vases.

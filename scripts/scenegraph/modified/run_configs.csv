@@ -1,8 +1,0 @@
-Folder	Predictor	Fusion	ContextLayer	FasterRCNN	Batchsize	MaxIter	ValPeriod	CpktPeriod	MinSize
-/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/10-19_11-58-58	CausalAnalysisPredictor	sum	motifs	/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_trained	12	50000	2000	2000	(600,)
-/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints	CausalAnalysisPredictor	sum	motifs	/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_trained	12	0.01	50000	2000	2000	(600,)
-/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints	CausalAnalysisPredictor	sum	motifs	master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn	12	0.01	50000	2000	2000	(600,)
-/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints	CausalAnalysisPredictor	sum	motifs	master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn	12	0.01	50000	2000	2000	(600,)
-/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints	CausalAnalysisPredictor	sum	motifs	master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn	12	0.01	1000	200	300	(600,)
-/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints	CausalAnalysisPredictor	sum	motifs	master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn	12	0.01	2000	300	400	(600,)
-/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints	CausalAnalysisPredictor	sum	motifs	master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/pretrained_faster_rcnn	12	0.01	2000	300	400	(600,)

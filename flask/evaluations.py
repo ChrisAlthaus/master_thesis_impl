@@ -15,7 +15,7 @@ def main():
     print("HUMAN POSES")
     #Generate groundtruth annotation set
     filepaths1 = []
-    annfolder = '/home/althausc/master_thesis_impl/flask/results/testresults'
+    annfolder = '/home/althausc/master_thesis_impl/flask/results/final/iart_results_new_2/iart_results_new_2'
     humanposefolders = ['JJo_reduced', 'Jc_rel', 'JcJLdLLa_reduced', 'JLd_all_direct', 'random'] 
 
     for descriptortype in humanposefolders:
@@ -23,15 +23,19 @@ def main():
         onlyfiles = [os.path.join(descriptordir, f) for f in os.listdir(descriptordir) if os.path.isfile(os.path.join(descriptordir, f))]
         filepaths1.extend(onlyfiles)
 
-    backgrounds = ['art_history', 'computer_science', 'others']
+    backgrounds = ['art_history', 'computer_science', 'other']
     groundtruth = {'positives': defaultdict(list), 'negatives': defaultdict(list), 'dontknow': defaultdict(list)}
     groundtruth_b = {}
     groundtruth_bh = {}
     qnametoindex_h = {}
+    instancesindex = {}
+    c_existingindices = 0
+    
+    bcounter = {'art_history':0, 'computer_science':0, 'other':0}
     users = []
 
     for b in backgrounds:
-        groundtruth_bh[b] = {hp: {'positives': defaultdict(list), 'negatives': defaultdict(list), 'dontknow': defaultdict(list), 'users': defaultdict(list)} for hp in humanposefolders}
+        groundtruth_bh[b] = {hp: {'positives': defaultdict(list), 'negatives': defaultdict(list), 'dontknow': defaultdict(list), 'users': defaultdict(list), 'retrievalfiles': defaultdict(list)} for hp in humanposefolders}
         qnametoindex_h.update({'JJo_reduced' : {}, 'Jc_rel': {}, 'JcJLdLLa_reduced' : {}, 'JLd_all_direct' : {}, 'random' : {}})
 
     if _DEBUG_PRECISION:
@@ -57,11 +61,20 @@ def main():
         groundtruth['positives'][qname].extend(posfilenames)
         groundtruth['negatives'][qname].extend(negfilenames)
         groundtruth['dontknow'][qname].extend(dknowfilenames)
+       
+        for retrievalfile in list(annitem['retrievalfiles'].values())[:20]:
+            instancename = "{}_{}".format(qname, retrievalfile['filename'])
+            if instancename not in instancesindex:
+                instancesindex[instancename] = len(instancesindex)
+            else:
+                c_existingindices += 1
+        
 
         #For Agreements
         user = annitem['user']
         if user not in users:
             users.append(user)
+            bcounter[b] += 1
 
         for h in humanposefolders:
             if h in fpath:
@@ -72,28 +85,36 @@ def main():
                 #for agreement calculations
                 posindices = annitem['annotations']
                 negindices = annitem['negativs']
+                rfiles = [item['filename'] for item in list(annitem['retrievalfiles'].values())[:20]]
                 if qname not in groundtruth_bh[b][h]['positives']:
                     groundtruth_bh[b][h]['positives'][qname] = [posindices] #to differentiate random and descriptors
                     groundtruth_bh[b][h]['negatives'][qname] = [negindices]
                     groundtruth_bh[b][h]['dontknow'][qname] = [dontknow_indices]
+                    groundtruth_bh[b][h]['retrievalfiles'][qname] = [rfiles]
                 else:
                     groundtruth_bh[b][h]['positives'][qname].append(posindices) #to differentiate random and descriptors
                     groundtruth_bh[b][h]['negatives'][qname].append(negindices)
                     groundtruth_bh[b][h]['dontknow'][qname].append(dontknow_indices)
+                    groundtruth_bh[b][h]['retrievalfiles'][qname].append(rfiles)
                 groundtruth_bh[b][h]['users'][qname].append(annitem['user'])
                 break
         
                
     if _DEBUG_AGREEMENTS:
         print("qnametoindex_h:", qnametoindex_h)
+        print("Index for instances (queryname + retrievalfilepath):", instancesindex)
+        print("Double indices:", c_existingindices)
         print(groundtruth_bh['art_history']['JJo_reduced'])
+   
     
     stats = "Human Pose Groundtruth Statistics:" + '\n'
     for qname in groundtruth['positives'].keys():
         txt1 = "Number of relevant images for query {} = {}".format(qname, len(set(groundtruth['positives'][qname])))
         txt2 = "Number of non-relevant images for query {} = {}".format(qname, len(set(groundtruth['negatives'][qname])))
+        txt3 = "Number of dont know images for query {} = {}".format(qname, len(set(groundtruth['dontknow'][qname])))
         print(txt1)
         print(txt2)
+        print(txt3)
         stats += txt1 + '\n'
         stats += txt2 + '\n'
 
@@ -126,6 +147,7 @@ def main():
                 qname = os.path.splitext(os.path.basename(sranking['querypath']))[0]
                 #print(fpath)
                 retrievalfiles = sorted(list(sranking['retrievaltopk'].items()), key= lambda x: int(x[0]))
+               
                 positives = [] # saves for each rank if image is positive (1) or not (0) 
                 graded = [] # saves for each rank 0,1,2, (0 for negatives and not seen images, 1= dontknow, 2= positives)
                 for r, item in retrievalfiles:
@@ -148,18 +170,19 @@ def main():
                 
 
             results_precision[descriptortype][metric] = getresults_queryimages(results, results_graded, groundtruth, descriptortype)
-
+    print("Users:", users)
+    print("Background distribution:", bcounter)
     print("Results:")
     for descriptor,metricresults in results_precision.items():
         print(descriptor)
         for metric, results in metricresults.items():
             print(metric, results)
 
-    results_agreement_hp = getresults_agreements(groundtruth_bh, qnametoindex_h, users, backgrounds)
+    results_agreement_hp = getresults_agreements(groundtruth_bh, instancesindex, users, backgrounds)
 
     print("Results:")
     print(results_agreement_hp)
-        
+    
     results_precision.update(results_agreement_hp)
 
     filename = 'humanpose-results.json'
@@ -170,7 +193,7 @@ def main():
     print("SCENE GRAPHS:")
     #Generate groundtruth annotation set
     filepaths2 = []
-    annfolder = '/home/althausc/master_thesis_impl/flask/results/testresults'
+    annfolder = '/home/althausc/master_thesis_impl/flask/results/final/iart_results_new_2/iart_results_new_2'
     scenegraphfolders = ['scenegraphs', 'scenegraphs_random'] 
 
     for folder in scenegraphfolders:
@@ -183,7 +206,7 @@ def main():
     print("Number of annotations", len(filepaths2))
     print()
 
-    backgrounds_sg = ['art_history', 'computer_science', 'others']
+    backgrounds_sg = ['art_history', 'computer_science', 'other']
     groundtruth_sg = {'positives': defaultdict(list), 'negatives': defaultdict(list), 'dontknow': defaultdict(list)}
     groundtruth_b_sg = {}
     for b in backgrounds_sg:
@@ -191,7 +214,7 @@ def main():
 
         groundtruth_bh[b].update({sf: {'positives': defaultdict(list), 'negatives': defaultdict(list), 'dontknow': defaultdict(list), 'users': defaultdict(list)} for sf in scenegraphfolders})
         qnametoindex_h.update({'scenegraphs' : {}, 'scenegraphs_random': {}})
-        print(qnametoindex_h)
+        
 
     if _DEBUG_AGREEMENTS:
         print("Annotation files used for groundtruth set:", filepaths2)
@@ -245,8 +268,10 @@ def main():
     for qname in groundtruth_sg['positives'].keys():
         txt1 = "Number of relevant images for query {} = {}".format(qname, len(set(groundtruth_sg['positives'][qname])))
         txt2 = "Number of non-relevant images for query {} = {}".format(qname, len(set(groundtruth_sg['negatives'][qname])))
+        txt3 = "Number of dont know images for query {} = {}".format(qname, len(set(groundtruth_sg['dontknow'][qname])))
         print(txt1)
         print(txt2)
+        print(txt3)
         stats += txt1 + '\n'
         stats += txt2 + '\n'
 
@@ -301,13 +326,13 @@ def main():
 
 # --------------------------------------------------------------------------------------------------------------------
     #Save agreements of scene graph and human poses
-    results_agreement_hpsg = getresults_agreements(groundtruth_bh, qnametoindex_h, users, backgrounds)
-    print("Results:")
-    print(results_agreement_hpsg)
+    #results_agreement_hpsg = getresults_agreements(groundtruth_bh, qnametoindex_h, users, backgrounds)
+   # print("Results:")
+    #print(results_agreement_hpsg)
         
-    filename = 'agreements-hpandsg-results.json'
-    with open(os.path.join('/home/althausc/master_thesis_impl/results/userstudy', filename), 'w') as f:
-        json.dump(results_agreement_hpsg, f, indent=2)
+    #filename = 'agreements-hpandsg-results.json'
+    #with open(os.path.join('/home/althausc/master_thesis_impl/results/userstudy', filename), 'w') as f:
+    #    json.dump(results_agreement_hpsg, f, indent=2)
 
     #Save statistics
     with open(os.path.join('/home/althausc/master_thesis_impl/results/userstudy', "stats.txt"), 'w') as f:
@@ -417,7 +442,7 @@ def getresults_queryimages(qnames_results, qnames_gresults, groundtruth, task):
 
     return res
 
-def getresults_agreements(groundtruth_bh, qnametoindex_h, users, backgrounds):
+def getresults_agreements(groundtruth_bh, instancesindex, users, backgrounds):
     codings_artcomputer = []
     codings_artothers = []
     codings_computerothers = []
@@ -426,71 +451,89 @@ def getresults_agreements(groundtruth_bh, qnametoindex_h, users, backgrounds):
     #['art_history', 'computer_science', 'others']
     for b,hs in groundtruth_bh.items():
         for h, annotations in hs.items():
-            for qname, annlists in annotations['positives'].items():
+            for (qname1, annlists), (qname2, rfileslists) in zip(annotations['positives'].items(), annotations['retrievalfiles'].items()):
+                assert qname1 == qname2
                 #[coder,instance,code]
                 coderb = backgrounds.index(b)
-                instance = qnametoindex_h[h][qname] #background->descriptor->qname->instance_num_of_ranking
-                users_qname = annotations['users'][qname]
+                #instance = qnametoindex_h[h][qname] #background->descriptor->qname->instance_num_of_ranking
+                #instance = instancesindex[qname]
+                users_qname = annotations['users'][qname1]
                 
-                for i, annlist in enumerate(annlists):
+                for i, (annlist, rfiles) in enumerate(zip(annlists, rfileslists)):
                     for c in annlist:
                         assert int(c)>0 and int(c)<=20
-                        codingsb.append([coderb, instance *21 + int(c), 2])
+                        instancename = "{}_{}".format(qname1, rfiles[int(c)-1])
+                        instance = instancesindex[instancename]
+
+                        codingsb.append([coderb, instance, 2])
                         if b == 'art_history': 
-                            codings_artcomputer.append([coderb, instance *21 + int(c), 2])
-                            codings_artothers.append([coderb, instance *21 + int(c), 2])
+                            codings_artcomputer.append([coderb, instance , 2])
+                            codings_artothers.append([coderb, instance, 2])
                         elif b == 'computer_science':
-                            codings_artcomputer.append([coderb, instance *21 + int(c), 2])
-                            codings_computerothers.append([coderb, instance *21 + int(c), 2])
-                        elif b == 'others':
-                            codings_artothers.append([coderb, instance *21 + int(c), 2])
-                            codings_computerothers.append([coderb, instance *21 + int(c), 2])
+                            codings_artcomputer.append([coderb, instance, 2])
+                            codings_computerothers.append([coderb, instance, 2])
+                        elif b == 'other':
+                            codings_artothers.append([coderb, instance , 2])
+                            codings_computerothers.append([coderb, instance, 2])
                         else:
                             raise ValueError()
-                        codingsusers.append([users.index(users_qname[i]), instance *21 + int(c), 2])
+                        codingsusers.append([users.index(users_qname[i]), instance, 2])
                 
-            for qname, annlists in annotations['negatives'].items():
+            for (qname1, annlists), (qname2, rfileslists) in zip(annotations['negatives'].items(), annotations['retrievalfiles'].items()):
+                assert qname1 == qname2
                 #[coder,instance,code]
                 coderb = backgrounds.index(b)
-                instance = qnametoindex_h[h][qname] #background->descriptor->qname->instance_num_of_ranking
-                users_qname = annotations['users'][qname]
-                for i, annlist in enumerate(annlists):
+                #instance = qnametoindex_h[h][qname] #background->descriptor->qname->instance_num_of_ranking
+                #instance = instancesindex[qname]
+                users_qname = annotations['users'][qname1]
+                
+                for i, (annlist, rfiles) in enumerate(zip(annlists, rfileslists)):
                     for c in annlist:
                         assert int(c)>0 and int(c)<=20
-                        codingsb.append([coderb, instance *21 + int(c), 0])
+                        instancename = "{}_{}".format(qname1, rfiles[int(c)-1])
+                        instance = instancesindex[instancename]
+
+                        codingsb.append([coderb, instance, 0])
                         if b == 'art_history': 
-                            codings_artcomputer.append([coderb, instance *21 + int(c), 0])
-                            codings_artothers.append([coderb, instance *21 + int(c), 0])
+                            codings_artcomputer.append([coderb, instance , 0])
+                            codings_artothers.append([coderb, instance, 0])
                         elif b == 'computer_science':
-                            codings_artcomputer.append([coderb, instance *21 + int(c), 0])
-                            codings_computerothers.append([coderb, instance *21 + int(c), 0])
-                        elif b == 'others':
-                            codings_artothers.append([coderb, instance *21 + int(c), 0])
-                            codings_computerothers.append([coderb, instance *21 + int(c), 0])
+                            codings_artcomputer.append([coderb, instance, 0])
+                            codings_computerothers.append([coderb, instance, 0])
+                        elif b == 'other':
+                            codings_artothers.append([coderb, instance , 0])
+                            codings_computerothers.append([coderb, instance, 0])
                         else:
                             raise ValueError()
-                        codingsusers.append([users.index(users_qname[i]), instance *21 + int(c), 0])
-            for qname, annlists in annotations['dontknow'].items():
+                        codingsusers.append([users.index(users_qname[i]), instance, 0])
+
+            for (qname1, annlists), (qname2, rfileslists) in zip(annotations['dontknow'].items(), annotations['retrievalfiles'].items()):
+                assert qname1 == qname2
                 #[coder,instance,code]
                 coderb = backgrounds.index(b)
-                instance = qnametoindex_h[h][qname] #background->descriptor->qname->instance_num_of_ranking
-                users_qname = annotations['users'][qname]
-                for i, annlist in enumerate(annlists):
+                #instance = qnametoindex_h[h][qname] #background->descriptor->qname->instance_num_of_ranking
+                #instance = instancesindex[qname]
+                users_qname = annotations['users'][qname1]
+                
+                for i, (annlist, rfiles) in enumerate(zip(annlists, rfileslists)):
                     for c in annlist:
                         assert int(c)>0 and int(c)<=20
-                        codingsb.append([coderb, instance *21 + int(c), 1])
+                        instancename = "{}_{}".format(qname1, rfiles[int(c)-1])
+                        instance = instancesindex[instancename]
+
+                        codingsb.append([coderb, instance, 1])
                         if b == 'art_history': 
-                            codings_artcomputer.append([coderb, instance *21 + int(c), 1])
-                            codings_artothers.append([coderb, instance *21 + int(c), 1])
+                            codings_artcomputer.append([coderb, instance , 1])
+                            codings_artothers.append([coderb, instance, 1])
                         elif b == 'computer_science':
-                            codings_artcomputer.append([coderb, instance *21 + int(c), 1])
-                            codings_computerothers.append([coderb, instance *21 + int(c), 1])
-                        elif b == 'others':
-                            codings_artothers.append([coderb, instance *21 + int(c), 1])
-                            codings_computerothers.append([coderb, instance *21 + int(c), 1])
+                            codings_artcomputer.append([coderb, instance, 1])
+                            codings_computerothers.append([coderb, instance, 1])
+                        elif b == 'other':
+                            codings_artothers.append([coderb, instance , 1])
+                            codings_computerothers.append([coderb, instance, 1])
                         else:
                             raise ValueError()
-                        codingsusers.append([users.index(users_qname[i]), instance *21 + int(c), 1])
+                        codingsusers.append([users.index(users_qname[i]), instance, 1])
     
     #stats
     counter = defaultdict(int)
@@ -505,10 +548,17 @@ def getresults_agreements(groundtruth_bh, qnametoindex_h, users, backgrounds):
     for item in codingsusers:
         usersperinstance[item[1]].append(item[0])
     c = 0
+    c50 = 0
     for instance, vusers in usersperinstance.items():
         if len(users) == len(vusers):
             c += 1
+        if len(vusers) <= len(users)*0.5: 
+            c50 += 1
+
     print("Number of overlapping instances which were annotated by all users:", c)
+    print("Number of overlapping instances which were annotated by at least >=0.5 users:", c50)
+    print("Number of total instances:", len(usersperinstance))
+
     #stats end
     codingcollection = {'betweenusers': codingsusers, 'betweenbackgrounds': codingsb, 'artcomputer':codings_artcomputer, 'artothers':codings_artothers, 'computerothers':codings_computerothers}
     results = {}

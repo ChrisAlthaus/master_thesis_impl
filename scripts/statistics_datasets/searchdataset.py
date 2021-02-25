@@ -10,13 +10,13 @@ import json
 import random
 import os
 
+#Get named entities from dataset metadata
+
 def get_continuous_chunks(text):
     chunked = ne_chunk(pos_tag(word_tokenize(text)))
     continuous_chunk = []
     current_chunk = []
-    #print(text)
     for i in chunked:
-    #    print(i)
         if type(i) == Tree:
             current_chunk.append(" ".join([token for token, pos in i.leaves()]))
         if current_chunk:

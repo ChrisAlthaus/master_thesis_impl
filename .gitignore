@@ -150,4 +150,5 @@ Scene-Graph-Benchmark.pytorch/out
 
 !scripts/detectron2/modified/run_configs.csv
 !scripts/scenegraph/modified/run_configs.csv
+flask/retrieval
 

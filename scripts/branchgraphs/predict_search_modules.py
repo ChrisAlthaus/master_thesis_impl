@@ -55,7 +55,7 @@ def predict(imagepath, queue=None):
     print("SCENE GRAPH PREDICTION ...")
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-2.sh'
     #Note: model directory should contain a file 'last_checkpoint' with path to the used checkpoint
-    model_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3'
+    model_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3**'
                 #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/others/causal_motif_sgdet' 
                 
     out_dir = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single'
@@ -71,8 +71,8 @@ def predict(imagepath, queue=None):
 
     topkboxes = -1 #10 #-1
     topkrels = 75 #20 #75
-    treshboxes = 0.15
-    treshrels = 0.15
+    treshboxes = 0.1 #0.15
+    treshrels = 0.1 #0.15
 
     #print("Logfile: ", logfile)
     masterport = random.randint(10020, 10100)
@@ -164,23 +164,18 @@ def transform_into_g2vformat(anndir, relasnodes=True, queue=None):
 def search(graphfile, reweight=False, r_mode='jaccard', steps=3000, queue=None):
     # ----------------- GRAPH2VEC PREDICTION & RETRIEVAL ---------------------
     print("GRAPH2VEC PREDICTION & RETRIEVAL ...")
-    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/12-16_11-47-55*/g2vmodelc65839d128e40'
-                #'/home/althausc/master_thesis_impl/graph2vec/models/12-14_17-51-56/g2vmodelc65839d128e40'
-                #'/home/althausc/master_thesis_impl/graph2vec/models/12-12_10-34-58-kaggle-from-here-on/g2vmodelc65839d128e40'
-                #'/home/althausc/master_thesis_impl/graph2vec/models/12-11_11-11-43/g2vmodelc9211d128e100'
-                #'/home/althausc/master_thesis_impl/graph2vec/models/12-10_10-31-58/g2vmodelc9211d1024e200'
+    g2v_model = '/home/althausc/master_thesis_impl/graph2vec/models/02-17_11-36-44**-art500k/g2vmodelc182643d1024e40'
 
     graphdir = os.path.dirname(graphfile)
     labelvecpath = os.path.join(graphdir, 'labelvectors-topk.json')
-    inputfile = graphfile   #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-25_15-23-04/graphs-topk.json'
-                            #'/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/topk/single/09-23_14-52-00/graphs-topk.json' #graphfile
+    inputfile = graphfile 
+
     print('inputfile:', inputfile)
     topk = 100
     logfile = os.path.join(logpath, '4-retrieval.txt')
 
     wliters = 3
-    min_featuredim = 100 #136 #-1 #136
-    #steps = 2000
+    min_featuredim = 168  #Art500k = 168, PbN = 132, Disable = -1, Default = 100
     print("wliters: ", wliters)
 
     if reweight:
@@ -231,17 +226,21 @@ def getImgs(topkresults, drawgraphs = False):
     imgs = []
     scores = []
     for item in rankedlist:
-        if drawgraphs:
-            basename, suffix = os.path.splitext(item[1]['filename'])
-            gfilename = '{}_1scenegraph{}'.format(basename, suffix) 
-            imgs.append(Image.open(os.path.join(imagedir,gfilename)))
-        else:
-            basewidth = 512
-            img = Image.open(os.path.join(imagedir, item[1]['filename'])).convert('RGB')
-            wpercent = (basewidth/float(img.size[0]))
-            hsize = int((float(img.size[1])*float(wpercent)))
-            img = img.resize((basewidth,hsize), Image.ANTIALIAS)
-            imgs.append(img)
+        try:
+            if drawgraphs:
+                basename, suffix = os.path.splitext(item[1]['filename'])
+                gfilename = '{}_1scenegraph{}'.format(basename, suffix) 
+                imgs.append(Image.open(os.path.join(imagedir,gfilename)))
+            else:
+                basewidth = 512
+                img = Image.open(os.path.join(imagedir, item[1]['filename'])).convert('RGB')
+                wpercent = (basewidth/float(img.size[0]))
+                hsize = int((float(img.size[1])*float(wpercent)))
+                img = img.resize((basewidth,hsize), Image.ANTIALIAS)
+                imgs.append(img)
+        except FileNotFoundError as e:
+            print(e)
+            continue
         scores.append(item[1]['relscore'])
     
     return imgs, scores, rankedlist

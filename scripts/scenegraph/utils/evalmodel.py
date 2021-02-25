@@ -47,7 +47,7 @@ def main():
 
     #cfg.DATASETS.VAL = (args.dataset,)
     cfg.DATASETS.TRAIN = ("VG_styletransfer_train",)
-    cfg.DATASETS.VAL = ("VG_styletransfer_val",)
+    cfg.DATASETS.VAL =  ("VG_styletransfer_train",)#("VG_styletransfer_val",)
     #cfg.MODEL.LOAD_DATASETSTATS_PATH = '/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/sgdet_training/12-02_09-23-52-dev3/VG_stanford_filtered_with_attribute_train_statistics.cache'
     cfg.freeze()
     print(cfg)
@@ -81,7 +81,8 @@ def main():
 
 def run_val(cfg, datasetname, model, val_data_loader, distributed, logger):
     torch.cuda.empty_cache()
-    iou_types = ("relations",) #("segm",)("keypoints",)("relations", )("attributes", )
+    #Choose evaluation type
+    iou_types = ("bbox",) #("segm",)("keypoints",)("relations", )("attributes", )("bbox",)
 
     dataset_results, score = inference(
                                 cfg,

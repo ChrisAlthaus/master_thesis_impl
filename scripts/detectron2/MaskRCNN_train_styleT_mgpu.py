@@ -1,3 +1,5 @@
+#Note: deprecated
+
 # Some basic setup:
 # Setup detectron2 logger
 import detectron2

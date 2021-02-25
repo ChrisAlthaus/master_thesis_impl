@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 
+#Generate piecharts for detailed evaluation (for better visualizations)
+
 labels = ['Nose', 'Eyes', 'Ears', 'Should.', 'Elbows', 'Wrists', 'Hips', 'Knees', 'Ankles']
 fs = 17#14
 fig1, ax1 = plt.subplots(figsize=(12, 12))

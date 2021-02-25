@@ -1,4 +1,3 @@
-#Path: /home/althausc/.local/lib/python3.6/site-packages/pycocotools/cocoeval.py
 __author__ = 'tsungyi'
 
 import numpy as np
@@ -8,7 +7,6 @@ from collections import defaultdict
 from . import mask as maskUtils
 import copy
 import os
-import csv
 
 class COCOeval:
     # Interface for evaluating detection on the Microsoft COCO dataset.
@@ -60,7 +58,7 @@ class COCOeval:
     # Data, paper, and tutorials available at:  http://mscoco.org/
     # Code written by Piotr Dollar and Tsung-Yi Lin, 2015.
     # Licensed under the Simplified BSD License [see coco/license.txt]
-    def __init__(self, cocoGt=None, cocoDt=None, iouType='segm',cfg=None):
+    def __init__(self, cocoGt=None, cocoDt=None, iouType='segm'):
         '''
         Initialize CocoEval using coco APIs for gt and dt
         :param cocoGt: coco object with ground truth annotations
@@ -79,10 +77,13 @@ class COCOeval:
         self._paramsEval = {}               # parameters for evaluation
         self.stats = []                     # result summarization
         self.ious = {}                      # ious between all gts and dts
+        #modified: store evaluation results in string
+        self.evalresults = ''
+        #modified end
         if not cocoGt is None:
             self.params.imgIds = sorted(cocoGt.getImgIds())
             self.params.catIds = sorted(cocoGt.getCatIds())
-        self.cfg = cfg  #modified
+
 
     def _prepare(self):
         '''
@@ -134,6 +135,7 @@ class COCOeval:
             p.iouType = 'segm' if p.useSegm == 1 else 'bbox'
             print('useSegm (deprecated) is not None. Running {} evaluation'.format(p.iouType))
         print('Evaluate annotation type *{}*'.format(p.iouType))
+        self.evalresults += 'Evaluate annotation type *{}*'.format(p.iouType) + os.linesep
         p.imgIds = list(np.unique(p.imgIds))
         if p.useCats:
             p.catIds = list(np.unique(p.catIds))
@@ -457,6 +459,7 @@ class COCOeval:
             else:
                 mean_s = np.mean(s[s>-1])
             print(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s))
+            self.evalresults += iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s) + os.linesep
             return mean_s
         def _summarizeDets():
             stats = np.zeros((12,))
@@ -494,20 +497,6 @@ class COCOeval:
         elif iouType == 'keypoints':
             summarize = _summarizeKps
         self.stats = summarize()
-
-        #modified
-        columns = ["AP" , "AP50" ,"AP75" ,"APs" , "APm", "APl", "ARDet1", "ARDet10", "AR", "ARs", "ARm", "ARl" ]
-        filepath = os.path.join(self.cfg.OUTPUT_DIR, iouType + '.csv')
-            
-        if not os.path.exists(filepath):
-            wtr = csv.writer(open (filepath, 'a'), delimiter=',', lineterminator=os.linesep)
-            wtr.writerow(columns)
-        
-        wtr = csv.writer(open (filepath, 'a'), delimiter=',', lineterminator=os.linesep)
-        wtr.writerow(self.stats)
-        #modified end
-
-
 
     def __str__(self):
         self.summarize()

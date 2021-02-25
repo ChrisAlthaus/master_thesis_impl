@@ -25,9 +25,9 @@ def get_dataset_statistics(cfg):
     will be called to help construct FrequencyBias module
     """
     #modified: to circumvent costly train dataset load
-    if cfg.MODEL.LOAD_DATASETSTATS_PATH:
-        stats = torch.load(cfg.MODEL.LOAD_DATASETSTATS_PATH)
-        return stats
+    #if cfg.MODEL.LOAD_DATASETSTATS_PATH:
+    #    stats = torch.load(cfg.MODEL.LOAD_DATASETSTATS_PATH)
+    #    return stats
     #modified end
 
     logger = logging.getLogger(__name__)

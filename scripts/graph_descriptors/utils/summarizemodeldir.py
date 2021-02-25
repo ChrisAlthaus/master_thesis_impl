@@ -1,6 +1,6 @@
 import os
 import csv
-
+#Summarize training configurations and evaluation scores in .csv table
 cpktfolders = [x[0] for x in os.walk('/home/althausc/master_thesis_impl/graph2vec/models')]
 print(cpktfolders[:10])
 

@@ -10,6 +10,7 @@ import itertools
 from PIL import Image
 import cv2
 
+#Deprecated: not used anymore
 
 def merge_retrievalresults(topkkpt_file, topngraph_file, topk=10, weight_branches = 0.5):
     # Format of input files: 

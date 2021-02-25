@@ -23,8 +23,6 @@ imgids = list(set([d["image_id"] for d in dbdata]))
 
 dbmetadata = []
 for index, row in pbn.iterrows():
-    #print(int(os.path.splitext(row['filename'])[0]), imgids[:4])
-    #exit(1)
     if os.path.splitext(row['new_filename'])[0] in imgids: 
         dbmetadata.append(row)
 dbmetadata = pd.DataFrame(dbmetadata)

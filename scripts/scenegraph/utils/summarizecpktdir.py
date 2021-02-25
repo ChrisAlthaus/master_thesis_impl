@@ -1,6 +1,8 @@
 import os
 import csv
 
+#Summarize training configurations and evaluation scores in .csv table
+
 _MODE = 'SGDETTRAIN'
 if _MODE == 'BACKBONE':
     cpktfolders = [x[0] for x in os.walk('/home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/checkpoints/faster_rcnn_training/logs')]

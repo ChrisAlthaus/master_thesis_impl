@@ -24,8 +24,13 @@ import random
 
 NUMBER_VISUALIZE = 100
 
-#sbatch -w devbox4 -J visimages -o /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.vislog.txt /home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/maskrcnn_predictions.json -imagespath /nfs/data/iart/kaggle/img/ -outputdir /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages
-#sbatch -w devbox4 -J visimages -o /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.vislog.txt /home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py -file /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/maskrcnn_predictions.json -imagespath /nfs/data/iart/kaggle/img/ -outputdir /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages
+# Example usage:
+# sbatch -w devbox4 -J visimages -o /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.vislog.txt 
+# /home/althausc/master_thesis_impl/scripts/singularity/sbatch_nogpu.sh /home/althausc/master_thesis_impl/scripts/detectron2/utils/visualizekpts.py 
+# -file /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/maskrcnn_predictions.json 
+# -imagespath /nfs/data/iart/kaggle/img/
+#  -outputdir /home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/12-14_18-27-33/.visimages
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-file', required=True,

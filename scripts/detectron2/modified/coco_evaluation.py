@@ -63,7 +63,6 @@ class COCOEvaluator(DatasetEvaluator):
         self._tasks = self._tasks_from_config(cfg)
         self._distributed = distributed
         self._output_dir = output_dir
-        self.cfg = cfg  #modified
 
         self._cpu_device = torch.device("cpu")
         self._logger = logging.getLogger(__name__)
@@ -189,7 +188,7 @@ class COCOEvaluator(DatasetEvaluator):
         for task in sorted(tasks):
             coco_eval = (
                 _evaluate_predictions_on_coco(
-                    self._coco_api, coco_results, task, kpt_oks_sigmas=self._kpt_oks_sigmas, cfg= self.cfg
+                    self._coco_api, coco_results, task, kpt_oks_sigmas=self._kpt_oks_sigmas
                 )
                 if len(coco_results) > 0
                 else None  # cocoapi does not handle empty results very well
@@ -483,7 +482,7 @@ def _evaluate_box_proposals(dataset_predictions, coco_api, thresholds=None, area
     }
 
 
-def _evaluate_predictions_on_coco(coco_gt, coco_results, iou_type, kpt_oks_sigmas=None,cfg=None):
+def _evaluate_predictions_on_coco(coco_gt, coco_results, iou_type, kpt_oks_sigmas=None):
     """
     Evaluate the coco results using COCOEval API.
     """
@@ -499,7 +498,7 @@ def _evaluate_predictions_on_coco(coco_gt, coco_results, iou_type, kpt_oks_sigma
             c.pop("bbox", None)
 
     coco_dt = coco_gt.loadRes(coco_results)
-    coco_eval = COCOeval(coco_gt, coco_dt, iou_type,cfg)   #modified
+    coco_eval = COCOeval(coco_gt, coco_dt, iou_type)
 
     if iou_type == "keypoints":
         # Use the COCO default keypoint OKS sigmas unless overrides are specified

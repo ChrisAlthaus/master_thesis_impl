@@ -183,6 +183,7 @@ def do_vg_evaluation(
 
 
     logger.info(result_str)
+    print(result_str)
     
     if "relations" in iou_types:
         if output_folder:
@@ -196,11 +197,13 @@ def do_vg_evaluation(
 
     elif "bbox" in iou_types:
         #modfied: get all coco evaluation box statistics
-        return coco_eval.stats
+        print("Coco stats: ", coco_eval.stats)
+        print("Previous score (mAP): ", float(mAp))
+        return coco_eval.stats, float(mAp)
         #return float(mAp)
         #modified end
     else:
-        return -1
+        return [], -1
 
 
 def save_output(output_folder, groundtruths, predictions, dataset):
@@ -240,6 +243,7 @@ def evaluate_relation_of_one_image(groundtruth, prediction, global_container, ev
     """
     #unpack all inputs
     mode = global_container['mode']
+    print(prediction)
 
     local_container = {}
     local_container['gt_rels'] = groundtruth.get_field('relation_tuple').long().detach().cpu().numpy()

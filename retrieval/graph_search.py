@@ -268,20 +268,29 @@ def saveresults(ranking, output_dir):
     #   - imagdir: base image directory
     #   - dict-entries rank : {filepath, relscore}
     outdata = {}
-    prefixes = []
+    
+    if 'art500k' in ranking[0][0]:
+        basefolder = '/nfs/data/iart/art500k/img/'
+    elif 'kaggle' in ranking[0][0]:
+        basefolder = '/nfs/data/iart/kaggle/img'
+    else:
+        raise ValueError()
+
     for r,item in enumerate(ranking):
         fname = item[0]
         if fname.startswith('g_'):
             fname = fname[2:]
-        prefixes.append(os.path.dirname(fname))
-        fname = os.path.basename(fname)
+
+        if not os.path.isfile(fname):
+            continue
+        fname = os.path.relpath(fname, basefolder)
         outdata[r] = {"filename": fname, "relscore": float(item[1])}
     
-    assert all(x == prefixes[0] for x in prefixes)
+    #assert all(x == prefixes[0] for x in prefixes)
     if len(ranking)==0:
         outdata['imagedir'] = 'not enough annotations'
     else:
-        outdata['imagedir'] = prefixes[0]
+        outdata['imagedir'] = basefolder
     
     with open(os.path.join(output_dir, 'topkresults.json'), 'w') as f:
         print("Writing to file: ",os.path.join(output_dir, 'topkresults.json'))

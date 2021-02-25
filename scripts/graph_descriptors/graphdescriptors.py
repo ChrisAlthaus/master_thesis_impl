@@ -27,7 +27,6 @@ def parameter_parser():
 
     args = parser.parse_args()
     return args
-#TODO: expand short graphs /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/out/predictions/single/12-10_12-47-19/.descriptors/graphdescriptors.json-short
 
 #Transform the input graph prediction file (bbox, bbox_labels,...) to the necessary 
 #Graph2Vec file format (edgeindices, boxlabels, ...). 
@@ -47,7 +46,7 @@ def main(args):
     if not os.path.isfile(args.file) or not os.path.isfile(args.imginfo):
         raise ValueError("Json file does not exist.")
     
-    output_dir = os.path.join(os.path.dirname(args.file), '.descriptors') #datetime.datetime.now().strftime('%m-%d_%H-%M-%S'))
+    output_dir = os.path.join(os.path.dirname(args.file), '.descriptors')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     #else:

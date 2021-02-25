@@ -45,7 +45,6 @@ sys.path.append('/home/althausc/master_thesis_impl/scripts/scenegraph')
 from visualizeimgs import draw_image
 import maskrcnn_benchmark
 print(os.path.abspath(maskrcnn_benchmark.__file__))
-exit(1)
 
 
 

@@ -1,8 +1,8 @@
 import csv
+#not used anymore
 
 #Script is used to summarize all the runs in rum_configs.csv by creating a text csv.
 #This csv is used to visualize the hyperparameters in the application plotly.
-
 csvfile = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/run_configs.csv'
 
 _NETTYPE = 'ALL'

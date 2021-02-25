@@ -113,7 +113,7 @@ for i in range(0,_NUM_RUNS):
 
     elif _PARAM_MODE == 'custom':
         trainmode = 'SCRATCH' #'ALL' #'SCRATCH'
-        dataaugm = True #False #True
+        dataaugm = True #False
         batchsize = 2#16 #2 #original: 16
         lr = 0.0020 #0.0035 #0.00185 #0.0005 #0.005/2 #0.0035 #original: 0.001
         bn = "FrozenBN" #"FrozenBN", "GN", "SyncBN", "BN", ''
@@ -168,7 +168,7 @@ for i in range(0,_NUM_RUNS):
 
     #Normal run command, Print for eventually debugging
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
-    resume = False#True #False #False #True
+    resume = False#True 
     maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch/model_final.pth' #'/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-02_14-04-50_scratch/model_final.pth'
 
 
@@ -193,34 +193,3 @@ for i in range(0,_NUM_RUNS):
     os.system(cmd)
     time.sleep(10)
     print()
-
-
-
-    """
- print(row[header.index('NET')] == params['net'], \
-                    eval(row[header.index('Data Augmentation [CropSize, FlipProb, RotationAngle]')]) ==  params['dataaugm'],\
-                    int(row[header.index('ImPerBatch')]) ==  params['batchsize'], \
-                    float(row[header.index('LR')]) ==  params['lr'], \
-                    eval(row[header.index('BN')]) ==  params['bn'], \
-                    int(row[header.index('Min Keypoints')]) ==  params['minkpts'], \
-                    eval(row[header.index('Steps')]) ==  params['steps'], \
-                    float(row[header.index('Gamma')]) ==  params['gamma'], \
-                    eval(row[header.index('MinSize Train')]) ==  params['minscales'] )
-
-                print( eval(row[header.index('Steps')]), params['steps'])
-                print( type(eval(row[header.index('Steps')])), type(params['steps']))
-
-
-                print(row[header.index('NET')] , params['net'], \
-                    row[header.index('Data Augmentation [CropSize, FlipProb, RotationAngle]')] , params['dataaugm'],\
-                    int(row[header.index('ImPerBatch')]), params['batchsize'], \
-                    float(row[header.index('LR')]),  params['lr'], \
-                    row[header.index('BN')] ,  params['bn'], \
-                    int(row[header.index('Min Keypoints')]), params['minkpts'], \
-                    eval(row[header.index('Steps')]), params['steps'], \
-                    float(row[header.index('Gamma')]) , params['gamma'], \
-                    eval(row[header.index('MinSize Train')]),  params['minscales'])
-
-                print("------------------------------")
-
-    """

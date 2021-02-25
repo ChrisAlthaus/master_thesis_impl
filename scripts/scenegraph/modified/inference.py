@@ -270,7 +270,7 @@ def custom_sgg_post_precessing(predictions, cfg):
     #modified: Save transform statistics
     with open(os.path.join(cfg.DETECTED_SGG_DIR, 'stats.txt'), 'a') as f:
         for name, statslist in stats.items():
-            print(name,statslist)
+            #print(name,statslist)
             f.write(name + os.linesep)
             f.write(getwhiskersvalues(statslist) + os.linesep)
     #modified end

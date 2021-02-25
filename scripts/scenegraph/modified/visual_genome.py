@@ -1,9 +1,11 @@
+#Path: /home/althausc/master_thesis_impl/Scene-Graph-Benchmark.pytorch/maskrcnn_benchmark/data/datasets/visual_genome.py
 import os
 import sys
 import torch
 import h5py
 import json
 from PIL import Image, UnidentifiedImageError
+from PIL import ImageFile
 import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
@@ -13,8 +15,9 @@ from maskrcnn_benchmark.structures.bounding_box import BoxList
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 
 BOX_SCALE = 1024  # Scale at which we have the boxes
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-IMGPATHS_GENERATOR = True #Disable to load images from TEST.CUSTUM_PATH, 
+IMGPATHS_GENERATOR = True #False #Disable to load images from TEST.CUSTUM_PATH, 
                           #nevertheless its good to specify TEST.CUSTUM_PATH for possible relative paths
 
 class VGDataset(torch.utils.data.Dataset):
@@ -143,14 +146,20 @@ class VGDataset(torch.utils.data.Dataset):
 
         #modified: Optional for getting filenames from a custom loading function
         filepaths = []
-        if IMGPATHS_GENERATOR:
-            import sys
-            sys.path.append('/home/althausc/master_thesis_impl/scripts/detectron2/utils')
-            import utilsart500k
-            filepaths = utilsart500k.get_paths_of_paintings()
-        else:
-            filepaths = os.listdir(path)
+
+        filesindir = next(os.walk(path))[2]
+        if len(filesindir) == 1: #Prediction of query image
+            filepaths = filesindir
+        else: #Training Scene Graph model
+            if path == '/nfs/data/iart/art500k/img':
+                import sys
+                sys.path.append('/home/althausc/master_thesis_impl/scripts/detectron2/utils')
+                import utilsart500k
+                filepaths = utilsart500k.get_paths_of_paintings()[125000:] #Total: 238223
+            else:
+                filepaths = os.listdir(path)
         #modified end
+        
         for file_name in filepaths:
             try:
                 #modified: swapped custom_files append because index error
@@ -410,7 +419,7 @@ def load_graphs(roidb_file, split, num_im, num_val_im, filter_empty_rels, filter
         if split == 'val':
             #print("Get first {} images of the filtered dataset for validation.".format(num_val_im))
             print("Number of validation images (filtered for empty boxes & rels: {}".format(len(image_index)))
-            #image_index = image_index[:num_val_im]
+            image_index = image_index[:5000]
         elif split == 'train':
             #print("Get last {} images of the filtered dataset for training.".format(len(image_index)-num_val_im))
             #print("First {} images reserved for validation.".format(num_val_im))

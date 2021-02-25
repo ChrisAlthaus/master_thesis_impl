@@ -19,6 +19,7 @@ import shutil
 import dill
 import random
 import csv
+import copy
 import matplotlib.pyplot as plt
 
 sgraphscript_dir = '/home/althausc/master_thesis_impl/scripts/scenegraph'
@@ -164,16 +165,21 @@ def getSimilarityScore(valdocs, model, topk, stepsinfer):
 
     dim = model.vector_size
 
+    modelcopy = copy.deepcopy(model)
+
     ranks = []
     start = time.time()
+
+    for doc in valdocs:
+        vector = model.infer_vector(doc.words, alpha=0.025, steps=stepsinfer)
 
     for doc in valdocs:
         imgname = doc.tags[0]
         #model.random.seed(0)
         #print(doc.words)
         #print(imgname)
-        vector = model.infer_vector(doc.words, alpha=0.025, steps=stepsinfer)
-        sims = model.docvecs.most_similar([vector], topn=topk)
+        vector = modelcopy.infer_vector(doc.words, alpha=0.025, steps=stepsinfer)
+        sims = modelcopy.docvecs.most_similar([vector], topn=topk)
         for r,item in enumerate(sims):
             #print(r,item)
             if item[0] == imgname:
@@ -222,7 +228,10 @@ def getcallback(docs_collection, epochnum = 1, logdir=None, istrain=True, topk=1
 
         def on_epoch_end(self, model):
             if self.epoch % self.epochnum == 0:
-                mscore, mrank, recalls = getSimilarityScore(self.docs, model, topk, self.stepsinfer)
+                if istrain:
+                    mscore, mrank, recalls = getSimilarityScore(self.docs[:20000], model, topk, self.stepsinfer) #added for the larger datasets later
+                else:
+                    mscore, mrank, recalls = getSimilarityScore(self.docs, model, topk, self.stepsinfer)
 
                 #if istrain is False:
                 #    print("Validation on %d images"%len(self.docs))
@@ -363,6 +372,7 @@ def saveconfig(output_dir, args, numtraindocs, doclenstats):
         f.write("Min count: %s"%args.min_count + os.linesep)
         f.write("Wl-iterations: %s"%args.wl_iterations + os.linesep)
         f.write("Steps Inference: %d"%args.steps_inference + os.linesep)
+        f.write("Min Feature Dimension: %d"%args.min_featuredim + os.linesep)
 
         f.write("Epochs: %s"%args.epochs + os.linesep)
         f.write("Epochsave: %s"%args.epochsave + os.linesep)
@@ -401,6 +411,11 @@ def main(args):
     data = None
     with open(args.input_path, "r") as f:
         data = json.load(f)  
+    
+    data2 = None
+    if args.input_path_merge:
+        with open(args.input_path_merge, "r") as f:
+            data2 = json.load(f)  
         
     modeldir = os.path.join('/home/althausc/master_thesis_impl/graph2vec/models', datetime.datetime.now().strftime('%m-%d_%H-%M-%S')) 
     if not os.path.exists(modeldir):
@@ -416,6 +431,9 @@ def main(args):
 
     graphs = list(data.items()) #[(filename, graph) ... , (filename, graph)]
                                 #graph = {'edges': ... , 'features': ... , 'box_scores': ... , 'rel_scores': ...}
+    if args.input_path_merge:
+        graphs.extend(list(data2.items()))
+
     print("Number of training graphs: ",len(graphs))
     print("\nFeature extraction for train dataset ({} graphs) started.\n".format(len(graphs)))
     document_collections = Parallel(n_jobs=args.workers)(delayed(feature_extractor)(gd[0], gd[1], args.wl_iterations) for gd in graphs) #tqdm(graphs))

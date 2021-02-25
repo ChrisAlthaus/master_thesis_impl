@@ -55,10 +55,13 @@ if args.verbose:
 #if args.validateMethod not in _VALIDATION_METHODS:
 #    raise ValueError("No valid validation mode.")
 
-#python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors /home/althausc/master_thesis_impl/posedescriptors/out/insert/12-18_16-44-58-JcJLdLLa_reduced-insert/geometric_pose_descriptor_c_53615_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json -validateMethod K-MEANSIMAGES -validateks 30 40 -v -gpdtype JcJLdLLa_reduced
-#python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py -descriptors /home/althausc/master_thesis_impl/posedescriptors/out/insert/12-18_16-44-58-JcJLdLLa_reduced-insert/geometric_pose_descriptor_c_53615_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json -validateMethod SILHOUETTE -validateks 10 200 -v -gpdtype JcJLdLLa_reduced
-#/home/althausc/master_thesis_impl/posedescriptors/out/insert/12-22_22-34-21-JLd_all-insert/geometric_pose_descriptor_c_68753_mJLd_all_direct_t0.05_f1_mkpt7n1.json
-#/home/althausc/master_thesis_impl/posedescriptors/out/insert/12-23_11-28-42-jcrel_insert/geometric_pose_descriptor_c_68753_mJc_rel_t0.05_f1_mkpt7n1.json
+#Example usage:
+#python3.6 /home/althausc/master_thesis_impl/scripts/pose_descriptors/clustering_descriptors.py 
+# -descriptors /home/althausc/master_thesis_impl/posedescriptors/out/insert/12-18_16-44-58-JcJLdLLa_reduced-insert/geometric_pose_descriptor_c_53615_mJcJLdLLa_reduced_t0.05_f1_mkpt7n1.json 
+# -validateMethod K-MEANSIMAGES 
+# -validateks 30 40 
+# -v -gpdtype JcJLdLLa_reduced
+
 
 def main():
     output_dir = '/home/althausc/master_thesis_impl/posedescriptors/clustering/%s'%('eval' if args.validateMethod is not None else 'out')

@@ -1,23 +1,6 @@
 
 /home/althausc/master_thesis_impl/results
    .
-   |-09
-   |---01_18-55-43
-   |-----AP_improvement
-   |-------all_plots
-   |-coco-analyze
-   |---AP_improvement
-   |-----all_plots
-   |---background_errors
-   |-----false_negatives
-   |-----false_positives
-   |---benchmarks_sensitivity
-   |-----occlusion_crowding
-   |-----size
-   |-------all_plots
-   |---keypoints_breakdown
-   |---localization_errors
-   |---scoring_errors
    |-graphdetection
    |-logs
    |---jupyter-notebook
@@ -25,21 +8,91 @@
    |-----kptbranch
    |-posedetection
    |---maskrcnn
-   |-----10-13_11-41-17
-   |-------10
-   |---------21_12-56-30
-   |---------21_12-58-48
-   |-----10-13_12-49-15
-   |-------10
-   |---------21_12-41-41
-   |---------21_12-44-03
-   |---------21_12-44-53
-   |---------21_12-45-28
-   |---------21_12-48-45
-   |---------21_12-49-42
-   |---------21_12-59-06
-   |---------21_13-00-03
-   |---------21_13-00-41
+   |-----02-02_17-14-41
+   |-----02-02_17-20-29-baseline
+   |-------AP_improvement
+   |---------all_plots
+   |-------background_errors
+   |---------false_negatives
+   |---------false_positives
+   |-------benchmarks_sensitivity
+   |---------occlusion_crowding
+   |---------size
+   |-----------all_plots
+   |-------localization_errors
+   |---------keypoints_breakdown
+   |-------scoring_errors
+   |-----02-02_19-14-33
+   |-------AP_improvement
+   |---------all_plots
+   |-------background_errors
+   |---------false_negatives
+   |---------false_positives
+   |-------benchmarks_sensitivity
+   |---------occlusion_crowding
+   |---------size
+   |-----------all_plots
+   |-------localization_errors
+   |---------keypoints_breakdown
+   |-------scoring_errors
+   |-----02-02_21-51-21
+   |-------AP_improvement
+   |---------all_plots
+   |-------background_errors
+   |---------false_negatives
+   |---------false_positives
+   |-------benchmarks_sensitivity
+   |---------occlusion_crowding
+   |---------size
+   |-----------all_plots
+   |-------localization_errors
+   |---------keypoints_breakdown
+   |-------scoring_errors
+   |-----12-10_18-22-45
+   |-------AP_improvement
+   |---------all_plots
+   |-------background_errors
+   |---------false_negatives
+   |---------false_positives
+   |-------benchmarks_sensitivity
+   |---------occlusion_crowding
+   |---------size
+   |-----------all_plots
+   |-------localization_errors
+   |---------keypoints_breakdown
+   |-------scoring_errors
+   |-----12-10_18-28-21-best
+   |-------AP_improvement
+   |---------all_plots
+   |-------background_errors
+   |---------false_negatives
+   |---------false_positives
+   |-------benchmarks_sensitivity
+   |---------occlusion_crowding
+   |---------size
+   |-----------all_plots
+   |-------localization_errors
+   |---------keypoints_breakdown
+   |-------scoring_errors
+   |-----12-11_11-37-39-best
+   |-----12-11_16-27-33-baseline
+   |-----logs
+   |-------02-02_17-20-03
+   |-------02-02_19-13
+   |-------02-02_21-48
+   |-------11-18_10-56-02
+   |-------11-20_17-21-47
+   |-------11-20_18-01-30
+   |-------11-23_10-10-51
+   |-------11-23_10-12-01
+   |-------11-23_10-34-45
+   |-------12-10_18-22-39
+   |-------12-11_11-35-00
+   |-------12-11_11-35-14
+   |-------12-11_11-51-35
    |-----maskrcnn_predictions.json
    |---posefix
+   |-userstudy
+   |---testing
+   |-----metadata
 

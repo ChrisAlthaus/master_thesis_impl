@@ -49,7 +49,7 @@ _PREDICT_POSEFIX = False
 def predict(imgpath, queue):
     # ----------------- MASK-RCNN PREDICTIONS ---------------------
     print("MASK-RCNN PREDICTION ...")
-    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch-best/model_final.pth'
+    maskrcnn_cp = '/home/althausc/master_thesis_impl/detectron2/out/checkpoints/11-16_16-28-06_scratch-best**/model_final.pth'
     gpu_cmd = '/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_run-1.sh' #'/home/althausc/master_thesis_impl/scripts/singularity/ubuntu_srun_G1d4-1.sh'
     out_dir = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/query'
     transform_arg = "-styletransfered" if is_styletranfered_img(imgpath) else ""

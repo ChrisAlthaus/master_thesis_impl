@@ -1,3 +1,4 @@
+#Path: /home/althausc/master_thesis_impl/graph2vec/src/param_parser.py
 """Parameter parser to set the model hyperparameters."""
 
 import argparse
@@ -14,6 +15,11 @@ def parameter_parser():
     parser.add_argument("--input-path",
                         nargs="?",
                         default="./dataset/",
+	                help="Input folder with jsons.")
+    
+    parser.add_argument("--input-path-merge",
+                        nargs="?",
+                        default="",
 	                help="Input folder with jsons.")
 
     parser.add_argument("--output-path",

@@ -1,11 +1,8 @@
-
 import json
 from PIL import Image
 import cv2
 import numpy as np
 import os
-
-
 
 predictionfile = '/home/althausc/master_thesis_impl/detectron2/out/art_predictions/train/01-22_13-09-01/maskrcnn_predictions.json'
 
