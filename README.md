@@ -57,10 +57,10 @@ This is the codebase that implements human pose and scene graph detection, train
   - style_transfer: Style-transfer related content
   - utils: Utility functions for general filetypes
 
-General Tips:
+**General Tips:**
 - A 'modified' folder indicates content that was edited from the extern projects.
-- If you have file path problems, look first for the folder structure in repofolder_layouts.
-- If you have problems that you cannot solve, write a message or create an issue.
+- If you have file path problems, please look first for the folder structure in repofolder_layouts.
+- If you have problems that you cannot solve, write me a message or create an issue.
 
 
 
