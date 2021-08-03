@@ -62,6 +62,10 @@ This is the codebase that implements human pose and scene graph detection, train
 - If you have file path problems, please look first for the folder structure in repofolder_layouts.
 - If you have problems that you cannot solve, write me a message or create an issue.
 
+**Links to Written Thesis & Presentation**
+- Written Thesis: https://www.dropbox.com/s/7rfi25jpsddfg3p/Masterarbeit.pdf?dl=0
+- Presentation: https://www.dropbox.com/s/x51szh50gcl5jr2/presentation.pdf?dl=0
+
 
 
 
